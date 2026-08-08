@@ -1,79 +1,105 @@
 # Quickstart
 
-Every figure in `ggann` is a real `plotnine.ggplot`. You can build it two ways —
-with the low-level grammar or with a high-level helper — and they compose with
-plotnine's `+ geom_* / + scale_* / + theme(...)` either way.
+## Load example data
 
 ```python
 import scanpy as sc
 import ggann as ag
-from ggann import gganndata, aes
+from ggann import aes, gene, gganndata
 from plotnine import geom_point
 
 adata = sc.datasets.pbmc68k_reduced()
+markers = ["CD3D", "NKG7", "CST3"]
+group = "bulk_labels"
 ```
 
-## The grammar
+## Use the grammar
 
-`gganndata(adata, aes(...))` resolves the names in your `aes()` — obs columns,
-genes, embedding coordinates — into a tidy `DataFrame` and returns a `ggplot`:
+`gganndata` resolves observation columns, genes, and embedding coordinates into
+the DataFrame used by plotnine:
 
 ```python
-gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point(size=1.5)
+plot = gganndata(
+    adata,
+    aes("UMAP_1", "UMAP_2", color=group),
+) + geom_point(size=1.5)
 ```
 
-Force a source with the `gene(...)` / `obs(...)` escapes when a name is
-ambiguous, or mix sources across aesthetics:
+The result is a `plotnine.ggplot`. Add plotnine layers, scales, facets, and
+themes with `+`.
+
+Use an accessor when the source is ambiguous or a specific expression matrix is
+required:
 
 ```python
-from ggann import gene
-gganndata(adata, aes("UMAP_1", "UMAP_2", color=gene("CD3D"))) + geom_point()
+plot = gganndata(
+    adata,
+    aes("UMAP_1", "UMAP_2", color=gene("CD3D", use_raw=True)),
+) + geom_point(size=1.5)
 ```
 
-## The helpers
+Bare gene names use `adata.raw` when it exists. Pass `use_raw=False` for
+`adata.X`, or `layer="counts"` for a named layer.
 
-The `plot_*` helpers reproduce scanpy's core figures:
+## Use a helper
+
+Plotnine-native helpers prepare the data and return a plotnine object:
 
 ```python
-ag.plot_embedding(adata, "umap", color="bulk_labels", label=True)
-ag.plot_dotplot(adata, ["CD3D", "NKG7", "CST3"], group_by="bulk_labels")
-ag.plot_density(adata, ["CD3D", "NKG7"], joint=True)      # needs ggann[density]
-ag.plot_box(adata, ["CD3D", "NKG7"], group_by="bulk_labels")
+embedding = ag.plot_embedding(adata, "umap", color=group, label=True)
+dotplot = ag.plot_dotplot(adata, markers, group_by=group)
+violin = ag.plot_violin(adata, markers[:1], group_by=group)
+heatmap = ag.plot_heatmap(adata, markers, group_by=group, standard_scale="var")
 ```
 
-Each plotnine-native helper is only a stack of grammar layers — see
-[`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py)
-for the layer-by-layer twin of every helper.
+For `plot_heatmap`, `standard_scale` may be `None`, `"var"`, `"group"`, or
+`"zscore"`.
 
-## One consistent look
-
-Call `ag.set_theme()` once to make the ggann theme plotnine's default, so every
-figure — even a bare `ggplot(...)` — shares it without `+ theme_ggann()`:
+The helper result remains composable:
 
 ```python
-ag.set_theme(base_size=9, family="Arial")   # family is optional; no font is required
-gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()  # already themed
+from plotnine import labs, theme
+
+dotplot + labs(title="Marker expression") + theme(figure_size=(7, 4))
 ```
 
-`ag.sizes` gives a matching font-size scale (`.normal`/`.small`/`.large`/`.title`,
-in pt) so text in annotations stays in sync — convert to `geom_text`'s mm unit with
-`ag.sizes.geom(...)`. `ag.reset_theme()` restores plotnine's default.
+Complete helper and grammar constructions are in
+[`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py).
 
-## Composing panels
+## Set a session-wide theme
 
-`ag.compose` assembles a tagged multi-panel figure from a list of plots (each
-keeps its own scales), which you then save at an exact physical size:
+`set_theme` changes plotnine's global default theme. Call `reset_theme` to undo
+that change.
 
 ```python
-fig = ag.compose(
-    [ag.plot_embedding(adata, "umap", color="bulk_labels"),
-     ag.plot_dotplot(adata, markers, "bulk_labels"),
-     ag.plot_violin(adata, markers[:1], "bulk_labels"),
-     ag.plot_proportions(adata, "bulk_labels", split_by="phase")],
-    ncol=2,                 # A/B/C/D panel tags by default
+ag.set_theme(base_size=9, family="Arial")
+themed = ag.plot_embedding(adata, "umap", color=group)
+ag.reset_theme()
+```
+
+`ag.sizes` exposes the font sizes used by the current ggann theme. Use
+`ag.sizes.geom(...)` when passing a point size to `geom_text`.
+
+## Compose panels
+
+```python
+figure = ag.compose(
+    [
+        ag.plot_embedding(adata, "umap", color=group),
+        ag.plot_dotplot(adata, markers, group),
+        ag.plot_violin(adata, markers[:1], group),
+        ag.plot_proportions(adata, group, split_by="phase"),
+    ],
+    ncol=2,
 )
-fig.save("figure1.pdf", width=180, height=140, units="mm")   # millimetre-exact output
+
+figure.save("figure1.pdf", width=180, height=140, units="mm")
 ```
 
-`tag_levels=` switches the labels (`"a"`, `"1"`, `"i"`, or `None`), and
-`ag.tag_panels(plots)` tags a list you compose by hand with plotnine's `|` / `/`.
+Set `tag_levels` to `"a"`, `"1"`, `"i"`, or `None` to change panel labels.
+
+## Grid-based plots
+
+`plot_clustermap` and `plot_upset` do not return plotnine objects. Install their
+optional extras and use the save methods provided by their backends. See
+{doc}`installation` for the corresponding extras.

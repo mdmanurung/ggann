@@ -1,59 +1,60 @@
 # ggann
 
-**A ggplot2-style plotting layer for scanpy `AnnData` objects.**
-
-`ggann` gives single-cell users the grammar of graphics over an `AnnData`, the
-way `ggplot2` works in R. `gganndata(adata) + aes(...) + geom_*()` returns a real
-[`plotnine.ggplot`](https://plotnine.org), and high-level `plot_*` helpers
-reproduce scanpy's core figures — every one is a thin stack of grammar layers.
+`ggann` prepares `AnnData` fields for plotnine and provides plotting helpers for
+common single-cell figures. `gganndata(...)` and the plotnine-native helpers
+return regular [`plotnine.ggplot`](https://plotnine.org/) objects.
 
 ```python
 import scanpy as sc
 import ggann as ag
-from ggann import gganndata, aes
+from ggann import aes, gganndata
 from plotnine import geom_point
 
 adata = sc.datasets.pbmc68k_reduced()
+markers = ["CD3D", "NKG7", "CST3"]
 
-# grammar of graphics, straight over the AnnData
-gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()
+gganndata(
+    adata,
+    aes("UMAP_1", "UMAP_2", color="bulk_labels"),
+) + geom_point(size=1.5)
 
-# or the high-level, scanpy-equivalent helpers
-ag.plot_embedding(adata, basis="umap", color="CD3D")
-ag.plot_dotplot(adata, ["CD3D", "NKG7", "CST3"], group_by="bulk_labels")
+ag.plot_dotplot(adata, markers, group_by="bulk_labels")
 ```
+
+`plot_clustermap` and `plot_upset` use grid-based backends and return their
+backend objects rather than `ggplot` objects.
 
 ## Start here
 
 ::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} Install ggann
+:::{grid-item-card} Installation
 :link: installation
 :link-type: doc
 
-Set up the package and its optional extras.
+Install the package and optional plotting backends.
 :::
 
 :::{grid-item-card} Quickstart
 :link: quickstart
 :link-type: doc
 
-Build your first figures, both ways.
+Build plots with the grammar and helper interfaces.
 :::
 
 :::{grid-item-card} Gallery
 :link: gallery
 :link-type: doc
 
-See every figure `ggann` produces on `pbmc68k_reduced`.
+View figures generated from `pbmc68k_reduced`.
 :::
 
-:::{grid-item-card} API Reference
+:::{grid-item-card} API reference
 :link: api
 :link-type: doc
 
-Look up the grammar, helpers, scales and theme.
+Check signatures, parameters, and return types.
 :::
 
 ::::

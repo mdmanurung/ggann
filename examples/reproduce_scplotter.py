@@ -1,10 +1,9 @@
-"""Reproduce scplotter's CellDimPlot / FeatureStatPlot vignette figures with ggann.
+"""Render ggann counterparts to scplotter vignette figures.
 
 scplotter's vignettes run on a Seurat ``pancreas_sub`` object; here we reproduce
-the *chart types and options* on ``pbmc68k_reduced`` to show ggann reaches the
-same figures -- either directly through a helper or by composing one plotnine
-layer onto it (the composable API). Capabilities that need data ggann does not
-model (RNA velocity, pseudotime lineages, kNN-graph edges, 3D) are out of scope.
+the chart types and options on ``pbmc68k_reduced``. Capabilities that require
+RNA velocity, lineage fits, neighbour graphs, or three-dimensional rendering
+are outside this example.
 
 Run: ``python examples/reproduce_scplotter.py`` -> writes docs/images/scplotter/.
 """
@@ -74,7 +73,9 @@ def build(adata):
     # add_density = TRUE  -> compose a density-contour layer
     figs["celldim_density"] = (
         ag.plot_embedding(adata, "umap", color=GROUP)
-        + geom_density_2d(aes(x, y), inherit_aes=False, color="black", size=0.25, alpha=0.5),
+        + geom_density_2d(
+            aes(x, y), inherit_aes=False, color="black", size=0.25, alpha=0.5
+        ),
         "CellDimPlot(..., add_density = TRUE)  [composed: + geom_density_2d]",
     )
     # hex = TRUE  -> compose binned counts (geom_hex-equivalent)
@@ -144,7 +145,9 @@ def main():
     out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "scplotter")
     os.makedirs(out, exist_ok=True)
     for name, (plot, _call) in build(adata).items():
-        plot.save(os.path.join(out, f"{name}.png"), width=5.5, height=4, dpi=80, verbose=False)
+        plot.save(
+            os.path.join(out, f"{name}.png"), width=5.5, height=4, dpi=80, verbose=False
+        )
         print("wrote", name)
 
 

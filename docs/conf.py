@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, metadata
@@ -76,16 +77,29 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "anndata": ("https://anndata.scverse.org/en/stable/", None),
-    "scanpy": ("https://scanpy.readthedocs.io/en/stable/", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "pandas": ("https://pandas.pydata.org/docs/", None),
-    "plotnine": ("https://plotnine.org/", None),
-}
+if os.environ.get("GGANN_DOCS_OFFLINE") == "1":
+    intersphinx_mapping = {}
+else:
+    intersphinx_mapping = {
+        "python": ("https://docs.python.org/3", None),
+        "anndata": ("https://anndata.scverse.org/en/stable/", None),
+        "scanpy": ("https://scanpy.readthedocs.io/en/stable/", None),
+        "numpy": ("https://numpy.org/doc/stable/", None),
+        "pandas": ("https://pandas.pydata.org/docs/", None),
+        "plotnine": ("https://plotnine.org/", None),
+    }
 
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
+exclude_patterns = [
+    "_build",
+    # Older builds wrote every public re-export here, including third-party
+    # objects whose upstream docstrings do not parse cleanly in Sphinx. Native
+    # API pages now live under generated/native/.
+    "generated/anngg.*",
+    "generated/ggann.*",
+    "Thumbs.db",
+    ".DS_Store",
+    "**.ipynb_checkpoints",
+]
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]

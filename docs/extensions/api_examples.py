@@ -22,7 +22,7 @@ def _process_docstring(app, what, name, obj, options, lines):
         return
     lines += [
         "",
-        ".. rubric:: Example",
+        ".. rubric:: Rendered output",
         "",
         f".. image:: /images/api/{name}.png",
         "   :alt: Example output of " + name,
