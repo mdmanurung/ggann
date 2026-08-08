@@ -31,19 +31,19 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
     if key not in adata.uns:
         import scanpy as sc
 
-        # matches scanpy's own plotting behaviour: compute (and cache) if absent.
-        # key_added=key so a custom key is written where we then read it.
-        sc.tl.dendrogram(adata, groupby=group_by, key_added=key)
+        result = sc.tl.dendrogram(adata, groupby=group_by, key_added=key, inplace=False)
+        return result["dendrogram_info"]
     return adata.uns[key]["dendrogram_info"]
 
 
-def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation: str = "top"):
+def plot_dendrogram(
+    adata, group_by: str, *, key: str | None = None, orientation: str = "top"
+):
     """Hierarchical tree relating the categories of ``group_by`` (``sc.pl.dendrogram``).
 
-    Reuses the coordinates stored by ``sc.tl.dendrogram`` in
-    ``adata.uns['dendrogram_<group_by>']`` (computing them if absent, as scanpy
-    does). ``orientation='top'`` draws leaves along the x axis with linkage height
-    on y; ``orientation='left'`` rotates the tree so leaves run down the y axis.
+    Reuses coordinates stored by ``sc.tl.dendrogram``. If they are absent, the
+    coordinates are computed without modifying ``adata``. ``orientation='top'``
+    draws leaves along the x axis; ``orientation='left'`` draws them along y.
     """
     if orientation not in {"top", "left"}:
         raise ValueError("orientation must be 'top' or 'left'.")

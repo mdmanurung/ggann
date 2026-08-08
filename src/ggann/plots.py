@@ -30,7 +30,9 @@ from plotnine import (
     theme,
 )
 
-from ._aggregate import aggregate_expression, tidy_expression
+from ._aggregate import aggregate_expression, aggregate_means, tidy_expression
+from ._expression import ordered_unique
+from ._grouping import _downsample_cells, _group_categories, _order_groups
 from ._palette import scale_color_obs
 from ._resolve import embedding_coords, plain_name, resolve_frame
 from .theme import theme_ggann
@@ -49,36 +51,6 @@ def _is_numeric(series: pd.Series) -> bool:
     return pd.api.types.is_numeric_dtype(series) and not isinstance(
         series.dtype, pd.CategoricalDtype
     )
-
-
-def _downsample_cells(adata, group_by: str | None, n: int | None, *, seed: int = 0):
-    """Cap the number of cells (optionally per ``group_by`` category) for speed.
-
-    plotnine's per-cell geoms (violins especially) scale poorly with cell count; a
-    few thousand cells per group render an identical-looking distribution far
-    faster. Returns ``adata`` unchanged when ``n`` is None or already small enough.
-    """
-    import numpy as np
-
-    if n is None:
-        return adata
-    if n < 1:
-        raise ValueError(f"downsample must be a positive integer, got {n}.")
-    if adata.n_obs <= n:
-        return adata
-    rng = np.random.RandomState(seed)
-    if group_by is None:
-        keep = rng.choice(adata.n_obs, n, replace=False)
-    else:
-        col = adata.obs[group_by]
-        cats = list(col.cat.categories) if hasattr(col, "cat") else list(pd.unique(col))
-        arr = col.to_numpy()
-        parts = []
-        for cat in cats:
-            idx = np.flatnonzero(arr == cat)
-            parts.append(idx if len(idx) <= n else rng.choice(idx, n, replace=False))
-        keep = np.concatenate(parts) if parts else np.arange(adata.n_obs)
-    return adata[np.sort(keep)].copy()
 
 
 def _feature_facet(split_by: str | None, *, ncol: int = 1, scales: str = "free_y"):
@@ -130,6 +102,7 @@ def plot_embedding(
     low: str = "#d9d9d9",
     high: str = "#2166ac",
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Scatter over an embedding (UMAP/t-SNE/PCA), optionally coloured and split.
 
@@ -144,8 +117,9 @@ def plot_embedding(
       ``CellDimPlot`` / Seurat ``label=TRUE``.
     * ``downsample=N`` -> randomly keep at most ``N`` cells before drawing, for a
       much lighter scatter on large data (density reads the same; exact points differ).
+      ``random_state`` controls which cells are retained.
     """
-    adata = _downsample_cells(adata, None, downsample)
+    adata = _downsample_cells(adata, None, downsample, random_state=random_state)
     coords = embedding_coords(adata, basis)
     if coords.shape[1] < 2:
         raise ValueError(
@@ -207,7 +181,14 @@ def plot_embedding(
         df = df.sort_values(cname)
         return _facet(
             pe.FeatureDimPlot(
-                df, feature=cname, x=xcol, y=ycol, low=low, high=high, size=size, alpha=alpha
+                df,
+                feature=cname,
+                x=xcol,
+                y=ycol,
+                low=low,
+                high=high,
+                size=size,
+                alpha=alpha,
             )
             + theme_ggann()
             + _embedding_axes()
@@ -246,6 +227,7 @@ def plot_features(
     alpha: float = 0.9,
     cmap: str = "magma",
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Multi-gene embedding grid: one faceted panel per feature.
 
@@ -254,9 +236,11 @@ def plot_features(
     next to a high-range one will look faint -- for independent per-gene colour
     bars (like ``sc.pl.umap(color=[...])``), compose separate ``plot_embedding``
     calls with the re-exported ``Wrap`` / ``plot_layout`` instead. ``downsample=N``
-    caps cells before drawing for lighter panels on large data.
+    caps cells before drawing for lighter panels on large data; ``random_state``
+    controls the retained cells.
     """
-    adata = _downsample_cells(adata, None, downsample)
+    features = ordered_unique(features)
+    adata = _downsample_cells(adata, None, downsample, random_state=random_state)
     coords = embedding_coords(adata, basis)
     if coords.shape[1] < 2:
         raise ValueError(f"Embedding '{basis}' has fewer than 2 dimensions.")
@@ -264,14 +248,21 @@ def plot_features(
 
     values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw)
     feats = list(
-        dict.fromkeys(f for f in features if f in values.columns and _is_numeric(values[f]))
+        dict.fromkeys(
+            f for f in features if f in values.columns and _is_numeric(values[f])
+        )
     )
     if not feats:
-        raise ValueError("plot_features needs at least one numeric feature (gene or metric).")
+        raise ValueError(
+            "plot_features needs at least one numeric feature (gene or metric)."
+        )
 
     df = coords.join(values[feats])
     long = df.melt(
-        id_vars=[xcol, ycol], value_vars=feats, var_name="feature", value_name="expression"
+        id_vars=[xcol, ycol],
+        value_vars=feats,
+        var_name="feature",
+        value_name="expression",
     ).sort_values("expression")
     long["feature"] = pd.Categorical(long["feature"], categories=feats, ordered=True)
     return (
@@ -284,46 +275,6 @@ def plot_features(
     )
 
 
-def _group_categories(adata, group_by: str):
-    """The obs categorical order for ``group_by`` (e.g. Leiden 0,1,..,10,11), else None.
-
-    annplyr's ``summarize`` / ``to_tidy`` strip the Categorical dtype, so the
-    meaningful order must be captured from ``adata.obs`` before aggregation and
-    threaded down to :func:`_order_groups`.
-    """
-    col = adata.obs[group_by]
-    if isinstance(col.dtype, pd.CategoricalDtype):
-        return list(col.cat.categories)
-    return None
-
-
-def _order_groups(frame: pd.DataFrame, group_by: str, categories_order):
-    """Order the group axis, defaulting to the obs categorical order (not alphabetical).
-
-    Groups are nominal (cell identities), so the categorical is left
-    ``ordered=False`` -- this keeps discrete-axis placement but lets plotnine pick
-    a *qualitative* colour palette when ``group_by`` drives a fill/colour
-    aesthetic (an ordered categorical would trigger a misleading sequential ramp).
-    """
-    if categories_order is not None:
-        cats = list(dict.fromkeys(categories_order))  # dedupe, keep order
-    else:
-        col = frame[group_by]
-        if isinstance(col.dtype, pd.CategoricalDtype):
-            cats = list(col.cat.categories)
-        else:
-            cats = sorted(pd.unique(col))
-    present = set(pd.unique(pd.Series(frame[group_by]).astype(object)))
-    missing = present - set(cats)
-    if missing:
-        raise ValueError(
-            f"categories_order is missing groups present in the data: {sorted(missing)}"
-        )
-    frame[group_by] = pd.Categorical(frame[group_by], categories=cats, ordered=False)
-    frame[group_by] = frame[group_by].cat.remove_unused_categories()
-    return frame
-
-
 def _cell_rank(tidy: pd.DataFrame, group_by: str) -> pd.DataFrame:
     """Add a ``cell_rank`` column that orders cells by their ``group_by`` category.
 
@@ -331,10 +282,27 @@ def _cell_rank(tidy: pd.DataFrame, group_by: str) -> pd.DataFrame:
     left-to-right by group. Shared by :func:`plot_heatmap` and
     ``markers.plot_tracksplot``.
     """
-    cell = tidy[["obs_name", group_by]].drop_duplicates().sort_values(group_by)
-    cell = cell.reset_index(drop=True)
-    cell["cell_rank"] = range(len(cell))
-    return tidy.merge(cell[["obs_name", "cell_rank"]], on="obs_name")
+    positions = tidy.groupby("feature", observed=True, sort=False).cumcount()
+    cell = tidy[["obs_name", group_by]].drop_duplicates()
+    n_cells = int(positions.max()) + 1 if len(positions) else 0
+    if cell["obs_name"].is_unique and len(cell) == n_cells:
+        cell = cell.sort_values(group_by)
+        ranks = pd.Series(range(len(cell)), index=cell["obs_name"])
+        result = tidy.copy()
+        result["cell_rank"] = result["obs_name"].map(ranks).to_numpy()
+        return result
+
+    first_feature = ~positions.duplicated()
+    cell = pd.DataFrame(
+        {
+            "position": positions[first_feature].to_numpy(),
+            group_by: tidy.loc[first_feature, group_by].to_numpy(),
+        }
+    ).sort_values(group_by, kind="stable")
+    ranks = pd.Series(range(len(cell)), index=cell["position"])
+    result = tidy.copy()
+    result["cell_rank"] = positions.map(ranks).to_numpy()
+    return result
 
 
 def plot_dotplot(
@@ -356,6 +324,7 @@ def plot_dotplot(
     Defaults to ``adata.raw`` so values match ``sc.pl.dotplot``. ``split_by`` adds a
     facet column so the dotplot is repeated per split level (scplotter ``split_by``).
     """
+    genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
     agg = aggregate_expression(
         adata,
@@ -402,8 +371,9 @@ def plot_matrixplot(
     keeps cross-gene patterns legible when magnitudes differ widely. ``split_by``
     adds a facet column so the heatmap is repeated per split level.
     """
+    genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    agg = aggregate_expression(
+    agg = aggregate_means(
         adata,
         genes,
         group_by,
@@ -436,9 +406,9 @@ def plot_embedding_density(
     ncol: int | None = None,
     cmap: str = "viridis",
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
-    """Per-group cell density over an embedding (a ggann-native take on
-    ``sc.pl.embedding_density``).
+    """Per-group cell density over an embedding.
 
     For each ``group_by`` category a 2D Gaussian KDE is fit on that group's
     embedding coordinates and evaluated at its cells, so every panel shows *where
@@ -448,11 +418,12 @@ def plot_embedding_density(
     This computes the density directly (via ``scipy.stats.gaussian_kde``) rather
     than reading a pre-computed ``sc.tl.embedding_density`` result, so it is a
     native alternative rather than a byte-for-byte reproduction of scanpy's output.
+    ``downsample`` caps cells per group; ``random_state`` controls the sample.
     """
     import numpy as np
     from scipy.stats import gaussian_kde
 
-    adata = _downsample_cells(adata, group_by, downsample)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     coords = embedding_coords(adata, basis)
     if coords.shape[1] < 2:
         raise ValueError(f"Embedding '{basis}' has fewer than 2 dimensions.")
@@ -480,7 +451,9 @@ def plot_embedding_density(
         df = coords.join(gcol)
         # groupby(...).apply concatenates in group-sorted order, so reindex back
         # to df's cell order (a bare .to_numpy() would misalign interleaved groups)
-        per_group = df.groupby(group_by, observed=True, group_keys=False).apply(_density)
+        per_group = df.groupby(group_by, observed=True, group_keys=False).apply(
+            _density
+        )
         df["density"] = per_group.reindex(df.index).to_numpy()
         cats = _group_categories(adata, group_by)
         df = _order_groups(df, group_by, cats)
@@ -503,6 +476,7 @@ def plot_heatmap(
     standard_scale: str | None = None,
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Per-**cell** expression heatmap, cells grouped along x (``sc.pl.heatmap``).
 
@@ -510,27 +484,41 @@ def plot_heatmap(
     tile-coloured by expression -- the per-cell counterpart to the aggregated
     :func:`plot_matrixplot`. ``standard_scale='var'`` z-min-max-scales each gene to
     ``[0, 1]`` across cells so low- and high-range genes stay comparable.
-    ``downsample=N`` caps cells per group first (recommended for large data).
+    ``downsample=N`` caps cells per group first; ``random_state`` controls which
+    cells are retained.
     """
-    adata = _downsample_cells(adata, group_by, downsample)
-    genes = list(genes)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
+    genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
 
-    if standard_scale == "var":
-        g = tidy.groupby("feature", observed=True)["value"]
-        lo = g.transform("min")
-        rng = g.transform("max") - lo
-        tidy["value"] = ((tidy["value"] - lo) / rng.replace(0, pd.NA)).fillna(0.0)
+    if standard_scale not in {None, "var", "group", "zscore"}:
+        raise ValueError(
+            "standard_scale must be None, 'var', 'group' or 'zscore', "
+            f"got {standard_scale!r}"
+        )
+    if standard_scale is not None:
+        key = "obs_name" if standard_scale == "group" else "feature"
+        g = tidy.groupby(key, observed=True)["value"]
+        if standard_scale == "zscore":
+            centre = g.transform("mean")
+            spread = g.transform(lambda values: values.std(ddof=0)).replace(0, 1)
+            tidy["value"] = (tidy["value"] - centre) / spread
+        else:
+            lo = g.transform("min")
+            rng = (g.transform("max") - lo).replace(0, 1)
+            tidy["value"] = (tidy["value"] - lo) / rng
         fill_lab = "scaled expr."
     else:
         fill_lab = "expression"
 
     # order cells by group, then give each a rank so tiles sit side by side
     tidy = _cell_rank(tidy, group_by)
-    tidy["feature"] = pd.Categorical(tidy["feature"], categories=list(reversed(genes)), ordered=True)
+    tidy["feature"] = pd.Categorical(
+        tidy["feature"], categories=list(reversed(genes)), ordered=True
+    )
 
     return (
         ggplot(tidy, aes("cell_rank", "feature", fill="value"))

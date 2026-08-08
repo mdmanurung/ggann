@@ -12,8 +12,8 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, labs
 
+from ._grouping import _group_categories, _order_groups, _resolve_group_order
 from ._palette import scale_color_obs, scale_fill_obs
-from .plots import _group_categories, _order_groups
 from .theme import theme_ggann
 
 __all__ = ["plot_proportions"]
@@ -48,22 +48,40 @@ def plot_proportions(
         Plot within-``split_by`` proportions (summing to 1) instead of raw counts.
     position
         Bar stacking: ``"stack"`` (default), ``"fill"`` (100 %), or ``"dodge"``.
+    categories_order, split_order
+        Explicit orders for the group and split columns. ``None`` uses the order
+        stored on categorical ``obs`` columns, then observed values.
     """
     if kind not in ("bar", "area", "trend"):
         raise ValueError(f"kind must be 'bar', 'area' or 'trend', got {kind!r}")
     if kind in ("area", "trend") and split_by is None:
         raise ValueError(f"kind={kind!r} needs split_by (the x-axis to trend across).")
+    grouping_columns = [group_by, *([split_by] if split_by is not None else [])]
+    missing = [column for column in grouping_columns if column not in adata.obs]
+    if missing:
+        raise KeyError(f"Observation column(s) not found: {missing}.")
     by = [split_by, group_by] if split_by else [group_by]
     counts = adata.ap.count(by=by)
+    if categories_order is None:
+        categories_order = _group_categories(adata, group_by)
 
     if split_by:
         # count() omits (split x group) combinations with zero cells; fill them
         # with 0 so a stacked area/bar tiles cleanly instead of leaving gaps.
-        gcats = categories_order or _group_categories(adata, group_by) or sorted(counts[group_by].unique())
-        scats = split_order or _group_categories(adata, split_by) or sorted(counts[split_by].unique())
+        if split_order is None:
+            split_order = _group_categories(adata, split_by)
+        gcats = _resolve_group_order(counts, group_by, categories_order)
+        scats = _resolve_group_order(counts, split_by, split_order)
+        observed_groups = set(counts[group_by].dropna())
+        observed_splits = set(counts[split_by].dropna())
+        gcats = [category for category in gcats if category in observed_groups]
+        scats = [category for category in scats if category in observed_splits]
+        categories_order, split_order = gcats, scats
         full = pd.MultiIndex.from_product([scats, gcats], names=[split_by, group_by])
         counts = (
-            counts.set_index([split_by, group_by])["n"].reindex(full, fill_value=0).reset_index()
+            counts.set_index([split_by, group_by])["n"]
+            .reindex(full, fill_value=0)
+            .reset_index()
         )
 
     if normalize:
@@ -78,13 +96,9 @@ def plot_proportions(
         # geom_col(position="fill") re-normalizes to 0..1 regardless of the counts
         ylab = "proportion of cells" if position == "fill" else "number of cells"
 
-    counts = _order_groups(
-        counts, group_by, categories_order or _group_categories(adata, group_by)
-    )
+    counts = _order_groups(counts, group_by, categories_order)
     if split_by:
-        counts = _order_groups(
-            counts, split_by, split_order or _group_categories(adata, split_by)
-        )
+        counts = _order_groups(counts, split_by, split_order)
 
     xvar = split_by if split_by else group_by
 

@@ -3,8 +3,8 @@
 ``gganndata`` eagerly resolves the names referenced in the aesthetic mapping into
 a tidy DataFrame (via annplyr) and returns a *real* :class:`plotnine.ggplot`. It
 deliberately does **not** subclass ``ggplot`` or intercept plotnine's draw-time
-resolution -- because it returns a plain ggplot, every existing plotnine geom,
-stat, scale, facet and theme composes with it for free.
+resolution. Because it returns a plain ggplot, existing plotnine geoms, stats,
+scales, facets, and themes compose without adapters.
 """
 
 from __future__ import annotations
@@ -82,9 +82,7 @@ def gganndata(
         ``gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()``.
     """
     mapping = aes() if mapping is None else mapping
-    df = resolve_frame(
-        adata, _referenced_names(mapping), layer=layer, use_raw=use_raw
-    )
+    df = resolve_frame(adata, _referenced_names(mapping), layer=layer, use_raw=use_raw)
     plot = ggplot(df, _plain_mapping(adata, mapping))
     if add_theme:
         plot = plot + theme_ggann()

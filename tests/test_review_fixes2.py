@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import plotnine as p9
 import pytest
@@ -26,11 +24,17 @@ def test_correlation_zero_variance_group_no_crash(adata, markers, group_key):
     smallest = ad.obs[group_key].value_counts().index[-1]
     X[(ad.obs[group_key] == smallest).to_numpy(), :] = 5.0
     ad.raw = AnnData(X, var=ad.raw.var.copy())
-    _build(ag.plot_correlation(ad, group_key, genes=list(ad.raw.var_names[:50]), cluster=True))
+    _build(
+        ag.plot_correlation(
+            ad, group_key, genes=list(ad.raw.var_names[:50]), cluster=True
+        )
+    )
 
 
 def test_correlation_adaptive_and_forced_cmap(adata, markers, group_key):
-    _build(ag.plot_correlation(adata, group_key, genes=markers))  # cmap=None -> adaptive
+    _build(
+        ag.plot_correlation(adata, group_key, genes=markers)
+    )  # cmap=None -> adaptive
     _build(ag.plot_correlation(adata, group_key, genes=markers, cmap="viridis"))
 
 
@@ -47,11 +51,15 @@ def test_density_non_numeric_feature_raises(adata):
 
 def test_violin_box_and_points(adata, markers, group_key):
     _build(ag.plot_violin(adata, markers[:2], group_key, add_points=True))
-    _build(ag.plot_violin(adata, markers[:1], group_key, add_box=False, add_points=True))
+    _build(
+        ag.plot_violin(adata, markers[:1], group_key, add_box=False, add_points=True)
+    )
 
 
 def test_embedding_split_and_label(adata, group_key):
-    _build(ag.plot_embedding(adata, "umap", color=group_key, split_by="phase", label=True))
+    _build(
+        ag.plot_embedding(adata, "umap", color=group_key, split_by="phase", label=True)
+    )
 
 
 def test_embedding_label_warns_on_non_categorical(adata):
@@ -68,6 +76,8 @@ def test_expression_line_name_collision_raises(adata, group_key):
 
 
 def test_proportions_fill_labels_proportion(adata, group_key):
-    plot = ag.plot_proportions(adata, group_key, split_by="phase", normalize=False, position="fill")
+    plot = ag.plot_proportions(
+        adata, group_key, split_by="phase", normalize=False, position="fill"
+    )
     _build(plot)
     assert plot.labels.y == "proportion of cells"

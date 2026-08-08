@@ -20,6 +20,7 @@ from plotnine import (
     scale_x_log10,
 )
 
+from ._compat import renamed_keyword
 from .plots import plot_dotplot, plot_matrixplot
 from .theme import theme_ggann
 
@@ -47,9 +48,9 @@ def _require_de(adata, key: str):
         )
 
 
-def _de_groupby(adata, key: str, groupby):
-    if groupby is not None:
-        return groupby
+def _de_group_by(adata, key: str, group_by):
+    if group_by is not None:
+        return group_by
     return adata.uns[key]["params"]["groupby"]
 
 
@@ -72,19 +73,33 @@ def _top_genes(adata, n_genes: int, key: str) -> list[str]:
 
 
 def plot_rank_genes_dotplot(
-    adata, n_genes: int = 5, groupby: str | None = None,
-    key: str = "rank_genes_groups", **kwargs,
+    adata,
+    n_genes: int = 5,
+    group_by: str | None = None,
+    key: str = "rank_genes_groups",
+    **kwargs,
 ):
     """Dotplot of the top ``n_genes`` markers per group (``sc.pl.rank_genes_groups_dotplot``)."""
     _require_de(adata, key)
-    groupby = _de_groupby(adata, key, groupby)
+    group_by = renamed_keyword(
+        group_by,
+        kwargs.pop("groupby", None),
+        name="group_by",
+        legacy_name="groupby",
+        default=None,
+    )
+    group_by = _de_group_by(adata, key, group_by)
     genes = _top_genes(adata, n_genes, key)
-    return plot_dotplot(adata, genes, groupby, **kwargs)
+    return plot_dotplot(adata, genes, group_by, **kwargs)
 
 
 def plot_rank_genes_matrixplot(
-    adata, n_genes: int = 5, groupby: str | None = None,
-    key: str = "rank_genes_groups", standard_scale: str | None = "var", **kwargs,
+    adata,
+    n_genes: int = 5,
+    group_by: str | None = None,
+    key: str = "rank_genes_groups",
+    standard_scale: str | None = "var",
+    **kwargs,
 ):
     """Matrixplot (group-mean tiles) of the top ``n_genes`` markers per group.
 
@@ -92,14 +107,28 @@ def plot_rank_genes_matrixplot(
     per-cell ``..._heatmap``.
     """
     _require_de(adata, key)
-    groupby = _de_groupby(adata, key, groupby)
+    group_by = renamed_keyword(
+        group_by,
+        kwargs.pop("groupby", None),
+        name="group_by",
+        legacy_name="groupby",
+        default=None,
+    )
+    group_by = _de_group_by(adata, key, group_by)
     genes = _top_genes(adata, n_genes, key)
-    return plot_matrixplot(adata, genes, groupby, standard_scale=standard_scale, **kwargs)
+    return plot_matrixplot(
+        adata, genes, group_by, standard_scale=standard_scale, **kwargs
+    )
 
 
 def plot_volcano(
-    adata, group: str, key: str = "rank_genes_groups",
-    lfc: float = 1.0, padj: float = 0.05, label_top: int = 10, **kwargs,
+    adata,
+    group: str,
+    key: str = "rank_genes_groups",
+    lfc: float = 1.0,
+    padj: float = 0.05,
+    label_top: int = 10,
+    **kwargs,
 ):
     """Volcano plot (log2FC vs adjusted p-value) for one group's markers.
 
@@ -118,8 +147,14 @@ def plot_volcano(
         )
     return (
         pe.ggvolcano(
-            df, x="logfoldchanges", y="pvals_adj", label="names",
-            p_cutoff=padj, fc_cutoff=lfc, label_top=label_top, **kwargs,
+            df,
+            x="logfoldchanges",
+            y="pvals_adj",
+            label="names",
+            p_cutoff=padj,
+            fc_cutoff=lfc,
+            label_top=label_top,
+            **kwargs,
         )
         + scale_color_manual(values=_VOLCANO_COLORS)
         + labs(x="log2 fold change", y="-log10(adjusted p-value)")
@@ -157,7 +192,9 @@ def plot_ma(
 
     # drop rows with no mean expression (can't sit on a log x axis); assign the
     # significance flag without a second full-frame copy
-    df = data[data[mean] > 0].assign(significant=lambda d: (d[pval] < padj) & d[pval].notna())
+    df = data[data[mean] > 0].assign(
+        significant=lambda d: (d[pval] < padj) & d[pval].notna()
+    )
 
     plot = (
         ggplot(df, aes(mean, lfc, color="significant"))
@@ -170,12 +207,18 @@ def plot_ma(
     )
     if label_top:
         sig = df[df["significant"]]
-        top = sig.sort_values(lfc, key=lambda s: s.abs(), ascending=False).head(label_top)
+        top = sig.sort_values(lfc, key=lambda s: s.abs(), ascending=False).head(
+            label_top
+        )
         if label is not None:
             top = top.assign(_lab=top[label])
         else:
             top = top.assign(_lab=top.index.astype(str))
         plot = plot + pe.geom_text_repel(
-            aes(mean, lfc, label="_lab"), data=top, size=8, color="black", inherit_aes=False
+            aes(mean, lfc, label="_lab"),
+            data=top,
+            size=8,
+            color="black",
+            inherit_aes=False,
         )
     return plot

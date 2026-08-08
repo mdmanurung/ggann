@@ -1,8 +1,8 @@
 """Quality-control plots over ``obs`` metrics and expression.
 
-Early-analysis staples: distributions of per-cell QC metrics, a metric-vs-metric
-scatter, and the highest-expressed genes. Metric columns and expression are
-pulled through the ``adata.ap`` accessor like everything else.
+Observation metrics use the ``adata.ap`` extraction path. Highest-expression
+ranking reads the resolved matrix directly so sparse and backed data remain
+bounded during the whole-matrix calculation.
 """
 
 from __future__ import annotations
@@ -26,9 +26,9 @@ from plotnine import (
     theme,
 )
 
-from ._aggregate import expression_source
+from ._expression import densify_frame as _densify
+from ._expression import resolve_source, source_label, source_matrix
 from ._palette import scale_fill_obs
-from ._resolve import _densify, _raw_wide
 from .theme import theme_ggann
 
 __all__ = [
@@ -64,6 +64,129 @@ def _resolve_metrics(adata, metrics):
     return found
 
 
+def _dense_row_blocks(matrix, *, target_elements: int = 1_000_000):
+    """Yield bounded dense row blocks from an in-memory or backed matrix."""
+    rows_per_block = max(1, target_elements // max(matrix.shape[1], 1))
+    for start in range(0, matrix.shape[0], rows_per_block):
+        stop = min(start + rows_per_block, matrix.shape[0])
+        yield start, stop, np.asarray(matrix[start:stop])
+
+
+def _streamed_dense_totals(matrix) -> tuple[np.ndarray, bool]:
+    """Compute NaN-skipping totals and negativity without loading a backed matrix."""
+    totals = np.empty(matrix.shape[0], dtype=float)
+    has_negative = False
+    with np.errstate(invalid="ignore"):
+        for start, stop, values in _dense_row_blocks(matrix):
+            totals[start:stop] = np.nansum(values, axis=1)
+            has_negative = has_negative or bool(np.any(values < 0))
+    return totals, has_negative
+
+
+def _expression_totals(matrix) -> tuple[np.ndarray, bool]:
+    """Return row sums that skip NaNs and whether element-wise means are needed."""
+    from scipy import sparse
+
+    totals = np.asarray(matrix.sum(axis=1)).reshape(-1).astype(float, copy=False)
+    has_nan_sum = bool(np.isnan(totals).any())
+    if has_nan_sum:
+        if sparse.issparse(matrix):
+            cleaned = matrix.copy()
+            if np.issubdtype(cleaned.data.dtype, np.inexact):
+                cleaned.data[np.isnan(cleaned.data)] = 0
+            with np.errstate(invalid="ignore"):
+                totals = (
+                    np.asarray(cleaned.sum(axis=1))
+                    .reshape(-1)
+                    .astype(float, copy=False)
+                )
+        else:
+            totals = np.empty(matrix.shape[0], dtype=float)
+            with np.errstate(invalid="ignore"):
+                for start, stop, values in _dense_row_blocks(matrix):
+                    totals[start:stop] = np.nansum(values, axis=1)
+    needs_elementwise = has_nan_sum or not bool(np.isfinite(totals).all())
+    return totals, needs_elementwise
+
+
+def _mean_percentages(
+    matrix,
+    totals: np.ndarray,
+    valid_totals: np.ndarray,
+    *,
+    elementwise: bool,
+) -> np.ndarray:
+    """Mean per-gene percentages, excluding undefined values like pandas."""
+    from scipy import sparse
+
+    n_vars = matrix.shape[1]
+    if not elementwise:
+        if not valid_totals.any():
+            return np.full(n_vars, np.nan, dtype=float)
+        weights = np.zeros_like(totals, dtype=float)
+        weights[valid_totals] = 1.0 / totals[valid_totals]
+        return np.asarray(matrix.T @ weights).reshape(-1) * (100.0 / valid_totals.sum())
+
+    means = np.full(n_vars, np.nan, dtype=float)
+    if sparse.issparse(matrix):
+        columns = matrix.tocsc(copy=True)
+        columns.sum_duplicates()
+        denominator = int(valid_totals.sum())
+        for index in range(n_vars):
+            start, stop = columns.indptr[index : index + 2]
+            rows = columns.indices[start:stop]
+            keep = valid_totals[rows]
+            fractions = np.full(stop - start, np.nan, dtype=float)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                np.divide(
+                    columns.data[start:stop],
+                    totals[rows],
+                    out=fractions,
+                    where=keep,
+                )
+            defined = keep & ~np.isnan(fractions)
+            count = denominator - int((keep & ~defined).sum())
+            if count:
+                with np.errstate(invalid="ignore"):
+                    means[index] = float(fractions[defined].sum()) * (100.0 / count)
+        return means
+
+    numerators = np.zeros(n_vars, dtype=float)
+    counts = np.zeros(n_vars, dtype=np.int64)
+    for start, stop, values in _dense_row_blocks(matrix):
+        fractions = np.full(values.shape, np.nan, dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            np.divide(
+                values,
+                totals[start:stop, None],
+                out=fractions,
+                where=valid_totals[start:stop, None],
+            )
+        defined = ~np.isnan(fractions)
+        with np.errstate(invalid="ignore"):
+            numerators += np.nansum(fractions, axis=0)
+        counts += defined.sum(axis=0)
+    np.divide(numerators, counts, out=means, where=counts > 0)
+    means *= 100.0
+    return means
+
+
+def _select_backed_dense_columns(matrix, indices: np.ndarray) -> np.ndarray:
+    """Read selected backed columns in bounded row blocks and requested order."""
+    result = np.empty((matrix.shape[0], len(indices)), dtype=matrix.dtype)
+    if not len(indices):
+        return result
+    order = np.argsort(indices)
+    inverse = np.argsort(order)
+    sorted_indices = indices[order]
+    rows_per_block = max(1, 1_000_000 // len(indices))
+    for start in range(0, matrix.shape[0], rows_per_block):
+        stop = min(start + rows_per_block, matrix.shape[0])
+        values = np.asarray(matrix[start:stop, sorted_indices])
+        result[start:stop] = values[:, inverse]
+    return result
+
+
 def plot_qc_violin(
     adata,
     metrics: Sequence[str] | None = None,
@@ -80,7 +203,9 @@ def plot_qc_violin(
     cols = ([group_by] if group_by else []) + metrics
     df = _densify(adata.ap.to_df(obs=cols))
     id_vars = [group_by] if group_by else []
-    long = df.melt(id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value")
+    long = df.melt(
+        id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value"
+    )
 
     if group_by:
         p = (
@@ -106,7 +231,16 @@ def plot_qc_violin(
     return p
 
 
-def plot_qc_scatter(adata, x: str, y: str, color: str | None = None, *, size: float = 1.0):
+def plot_qc_scatter(
+    adata,
+    x: str,
+    y: str,
+    color: str | None = None,
+    *,
+    layer: str | None = None,
+    use_raw: bool | None = None,
+    size: float = 1.0,
+):
     """Scatter of two obs QC metrics (e.g. total_counts vs pct_counts_mt).
 
     Thin wrapper over the grammar path; ``color`` may be an obs column or a gene.
@@ -116,18 +250,28 @@ def plot_qc_scatter(adata, x: str, y: str, color: str | None = None, *, size: fl
     from ._palette import scale_color_obs
     from .grammar import aes as _aes
     from .grammar import gganndata
+    from ._resolve import plain_name
 
     mapping = _aes(x, y) if color is None else _aes(x, y, color=color)
-    plot = gganndata(adata, mapping) + geom_point(size=size, alpha=0.6)
+    plot = gganndata(adata, mapping, layer=layer, use_raw=use_raw)
+    fields = [x, y, *([color] if color is not None else [])]
+    missing = [
+        field for field in fields if plain_name(adata, field) not in plot.data.columns
+    ]
+    if missing:
+        raise KeyError(
+            f"Could not resolve field(s) from observations or expression: {missing}."
+        )
+
+    plot = plot + geom_point(size=size, alpha=0.6)
     if color is not None:
-        is_categorical_obs = color in adata.obs and isinstance(
-            adata.obs[color].dtype, pd.CategoricalDtype
+        color_name = plain_name(adata, color)
+        is_categorical_obs = color_name in adata.obs and isinstance(
+            adata.obs[color_name].dtype, pd.CategoricalDtype
         )
         if is_categorical_obs:
-            plot = plot + scale_color_obs(adata, color)
-        elif color in adata.obs or color in adata.var_names or (
-            adata.raw is not None and color in adata.raw.var_names
-        ):
+            plot = plot + scale_color_obs(adata, color_name)
+        elif pd.api.types.is_numeric_dtype(plot.data[color_name]):
             # numeric (gene or continuous metric) -> expression colourmap, matching plot_embedding
             from .theme import scale_color_expression
 
@@ -135,22 +279,43 @@ def plot_qc_scatter(adata, x: str, y: str, color: str | None = None, *, size: fl
     return plot
 
 
-def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer: str | None = None):
+def plot_highest_expr_genes(
+    adata, n: int = 20, *, use_raw: bool = False, layer: str | None = None
+):
     """Boxplots of the ``n`` genes accounting for the most counts per cell.
 
     Like ``sc.pl.highest_expr_genes``, this reads ``adata.X`` by default (pass
     ``layer="counts"`` or ``use_raw=True`` to point elsewhere): each cell's values
     are turned into percentages of that cell's total, and genes are ranked by mean
     per-cell percentage. For meaningful results ``adata.X`` should hold counts or
-    normalized (not scaled) expression. The matrix is pulled through annplyr.
+    normalized (not scaled) expression. This whole-matrix calculation stays sparse
+    until the selected genes are prepared for plotting.
     """
-    kind, lyr = expression_source(adata, layer, use_raw)
-    if kind == "raw":
-        wide = _raw_wide(adata, list(adata.raw.var_names))
-    else:
-        wide = _densify(adata.ap.to_df(x=list(adata.var_names), layer=lyr))
+    from scipy import sparse
 
-    if (wide.to_numpy() < 0).any():
+    if isinstance(n, (bool, np.bool_)) or not isinstance(n, (int, np.integer)) or n < 1:
+        raise ValueError(f"n must be a positive integer, got {n!r}.")
+    kind, lyr = resolve_source(adata, layer, use_raw)
+    matrix, var_names = source_matrix(adata, kind, lyr)
+    if not var_names.is_unique:
+        raise ValueError(
+            f"Variable names in {source_label(kind, lyr)} must be unique before plotting."
+        )
+    if hasattr(matrix, "to_memory"):
+        matrix = matrix.to_memory()
+
+    streamed_dense = not sparse.issparse(matrix) and not hasattr(matrix, "sum")
+    if streamed_dense:
+        totals, has_negative = _streamed_dense_totals(matrix)
+        elementwise = True
+    else:
+        has_negative = (
+            bool(matrix.data.size and np.any(matrix.data < 0))
+            if sparse.issparse(matrix)
+            else bool(np.any(np.asarray(matrix) < 0))
+        )
+        totals, elementwise = _expression_totals(matrix)
+    if has_negative:
         warnings.warn(
             "plot_highest_expr_genes: the expression matrix has negative values, which "
             "looks like scaled/z-scored data -- 'percent of total counts' will be "
@@ -158,18 +323,45 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
             "log-normalized values.",
             stacklevel=2,
         )
-    n_zero = int((wide.sum(axis=1) == 0).sum())
+    zero_total = totals == 0
+    valid = ~np.isnan(totals) & ~zero_total
+    n_zero = int(zero_total.sum())
     if n_zero:
         warnings.warn(
             f"{n_zero} cell(s) with zero total counts excluded from plot_highest_expr_genes.",
             stacklevel=2,
         )
-    totals = wide.sum(axis=1).replace(0, np.nan)
-    frac = wide.div(totals, axis=0) * 100.0
-    top = frac.mean(axis=0).sort_values(ascending=False).head(n).index.tolist()
+    means = _mean_percentages(
+        matrix,
+        totals,
+        valid,
+        elementwise=elementwise,
+    )
+    n = min(n, len(var_names))
+    top_indices = np.argsort(-means, kind="stable")[:n]
+    top = var_names[top_indices].tolist()
 
-    long = frac[top].melt(var_name="gene", value_name="percent")
-    long["gene"] = pd.Categorical(long["gene"], categories=list(reversed(top)), ordered=True)
+    if streamed_dense:
+        selected = _select_backed_dense_columns(matrix, top_indices)
+    else:
+        selected = matrix[:, top_indices]
+        selected = (
+            selected.toarray() if sparse.issparse(selected) else np.asarray(selected)
+        )
+    percentages = np.full(selected.shape, np.nan, dtype=float)
+    np.divide(
+        selected,
+        totals[:, None],
+        out=percentages,
+        where=valid[:, None],
+    )
+    percentages *= 100.0
+    long = pd.DataFrame(percentages, columns=top).melt(
+        var_name="gene", value_name="percent"
+    )
+    long["gene"] = pd.Categorical(
+        long["gene"], categories=list(reversed(top)), ordered=True
+    )
     return (
         ggplot(long, aes("gene", "percent"))
         + geom_boxplot(fill="#4c72b0", outlier_alpha=0.2)

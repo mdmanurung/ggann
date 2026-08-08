@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 
 import ggann as ag
-from ggann import aes, gganndata
 from ggann._resolve import resolve_frame, resolve_source
 
 
@@ -65,7 +64,60 @@ def test_group_by_is_unordered_categorical(adata, markers, group_key):
 def test_duplicate_categories_order_is_deduped(adata, markers, group_key):
     cats = list(adata.obs[group_key].cat.categories)
     p = ag.plot_dotplot(adata, markers, group_key, categories_order=cats + cats)
-    assert len(set(p.data[group_key].cat.categories)) == len(p.data[group_key].cat.categories)
+    assert len(set(p.data[group_key].cat.categories)) == len(
+        p.data[group_key].cat.categories
+    )
+
+
+def test_array_categories_order_is_supported(adata, markers, group_key):
+    categories = np.asarray(adata.obs[group_key].cat.categories)
+    plots = [
+        ag.plot_stacked_violin(
+            adata, markers[:1], group_key, categories_order=categories
+        ),
+        ag.plot_tracksplot(adata, markers[:1], group_key, categories_order=categories),
+        ag.plot_proportions(
+            adata,
+            group_key,
+            split_by="phase",
+            categories_order=categories,
+        ),
+    ]
+    for plot in plots:
+        assert list(plot.data[group_key].cat.categories) == list(categories)
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        lambda ad, genes, group: ag.plot_stacked_violin(
+            ad, genes[:1], group, categories_order=[]
+        ),
+        lambda ad, genes, group: ag.plot_tracksplot(
+            ad, genes[:1], group, categories_order=[]
+        ),
+        lambda ad, genes, group: ag.plot_proportions(
+            ad, group, split_by="phase", categories_order=[]
+        ),
+    ],
+)
+def test_empty_categories_order_is_not_treated_as_none(
+    adata, markers, group_key, builder
+):
+    with pytest.raises(ValueError, match="missing groups"):
+        builder(adata, markers, group_key)
+
+
+def test_missing_group_values_are_preserved_for_plotnine_to_drop(
+    adata, markers, group_key
+):
+    ad = adata.copy()
+    ad.obs[group_key] = ad.obs[group_key].astype(object)
+    ad.obs.iloc[0, ad.obs.columns.get_loc(group_key)] = None
+
+    plot = ag.plot_violin(ad, markers[:1], group_key)
+
+    assert plot.data[group_key].isna().sum() == 1
 
 
 def test_partial_categories_order_raises(adata, markers, group_key):
@@ -79,8 +131,9 @@ def test_matrixplot_default_matches_scanpy_scale(adata, markers, group_key):
 
     # default standard_scale=None -> raw group means, comparable to sc.pl.matrixplot
     p = ag.plot_matrixplot(adata, markers, group_key)
-    got = p.data.pivot_table(index=group_key, columns="feature",
-                             values="mean_expression", observed=True)
+    got = p.data.pivot_table(
+        index=group_key, columns="feature", values="mean_expression", observed=True
+    )
     dp = sc.pl.dotplot(adata, markers, groupby=group_key, return_fig=True)
     sc_mean = dp.dot_color_df[markers].reindex(got.index)[markers]
     assert np.allclose(got[markers].values, sc_mean.values, atol=1e-4)
@@ -93,8 +146,11 @@ def test_embedding_requires_2d(adata):
         ag.plot_embedding(a, basis="1d")
 
 
-def test_clustermap_standard_scale_and_zscore_mutually_exclusive(adata, markers, group_key):
+def test_clustermap_standard_scale_and_zscore_mutually_exclusive(
+    adata, markers, group_key
+):
     pytest.importorskip("PyComplexHeatmap")
     with pytest.raises(ValueError, match="mutually exclusive"):
-        ag.plot_clustermap(adata, markers, group_by=group_key,
-                           standard_scale="var", z_score=0)
+        ag.plot_clustermap(
+            adata, markers, group_by=group_key, standard_scale="var", z_score=0
+        )

@@ -20,6 +20,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_point, ggplot, labs, scale_color_cmap
 
+from ._expression import ordered_unique
 from ._resolve import embedding_coords, plain_name, resolve_frame
 from .theme import theme_ggann
 
@@ -82,7 +83,7 @@ def plot_density(
 
     if isinstance(features, str):
         features = [features]
-    features = list(features)
+    features = ordered_unique(features)
     if not features:
         raise ValueError("plot_density needs at least one feature.")
 
@@ -96,9 +97,13 @@ def plot_density(
     names = [plain_name(adata, f) for f in features]
     missing = [f for f, n in zip(features, names) if n not in values.columns]
     if missing:
-        raise KeyError(f"Could not resolve feature(s) {missing} as genes or obs columns.")
+        raise KeyError(
+            f"Could not resolve feature(s) {missing} as genes or obs columns."
+        )
     non_numeric = [
-        f for f, n in zip(features, names) if not pd.api.types.is_numeric_dtype(values[n])
+        f
+        for f, n in zip(features, names)
+        if not pd.api.types.is_numeric_dtype(values[n])
     ]
     if non_numeric:
         raise TypeError(
@@ -127,13 +132,20 @@ def plot_density(
 
     frames = [
         pd.DataFrame(
-            {xcol: xy[:, 0], ycol: xy[:, 1], "density": _minmax(panel_density[label]), "feature": label}
+            {
+                xcol: xy[:, 0],
+                ycol: xy[:, 1],
+                "density": _minmax(panel_density[label]),
+                "feature": label,
+            }
         )
         for label in panels
     ]
     long = pd.concat(frames, ignore_index=True)
     long["feature"] = pd.Categorical(long["feature"], categories=panels, ordered=True)
-    long = long.sort_values(["feature", "density"])  # draw low density first, within each panel
+    long = long.sort_values(
+        ["feature", "density"]
+    )  # draw low density first, within each panel
 
     return (
         ggplot(long, aes(xcol, ycol, color="density"))

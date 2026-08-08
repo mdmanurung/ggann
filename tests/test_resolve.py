@@ -1,9 +1,7 @@
-import warnings
-
 import pandas as pd
 import pytest
 
-from ggann import gene, obs
+from ggann import gene, obs, obsm
 from ggann._resolve import embedding_coords, embedding_key, resolve_frame
 
 
@@ -31,6 +29,12 @@ def test_embedding_key_aliases(adata):
 def test_embedding_coords_naming(adata):
     coords = embedding_coords(adata, "umap")
     assert list(coords.columns) == ["UMAP_1", "UMAP_2"]
+
+
+@pytest.mark.parametrize("index", [True, 1.5, "1"])
+def test_obsm_rejects_non_integer_indices(index):
+    with pytest.raises(TypeError, match="integer"):
+        obsm("umap", index)
 
 
 def test_force_source_escapes(adata, group_key):

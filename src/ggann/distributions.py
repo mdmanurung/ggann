@@ -35,14 +35,13 @@ from plotnine import (
 )
 
 from ._aggregate import tidy_expression
+from ._expression import ordered_unique
+from ._grouping import _downsample_cells, _group_categories, _order_groups
 from ._palette import scale_color_obs, scale_fill_obs
 from ._resolve import plain_name, resolve_frame
 from .plots import (
-    _downsample_cells,
     _feature_facet,
-    _group_categories,
     _is_numeric,
-    _order_groups,
 )
 from .theme import theme_ggann
 
@@ -57,7 +56,9 @@ __all__ = [
 ]
 
 
-def _summarise(values: pd.core.groupby.SeriesGroupBy, error: str, agg="mean") -> pd.DataFrame:
+def _summarise(
+    values: pd.core.groupby.SeriesGroupBy, error: str, agg="mean"
+) -> pd.DataFrame:
     """Central tendency (``agg``) and a symmetric error (se / sd / none) per group.
 
     ``agg`` is any pandas reduction name or callable (``"mean"``, ``"median"``,
@@ -93,6 +94,7 @@ def plot_box(
     stats: bool = False,
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Per-group expression box plots, one facet per gene, with jittered cells overlaid.
 
@@ -103,12 +105,14 @@ def plot_box(
 
     Note: ``downsample`` subsets the cells the geoms see, so with ``stats=True``
     the p-value is computed on the subsample, and the boxplot's outliers reflect
-    only the kept cells. Leave it unset when either must reflect every cell.
+    only the kept cells. ``random_state`` controls which cells are retained.
     """
-    adata = _downsample_cells(adata, group_by, downsample)
-    genes = list(genes)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
+    genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra)
+    tidy = tidy_expression(
+        adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra
+    )
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
@@ -117,7 +121,9 @@ def plot_box(
         width=0.7, outlier_alpha=0.0 if jitter else 1.0
     )
     if jitter:
-        plot = plot + geom_jitter(width=0.2, height=0.0, size=jitter_size, alpha=jitter_alpha, stroke=0)
+        plot = plot + geom_jitter(
+            width=0.2, height=0.0, size=jitter_size, alpha=jitter_alpha, stroke=0
+        )
     plot = (
         plot
         + _feature_facet(split_by, ncol=ncol)
@@ -146,6 +152,7 @@ def plot_sina(
     bins: int = 50,
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Sina / beeswarm of per-group expression, one facet per gene.
 
@@ -153,12 +160,15 @@ def plot_sina(
     density (via plotnine-extra's ``geom_sina``), so it shows every cell like a
     jitter but keeps the shape of a violin. ``violin=True`` draws a faint violin
     behind the points for context. ``downsample=N`` caps cells per group first --
-    recommended for large data, since a sina draws one mark per cell.
+    useful for large data, since a sina draws one mark per cell. ``random_state``
+    controls which cells are retained.
     """
-    genes = list(genes)
-    adata = _downsample_cells(adata, group_by, downsample)
+    genes = ordered_unique(genes)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     extra = [split_by] if split_by else []
-    tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra)
+    tidy = tidy_expression(
+        adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra
+    )
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
@@ -173,7 +183,9 @@ def plot_sina(
     # collapse a narrow-range gene's panel to one or two bins. Floor it by the
     # widest gene's range so a pathologically narrow gene can't drive the widest
     # panel to an unbounded bin count (which would be slow to build).
-    ranges = tidy.groupby("feature", observed=True)["value"].agg(lambda s: s.max() - s.min())
+    ranges = tidy.groupby("feature", observed=True)["value"].agg(
+        lambda s: s.max() - s.min()
+    )
     ranges = ranges[ranges > 0]
     if len(ranges):
         binwidth = max(float(ranges.min()) / bins, float(ranges.max()) / 1000)
@@ -183,7 +195,11 @@ def plot_sina(
     plot = ggplot(tidy, aes(group_by, "value", color=group_by))
     if violin:
         plot = plot + geom_violin(
-            aes(fill=group_by), color="none", alpha=0.15, scale="width", show_legend=False
+            aes(fill=group_by),
+            color="none",
+            alpha=0.15,
+            scale="width",
+            show_legend=False,
         )
     plot = (
         plot
@@ -219,16 +235,20 @@ def plot_expression_bar(
     hide the distribution -- for a distribution-honest view use :func:`plot_box` or
     :func:`ggann.plot_violin`.
     """
-    genes = list(genes)
+    genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra)
+    tidy = tidy_expression(
+        adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra
+    )
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
 
     by = [group_by, *extra, "feature"]
     summary = _summarise(tidy.groupby(by, observed=True)["value"], error, agg=agg)
-    summary["feature"] = pd.Categorical(summary["feature"], categories=genes, ordered=True)
+    summary["feature"] = pd.Categorical(
+        summary["feature"], categories=genes, ordered=True
+    )
 
     ylab = f"{agg} expression" if isinstance(agg, str) else "expression"
     plot = (
@@ -266,7 +286,7 @@ def plot_expression_line(
     ``agg`` sets the summarised value (``"mean"`` default, or ``"median"`` etc.);
     ``error`` adds a summary error bar per point (``"se"`` / ``"sd"`` / ``"none"``).
     """
-    genes = list(genes)
+    genes = ordered_unique(genes)
     xname = plain_name(adata, x)
     gname = plain_name(adata, group_by) if group_by is not None else None
 
@@ -280,9 +300,15 @@ def plot_expression_line(
         )
 
     cols = [x] + ([group_by] if group_by is not None else []) + list(genes)
-    frame = resolve_frame(adata, cols, layer=layer, use_raw=use_raw)  # already densified
-    long = frame.melt(id_vars=id_vars, value_vars=gene_names, var_name="feature", value_name="value")
-    long["feature"] = pd.Categorical(long["feature"], categories=gene_names, ordered=True)
+    frame = resolve_frame(
+        adata, cols, layer=layer, use_raw=use_raw
+    )  # already densified
+    long = frame.melt(
+        id_vars=id_vars, value_vars=gene_names, var_name="feature", value_name="value"
+    )
+    long["feature"] = pd.Categorical(
+        long["feature"], categories=gene_names, ordered=True
+    )
 
     # Order the x axis: numeric stays numeric; categorical keeps its obs order.
     if not _is_numeric(long[xname]):
@@ -295,11 +321,19 @@ def plot_expression_line(
     if gname is not None:
         long = _order_groups(long, gname, categories_order)
 
-    summary = _summarise(long.groupby(id_vars + ["feature"], observed=True)["value"], error, agg=agg)
-    summary["feature"] = pd.Categorical(summary["feature"], categories=gene_names, ordered=True)
+    summary = _summarise(
+        long.groupby(id_vars + ["feature"], observed=True)["value"], error, agg=agg
+    )
+    summary["feature"] = pd.Categorical(
+        summary["feature"], categories=gene_names, ordered=True
+    )
 
     color = gname if gname is not None else None
-    mapping = aes(x=xname, y="mean", color=color, group=color) if color else aes(x=xname, y="mean", group=1)
+    mapping = (
+        aes(x=xname, y="mean", color=color, group=color)
+        if color
+        else aes(x=xname, y="mean", group=1)
+    )
     ylab = f"{agg} expression" if isinstance(agg, str) else "expression"
     plot = (
         ggplot(summary, mapping)
@@ -330,6 +364,7 @@ def plot_violin(
     add_points: bool = False,
     stats: bool = False,
     downsample: int | None = None,
+    random_state: int | None = 0,
     categories_order: Iterable[str] | None = None,
 ):
     """Per-group expression distributions, one facet per gene (stacked-violin style).
@@ -345,18 +380,25 @@ def plot_violin(
     Note: ``downsample`` subsets the cells the geoms see, so any ``stats=True``
     p-value is then computed on the *subsample*, not the full data. Leave
     ``downsample`` unset when you need the reported test to reflect every cell.
+    ``random_state`` controls which cells are retained.
     """
-    adata = _downsample_cells(adata, group_by, downsample)
-    genes = list(genes)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
+    genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra)
+    tidy = tidy_expression(
+        adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra
+    )
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
-    plot = ggplot(tidy, aes(group_by, "value", fill=group_by)) + geom_violin(scale=scale)
+    plot = ggplot(tidy, aes(group_by, "value", fill=group_by)) + geom_violin(
+        scale=scale
+    )
     # box first, then points on top -- otherwise the white box occludes the jitter
     if add_box:
-        plot = plot + geom_boxplot(width=0.12, fill="white", outlier_alpha=0.0, show_legend=False)
+        plot = plot + geom_boxplot(
+            width=0.12, fill="white", outlier_alpha=0.0, show_legend=False
+        )
     if add_points:
         plot = plot + geom_jitter(width=0.2, height=0.0, size=0.3, alpha=0.25, stroke=0)
     plot = (
@@ -382,16 +424,19 @@ def plot_stacked_violin(
     scale: str = "width",
     categories_order=None,
     downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Compact genes-as-rows violin grid across groups (``sc.pl.stacked_violin``).
 
-    Pass ``downsample=N`` to cap cells per group before the KDE for large data —
-    the violin family is plotnine's slowest geom; see :func:`ggann.plot_violin`.
+    ``downsample`` caps cells per group before the KDE. ``random_state`` controls
+    which cells are retained.
     """
-    adata = _downsample_cells(adata, group_by, downsample)
-    genes = list(genes)
+    adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
+    genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
-    tidy = _order_groups(tidy, group_by, categories_order or _group_categories(adata, group_by))
+    if categories_order is None:
+        categories_order = _group_categories(adata, group_by)
+    tidy = _order_groups(tidy, group_by, categories_order)
     return (
         ggplot(tidy, aes(group_by, "value", fill=group_by))
         + geom_violin(scale=scale)
@@ -434,12 +479,12 @@ def plot_ridge(
 ):
     """Ridgeline plot: one density ridge per group, stacked and overlapping, per gene.
 
-    ``scale`` sets how tall each ridge is relative to its row spacing (>1 overlaps
-    neighbours, the classic joyplot look). Groups with fewer than two cells or zero
+    ``scale`` sets ridge height relative to row spacing; values above one overlap
+    neighbouring ridges. Groups with fewer than two cells or zero
     variance draw a flat baseline. plotnine has no ridgeline geom, so this builds one
     from a per-group gaussian KDE offset vertically and drawn as ``geom_ribbon``.
     """
-    genes = list(genes)
+    genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
@@ -469,7 +514,9 @@ def plot_ridge(
             )
     long = pd.concat(rows, ignore_index=True)
     long[group_by] = pd.Categorical(long[group_by], categories=order, ordered=True)
-    long["feature"] = pd.Categorical(long["feature"], categories=[str(x) for x in genes], ordered=True)
+    long["feature"] = pd.Categorical(
+        long["feature"], categories=[str(x) for x in genes], ordered=True
+    )
 
     # Draw top ridges first so lower ones layer IN FRONT and overlap cleanly
     # (a single ribbon layer paints higher rows on top, clipping the peaks below).

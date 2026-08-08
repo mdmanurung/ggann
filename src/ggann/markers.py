@@ -23,11 +23,11 @@ from plotnine import (
 )
 
 from ._aggregate import tidy_expression
+from ._expression import ordered_unique
+from ._grouping import _group_categories, _order_groups
 from ._palette import scale_fill_obs
 from .plots import (
     _cell_rank,
-    _group_categories,
-    _order_groups,
     plot_dotplot,
     plot_matrixplot,
 )
@@ -45,7 +45,7 @@ def _flatten_gene_groups(gene_groups: dict) -> tuple[list, dict]:
     feat_to_group: dict = {}
     genes: list = []
     for label, members in gene_groups.items():
-        for g in members:
+        for g in ordered_unique(members):
             if g in feat_to_group:
                 raise ValueError(
                     f"gene {g!r} appears in more than one gene group "
@@ -76,13 +76,17 @@ def _add_gene_group_facet(plot, gene_groups: dict):
 def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     """Dotplot with genes bracketed into labelled groups (scanpy ``var_group_labels``)."""
     genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(plot_dotplot(adata, genes, group_by, **kwargs), gene_groups)
+    return _add_gene_group_facet(
+        plot_dotplot(adata, genes, group_by, **kwargs), gene_groups
+    )
 
 
 def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     """Matrixplot with genes bracketed into labelled groups (scanpy ``var_group_labels``)."""
     genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups)
+    return _add_gene_group_facet(
+        plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups
+    )
 
 
 def plot_tracksplot(
@@ -94,10 +98,16 @@ def plot_tracksplot(
     use_raw: bool | None = None,
     categories_order=None,
 ):
-    """Per-gene expression tracks across cells ordered by group (``sc.pl.tracksplot``)."""
-    genes = list(genes)
+    """Per-gene expression tracks across cells ordered by group.
+
+    ``categories_order`` overrides the order stored on a categorical ``obs``
+    column. ``None`` uses the stored order.
+    """
+    genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
-    tidy = _order_groups(tidy, group_by, categories_order or _group_categories(adata, group_by))
+    if categories_order is None:
+        categories_order = _group_categories(adata, group_by)
+    tidy = _order_groups(tidy, group_by, categories_order)
 
     # order cells by group so each track reads left-to-right by group
     tidy = _cell_rank(tidy, group_by)

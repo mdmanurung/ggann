@@ -18,14 +18,21 @@ emitted. Use the :func:`gene` and :func:`obs` escapes to force a source.
 
 from __future__ import annotations
 
+import operator
 import re
 import warnings
 from dataclasses import dataclass
 from typing import Iterable
 
-import annplyr as ap
-import numpy as np
 import pandas as pd
+
+from ._expression import (
+    densify_frame as _densify,
+    project_expression,
+    resolve_source,
+    source_label as _source_label,
+    source_var_names,
+)
 
 __all__ = ["gene", "obs", "obsm", "embedding_coords"]
 
@@ -78,7 +85,13 @@ class ObsmRef:
 
 def obsm(basis: str, index: int) -> ObsmRef:
     """Force a specific embedding coordinate, e.g. ``obsm("umap", 0)`` -> ``UMAP_1``."""
-    return ObsmRef(str(basis), int(index))
+    if isinstance(index, bool):
+        raise TypeError(f"obsm index must be an integer, got {index!r}.")
+    try:
+        index = operator.index(index)
+    except TypeError as error:
+        raise TypeError(f"obsm index must be an integer, got {index!r}.") from error
+    return ObsmRef(str(basis), index)
 
 
 # --------------------------------------------------------------------------- #
@@ -138,45 +151,10 @@ def plain_name(adata, item):
     return tok
 
 
-# --------------------------------------------------------------------------- #
-# Expression source (X / layer / raw) -- the single source of truth
-# --------------------------------------------------------------------------- #
-def resolve_source(adata, layer: str | None, use_raw: bool | None) -> tuple[str, str | None]:
-    """Decide which matrix expression comes from.
-
-    Returns ``("layer", name)``, ``("raw", None)`` or ``("x", None)``. Mirrors
-    scanpy: an explicit ``layer`` wins; otherwise ``use_raw`` defaults to ``True``
-    when ``adata.raw`` exists. Raises rather than silently substituting a
-    different matrix -- both the grammar path and the aggregation path go through
-    here, so the two can never disagree.
-    """
-    if layer is not None:
-        if use_raw is True:
-            raise ValueError("Cannot specify use_raw=True and a layer at the same time.")
-        return "layer", layer
-    if use_raw is None:
-        use_raw = adata.raw is not None
-    if use_raw:
-        if adata.raw is None:
-            raise ValueError("use_raw=True but adata.raw is None.")
-        return "raw", None
-    return "x", None
-
-
-def _gene_universe(adata, kind: str) -> set:
+def _other_gene_universe(adata, kind: str) -> pd.Index:
     if kind == "raw":
-        return set(adata.raw.var_names)
-    return set(adata.var_names)
-
-
-def _other_gene_universe(adata, kind: str) -> set:
-    if kind == "raw":
-        return set(adata.var_names)
-    return set(adata.raw.var_names) if adata.raw is not None else set()
-
-
-def _source_label(kind: str, layer: str | None) -> str:
-    return {"raw": ".raw", "x": ".X"}.get(kind, f"layer '{layer}'")
+        return adata.var_names
+    return adata.raw.var_names if adata.raw is not None else pd.Index([])
 
 
 # --------------------------------------------------------------------------- #
@@ -210,11 +188,28 @@ def embedding_coords(adata, basis: str, n: int = 2) -> pd.DataFrame:
     Columns are named ``<PREFIX>_<i>`` (e.g. ``UMAP_1``, ``UMAP_2``) to match the
     conventions used by ``plotnine_extra.DimPlot``.
     """
+    if n < 0:
+        raise ValueError(f"n must be non-negative, got {n}.")
     key = embedding_key(adata, basis)
-    df = adata.ap.to_df(obsm={key: ap.everything()}).iloc[:, :n]
+    width = adata.obsm[key].shape[1]
+    return _embedding_frame(adata, key, range(min(n, width)))
+
+
+def _embedding_frame(adata, key: str, indices: Iterable[int]) -> pd.DataFrame:
+    """Extract selected embedding coordinates through annplyr."""
+    width = adata.obsm[key].shape[1]
+    indices = list(dict.fromkeys(indices))
+    invalid = [index for index in indices if index < 0 or index >= width]
+    if invalid:
+        raise IndexError(
+            f"Embedding {key!r} has {width} coordinates; requested index {invalid[0]}."
+        )
+    if not indices:
+        return pd.DataFrame(index=adata.obs_names)
+    frame = adata.ap.to_df(obsm={key: [str(index) for index in indices]})
     prefix = _embedding_prefix(key)
-    df.columns = [f"{prefix}_{i + 1}" for i in range(df.shape[1])]
-    return _densify(df)
+    frame.columns = [f"{prefix}_{index + 1}" for index in indices]
+    return _densify(frame)
 
 
 def _all_embedding_coords(adata, n: int = 2) -> dict[str, tuple[str, int]]:
@@ -227,23 +222,6 @@ def _all_embedding_coords(adata, n: int = 2) -> dict[str, tuple[str, int]]:
         for i in range(min(n, arr.shape[1])):
             out.setdefault(f"{prefix}_{i + 1}", (key, i))
     return out
-
-
-# --------------------------------------------------------------------------- #
-# Densification (annplyr returns sparse-backed columns for X/raw)
-# --------------------------------------------------------------------------- #
-def _densify(df: pd.DataFrame) -> pd.DataFrame:
-    for col in df.columns:
-        if isinstance(df[col].dtype, pd.SparseDtype):
-            df[col] = np.asarray(df[col].sparse.to_dense(), dtype=float)
-    return df
-
-
-def _raw_wide(adata, var_names) -> pd.DataFrame:
-    """Wide cells x genes DataFrame from ``adata.raw``, with the ``raw_`` prefix stripped."""
-    var_names = list(var_names)
-    wide = adata.ap.to_df(raw=var_names).rename(columns={f"raw_{g}": g for g in var_names})
-    return _densify(wide)
 
 
 # --------------------------------------------------------------------------- #
@@ -267,7 +245,7 @@ def resolve_frame(
     *with a warning*, so the mistake is visible.
     """
     default_kind, default_layer = resolve_source(adata, layer, use_raw)
-    default_set = _gene_universe(adata, default_kind)
+    default_set = source_var_names(adata, default_kind)
     other_set = _other_gene_universe(adata, default_kind)
     obs_cols = set(adata.obs.columns)
     emb = _all_embedding_coords(adata)
@@ -281,7 +259,7 @@ def resolve_frame(
         # an explicit per-gene layer/use_raw fully determines the source;
         # otherwise inherit the plot-wide default.
         if ref.layer is not None:
-            return resolve_source(adata, ref.layer, None)
+            return resolve_source(adata, ref.layer, ref.use_raw)
         if ref.use_raw is not None:
             return resolve_source(adata, None, ref.use_raw)
         return default_kind, default_layer
@@ -306,8 +284,10 @@ def resolve_frame(
                 _dispatch(name, "obs", obs_cols, obs_names)
             else:  # forced gene
                 k, lyr = _ref_source(tok)
-                if name not in _gene_universe(adata, k):
-                    raise KeyError(f"gene('{name}') not found in {_source_label(k, lyr)}.")
+                if name not in source_var_names(adata, k):
+                    raise KeyError(
+                        f"gene('{name}') not found in {_source_label(k, lyr)}."
+                    )
                 gene_specs.append((name, k, lyr))
             order.append(name)
             continue
@@ -353,22 +333,20 @@ def resolve_frame(
     for name, k, lyr in gene_specs:
         by_source.setdefault((k, lyr), []).append(name)
     for (k, lyr), gnames in by_source.items():
-        if k == "raw":
-            frames.append(_raw_wide(adata, gnames))
-        else:
-            kw: dict = {"x": gnames}
-            if lyr is not None:
-                kw["layer"] = lyr
-            frames.append(_densify(adata.ap.to_df(**kw)))
+        projected, gnames = project_expression(adata, gnames, kind=k, layer=lyr)
+        frame = _densify(projected.ap.to_df(x=gnames))
+        frame.index = adata.obs_names.copy()
+        frames.append(frame)
 
     # group embedding coordinates by obsm key (one extraction, take the columns)
     by_key: dict[str, list[tuple[str, int]]] = {}
     for name, key, idx in obsm_specs:
         by_key.setdefault(key, []).append((name, idx))
     for key, cols in by_key.items():
-        coords = embedding_coords(adata, key, n=max(i for _, i in cols) + 1)
-        for name, idx in cols:
-            frames.append(coords.iloc[:, [idx]].rename(columns={coords.columns[idx]: name}))
+        indices = [index for _, index in cols]
+        coords = _embedding_frame(adata, key, indices)
+        coords.columns = [name for name, _ in cols]
+        frames.append(coords)
 
     if not frames:
         return pd.DataFrame(index=adata.obs_names)

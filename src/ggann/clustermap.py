@@ -16,8 +16,9 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 
-from ._aggregate import aggregate_expression, expression_source
-from ._resolve import _densify
+from ._aggregate import _standardize, group_means
+from ._expression import densify_frame as _densify
+from ._expression import ordered_unique, project_expression, resolve_source
 
 __all__ = ["plot_clustermap"]
 
@@ -70,27 +71,23 @@ def plot_clustermap(
             "matrix); set at most one."
         )
     pch = _require_pch()
-    genes = list(genes)
+    genes = ordered_unique(genes)
 
     if group_by is not None:
-        agg = aggregate_expression(
-            adata, genes, group_by, layer=layer, use_raw=use_raw,
-            standard_scale=standard_scale,
-        )
-        matrix = agg.pivot(index="feature", columns=group_by, values="mean_expression")
-        matrix = matrix.loc[genes]
+        means = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw)
+        matrix = _standardize(means, standard_scale).T.loc[genes]
         ann_df = pd.DataFrame({group_by: matrix.columns}, index=matrix.columns)
     else:
-        kind, lyr = expression_source(adata, layer, use_raw)
-        if kind == "raw":
-            wide = adata.ap.to_df(raw=genes)
-            wide = wide.rename(columns={f"raw_{g}": g for g in genes})
-        else:
-            wide = adata.ap.to_df(x=genes, layer=lyr)
-        wide = _densify(wide)[genes]
-        matrix = wide.T  # genes x cells
+        kind, lyr = resolve_source(adata, layer, use_raw)
         ann_cols = list(annotations) if annotations else []
-        ann_df = adata.ap.to_df(obs=ann_cols) if ann_cols else None
+        projected, genes = project_expression(
+            adata, genes, kind=kind, layer=lyr, obs=ann_cols
+        )
+        wide = _densify(projected.ap.to_df(x=genes))[genes]
+        wide.index = adata.obs_names.copy()
+        wide = _standardize(wide, standard_scale)
+        matrix = wide.T  # genes x cells
+        ann_df = projected.ap.to_df(obs=ann_cols) if ann_cols else None
 
     top_annotation = None
     if ann_df is not None and not ann_df.empty:

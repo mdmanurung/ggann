@@ -28,6 +28,7 @@ from plotnine import (
 )
 
 from ._aggregate import group_means
+from ._expression import ordered_unique
 from .theme import theme_ggann
 
 __all__ = ["plot_correlation"]
@@ -81,7 +82,9 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     if lo < 0.0:  # mixed sign -> diverging, white centred on zero
         m = float(np.abs(finite).max()) if finite.size else 1.0
         return scale_fill_cmap(cmap_name="RdBu_r", limits=(-m, m))
-    return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
+    return scale_fill_cmap(
+        cmap_name="YlOrRd", limits=(lo, 1.0)
+    )  # all-positive -> sequential
 
 
 def plot_correlation(
@@ -102,20 +105,26 @@ def plot_correlation(
     ``method`` is any :meth:`pandas.DataFrame.corr` method (``"pearson"`` /
     ``"spearman"`` / ``"kendall"``). With ``cluster=True`` the axes are reordered by
     hierarchical clustering; ``annotate=True`` prints each correlation in its cell.
-    ``cmap=None`` picks an honest scale automatically (sequential when every
-    correlation is positive, diverging centred on zero when signs mix); pass a name
-    to force one.
+    ``cmap=None`` uses a sequential scale when all correlations are positive and a
+    zero-centred diverging scale when signs differ. Pass a colormap name to set it
+    explicitly.
     """
     if genes is None:
         genes = _default_genes(adata)
-    genes = list(genes)
+    genes = ordered_unique(genes)
     if len(genes) < 2:
-        raise ValueError("plot_correlation needs at least two genes to correlate profiles.")
+        raise ValueError(
+            "plot_correlation needs at least two genes to correlate profiles."
+        )
 
-    profiles = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw).T  # genes x groups
+    profiles = group_means(
+        adata, genes, group_by, layer=layer, use_raw=use_raw
+    ).T  # genes x groups
     corr = profiles.corr(method=method)
 
-    order = _cluster_order(corr) if cluster and corr.shape[0] >= 2 else list(corr.columns)
+    order = (
+        _cluster_order(corr) if cluster and corr.shape[0] >= 2 else list(corr.columns)
+    )
     corr = corr.loc[order, order]
 
     long = (

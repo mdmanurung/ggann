@@ -52,7 +52,9 @@ def test_embedding_density_assigns_each_cell_its_own_density(group_key):
     coords[20] = [5.0, 5.0]  # an A outlier, for the secondary check
     adata = ad_mod.AnnData(
         X=rng.normal(size=(n, 3)),
-        obs=pd.DataFrame({group_key: pd.Categorical(groups)}, index=[f"c{i}" for i in range(n)]),
+        obs=pd.DataFrame(
+            {group_key: pd.Categorical(groups)}, index=[f"c{i}" for i in range(n)]
+        ),
     )
     adata.obsm["X_umap"] = coords
     d = ag.plot_embedding_density(adata, "umap", group_key).data
@@ -68,7 +70,9 @@ def test_embedding_density_assigns_each_cell_its_own_density(group_key):
 
 def test_heatmap_builds_and_scales(adata, markers, group_key):
     plain = ag.plot_heatmap(adata, markers, group_key, use_raw=True)
-    scaled = ag.plot_heatmap(adata, markers, group_key, use_raw=True, standard_scale="var")
+    scaled = ag.plot_heatmap(
+        adata, markers, group_key, use_raw=True, standard_scale="var"
+    )
     assert isinstance(plain, p9.ggplot)
     plain._build()
     # each gene scaled independently into [0, 1]
@@ -77,11 +81,11 @@ def test_heatmap_builds_and_scales(adata, markers, group_key):
 
 
 def test_dendrogram_builds_and_autocomputes(adata, group_key):
-    ad = adata.copy()  # auto-compute writes to uns; isolate the shared fixture
+    ad = adata.copy()
     ad.uns.pop(f"dendrogram_{group_key}", None)
     plot = ag.plot_dendrogram(ad, group_key)
     assert isinstance(plot, p9.ggplot)
-    assert f"dendrogram_{group_key}" in ad.uns  # computed on demand
+    assert f"dendrogram_{group_key}" not in ad.uns
     plot._build()
     ag.plot_dendrogram(ad, group_key, orientation="left")._build()
 
@@ -95,7 +99,7 @@ def test_dendrogram_custom_key_autocomputes_into_that_key(adata, group_key):
     ad = adata.copy()
     ad.uns.pop(f"dendrogram_{group_key}", None)
     plot = ag.plot_dendrogram(ad, group_key, key="my_dendro")
-    assert "my_dendro" in ad.uns  # written where it is then read (was a KeyError)
+    assert "my_dendro" not in ad.uns
     plot._build()
 
 

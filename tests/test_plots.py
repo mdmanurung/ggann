@@ -1,4 +1,3 @@
-import pandas as pd
 import pytest
 from plotnine import geom_point, ggplot
 
