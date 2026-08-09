@@ -1,7 +1,8 @@
 # ggann
 
 `ggann` turns `AnnData` into composable plotnine graphics and concise
-single-cell plotting helpers.
+single-cell plotting helpers, then carries the same scientific content into an
+exact-size editable publication figure.
 
 ```python
 import ggann as ag
@@ -47,14 +48,21 @@ Understand source resolution, grouping, ownership, and return types.
 :link: vignettes/index
 :link-type: doc
 
-Run five offline workflows from migration through final figure assembly.
+Run six offline workflows, including two real PBMC analyses.
+:::
+
+:::{grid-item-card} Publication figures
+:link: publication
+:link-type: doc
+
+Coordinate final-size styles, palettes, layouts, rasterization, and export.
 :::
 
 :::{grid-item-card} Performance
 :link: performance
 :link-type: doc
 
-Reproduce matched Scanpy timings, memory measurements, and release gates.
+Reproduce matched Scanpy timings, memory measurements, and acceptance criteria.
 :::
 
 ::::
@@ -67,6 +75,7 @@ Reproduce matched Scanpy timings, memory measurements, and release gates.
 installation
 quickstart
 concepts
+publication
 gallery
 comparisons
 ```
@@ -83,12 +92,12 @@ stats_pseudobulk
 ```
 
 ```{toctree}
-:caption: Release evidence
+:caption: Adoption and validation
 :maxdepth: 1
 :hidden:
 
-performance
 migration
+performance
 ```
 
 ```{toctree}

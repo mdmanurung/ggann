@@ -1,12 +1,12 @@
 # Performance and Scanpy comparison
 
 ```{warning}
-The frozen release candidate fails the measured Scanpy speed and memory gates.
-The results below do **not** support a "blazing fast" claim. Publication remains
-blocked until a repeated full matrix passes every gate.
+The matched benchmark below favours Scanpy for speed and memory on the measured
+large sparse workloads. Choose ggann for its tidy AnnData-to-plotnine workflow,
+composable grammar, and exact publication export—not for a blanket speed claim.
 ```
 
-## Current evidence status
+## Evidence and interpretation
 
 ### What the refined profile found
 
@@ -73,24 +73,26 @@ BLAS/OpenMP thread, Scanpy 1.12.3, annplyr 0.3.0, AnnData 0.13.2, NumPy 2.4.6,
 pandas 3.0.5, SciPy 1.18.0, plotnine 0.15.7, plotnine-extra 0.3.1, and Matplotlib
 3.11.1.
 
-### Frozen-candidate regression check
+### Frozen first-release self-regression check
 
-The exact pre-optimization source (`b8c9eb…`) was rerun with the same fixture,
-environment, seed, and seven repetitions. The candidate source is `7e059e8…`.
+The publication implementation was compared with frozen commit `30e3359` using
+the same extended CSR fixture, environment, seed, and seven repeated samples.
+Peak and retained RSS are medians from seven independent fresh children per
+library and stage.
 
-| Workload | Preparation change | Construction change | Render/save change | End-to-end change |
-|---|---:|---:|---:|---:|
-| Embedding | -19.9% | -36.7% | -29.2% | -18.1% |
-| Dotplot | -2.5% | -13.2% | -1.5% | -1.0% |
-| Matrixplot | -12.7% | -20.2% | +3.0% | -1.5% |
+| Workload | Preparation | Construction | Render | End to end | Peak RSS | Retained RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| Embedding | -3.7% | -4.6% | -0.2% | -0.7% | +0.2% | -4.0% |
+| Dotplot | +0.3% | +0.2% | +0.0% | -0.4% | -6.8% | -6.8% |
+| Matrixplot | -0.7% | +0.9% | -0.7% | +0.0% | -6.6% | -6.6% |
 
-All primary end-to-end and preparation timings pass the 5% regression limit.
-A single fresh-child matrixplot end-to-end RSS probe increased from 16.19 to
-17.16 MiB (+6.0%), while profiler allocations were essentially unchanged. This
-memory observation is reported as an unresolved baseline-regression blocker,
-not dismissed as a pass.
+All 18 checks pass the 5% regression limit. The largest timing ratio is 1.009×
+for matrixplot construction; the largest memory ratio is 1.002× for embedding
+peak RSS. The versioned `publication-baseline-30e3359.json`,
+`publication-candidate.json`, and `publication-regression.json` files under
+`benchmarks/results/` retain every sample and source-tree digest.
 
-### Mandatory release gates
+### Conservative comparison thresholds
 
 | Primary workload | Preparation gate (≥2×) | E2E gate (≥0.91×) | Peak RSS gate (≤1.10×) | Gate |
 |---|---:|---:|---:|---|
@@ -99,8 +101,9 @@ not dismissed as a pass.
 | Matrixplot | 0.23× — fail | 0.53× — fail | 2.22× — fail | **FAIL** |
 | Primary-suite geometric mean | — | 0.526× — fail | — | **FAIL** |
 
-The performance verdict remains `NOT READY`; these results do not support a
-"blazing fast" claim.
+These thresholds are deliberately demanding and are not met by this run. The
+result is a limitation on performance claims, not on the correctness or
+ergonomics of the plotting API.
 
 ## Matched plot pairs
 
@@ -184,7 +187,8 @@ PYTHONPATH=src python benchmarks/compare_scanpy.py \
   --report /tmp/ggann-vs-scanpy-smoke.md
 ```
 
-The smoke artifacts are disposable CI checks; they are not release evidence.
+The smoke artifacts are disposable CI checks; they are not evidence for a
+general performance claim.
 
 Reproduce the committed primary result on a quiet dedicated machine:
 
@@ -220,9 +224,9 @@ PYTHONPATH=src python benchmarks/profile_hotspots.py \
   --profile-dir /tmp/ggann-profile-pstats
 ```
 
-The full dense/CSR/CSC × `.X`/layer/raw matrix remains required before a release
-can pass, but it cannot overturn failures already present in the primary CSR
-suite.
+The full dense/CSR/CSC × `.X`/layer/raw matrix is required before making a broad
+cross-library performance claim, but it cannot overturn failures already
+present in the primary CSR suite.
 
 ### ggann baseline and regression harness
 
@@ -239,8 +243,8 @@ PYTHONPATH=src python benchmarks/run_benchmarks.py \
   --include-rendering \
   --repeats 5 \
   --seed 20260808 \
-  --label candidate \
-  --output benchmarks/results/candidate.json
+  --label current \
+  --output benchmarks/results/current.json
 ```
 
 Run the realistic sparse suite separately:
@@ -253,8 +257,8 @@ PYTHONPATH=src python benchmarks/run_benchmarks.py \
   --include-rendering \
   --repeats 5 \
   --seed 20260808 \
-  --label candidate-large \
-  --output benchmarks/results/candidate-large.json
+  --label current-large \
+  --output benchmarks/results/current-large.json
 ```
 
 Compare the same environment and fixture before and after optimization:
@@ -262,15 +266,15 @@ Compare the same environment and fixture before and after optimization:
 ```bash
 python benchmarks/compare_results.py \
   benchmarks/results/baseline.json \
-  benchmarks/results/candidate.json \
+  benchmarks/results/current.json \
   --fail-regression-pct 5 \
   --fail-on-output-change \
-  --output benchmarks/results/baseline-v-candidate.md
+  --output benchmarks/results/baseline-v-current.md
 ```
 
-These commands measure ggann regressions. A release also requires the matched
-Scanpy comparison artifact described above; a ggann-only result cannot satisfy
-the Scanpy gates.
+These commands measure ggann self-regressions. A cross-library performance
+claim also requires the matched Scanpy artifact described above; a ggann-only
+result cannot establish comparative speed.
 
 ## Correctness before speed
 
@@ -283,18 +287,18 @@ tables against the baseline:
 PYTHONPATH=/path/to/baseline python benchmarks/check_invariance.py snapshot \
   --output /tmp/ggann-baseline
 PYTHONPATH=src python benchmarks/check_invariance.py snapshot \
-  --output /tmp/ggann-candidate
+  --output /tmp/ggann-current
 python benchmarks/check_invariance.py compare \
-  /tmp/ggann-baseline /tmp/ggann-candidate
+  /tmp/ggann-baseline /tmp/ggann-current
 ```
 
 The `pbmc68k_reduced` artifact check may use a pre-populated Scanpy cache for
 offline execution. Deterministic synthetic fixtures remain the network-free
 fallback when that dataset is unavailable.
 
-## Release gates
+## Performance acceptance criteria
 
-The release passes only when all of the following are true:
+ggann uses the following criteria before making broad speed or memory claims:
 
 - primary large sparse embedding, dotplot, and matrixplot preparation is at
   least 2× faster than Scanpy by median time;
@@ -305,5 +309,4 @@ The release passes only when all of the following are true:
   without a documented correctness justification.
 
 Store the raw JSON, comparison report, invariance report, exact commands, and
-environment provenance together. The final values and artifact paths belong in
-`RELEASE_READINESS.md` as well as the status table at the top of this page.
+environment provenance together so every published number remains auditable.

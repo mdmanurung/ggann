@@ -173,7 +173,7 @@ documentation build.
 ```{include} ../_includes/scanpy-extended-csr.md
 ```
 
-Regenerate the full five-repeat comparison on a quiet machine with one
+Regenerate the full seven-repeat comparison on a quiet machine with one
 computational thread:
 
 ```bash
@@ -182,8 +182,9 @@ MPLBACKEND=Agg MPLCONFIGDIR=/tmp/ggann-benchmark-mpl \
 NUMBA_CACHE_DIR=/tmp/ggann-benchmark-numba PYTHONHASHSEED=0 \
 PYTHONPATH=src python benchmarks/compare_scanpy.py \
   --preset extended --formats csr --workloads primary --sources x \
-  --repeats 5 --seed 20260809 --include-cold-start \
+  --repeats 7 --seed 20260809 --include-cold-start \
   --isolated-memory-stages preparation,end_to_end \
+  --isolated-memory-repeats 7 \
   --output benchmarks/results/scanpy-extended-csr.json \
   --report benchmarks/results/scanpy-extended-csr.md
 

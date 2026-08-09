@@ -300,6 +300,50 @@ pb = ag.pseudobulk(
 
 _CONTRACTS.update(
     {
+        "ggann.publication_style": _contract(
+            "An immutable, validated ``PublicationStyle`` value.",
+            "An unknown preset or invalid field value raises ``ValueError``; an unknown "
+            "override name raises ``TypeError``.",
+            "import ggann as ag\n\nstyle = ag.publication_style(\n"
+            '    "double-column", base_size=7, tag_size=8\n)',
+        ),
+        "ggann.theme_publication": _contract(
+            "A regular additive plotnine theme.",
+            "An unknown axis treatment or style preset raises ``ValueError``.",
+            _pbmc(
+                'plot = ag.plot_embedding(adata, "umap", color="bulk_labels")\n'
+                'plot = plot + ag.theme_publication(axes="embedding")'
+            ),
+        ),
+        "ggann.style_context": _contract(
+            "A context manager yielding the active immutable ``PublicationStyle``.",
+            "An unknown override name raises ``TypeError``; invalid presets or field "
+            "values raise ``ValueError``. Global plotting state is restored even if "
+            "the context body raises.",
+            _pbmc(
+                'with ag.style_context("double-column") as style:\n'
+                '    plot = ag.plot_embedding(adata, "umap", color="bulk_labels")'
+            ),
+        ),
+        "ggann.publication_palette": _contract(
+            "A tuple of hex colours, or an insertion-ordered category-to-colour mapping.",
+            "Unknown palette kinds, non-positive ``n``, incompatible category arguments, "
+            "and invalid styles raise ``ValueError``.",
+            "import ggann as ag\n\npalette = ag.publication_palette(\n"
+            '    "qualitative", categories=["T cell", "B cell", "NK cell"]\n)',
+        ),
+        "ggann.save_publication": _contract(
+            "A tuple of written ``pathlib.Path`` objects in SVG, PDF, PNG, TIFF order.",
+            "Unsupported plot objects raise ``TypeError``. Invalid dimensions, formats, "
+            "DPI, units, or background colours raise ``ValueError``.",
+            _pbmc(
+                'plot = ag.plot_embedding(adata, "umap", color="bulk_labels")\n'
+                "paths = ag.save_publication(\n"
+                '    plot, "pbmc_umap", width="single-column", height=70,\n'
+                '    formats=("svg", "pdf", "png"), dpi=600,\n'
+                ")"
+            ),
+        ),
         "ggann.theme_ggann": _contract(
             "A plotnine theme object.",
             _PLOTNINE_ERRORS,

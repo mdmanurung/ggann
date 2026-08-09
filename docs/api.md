@@ -15,6 +15,8 @@
 | Downsampling | `downsample=` caps total cells for embedding/feature panels and cells per group for grouped distributions and heatmaps. `random_state=0` is deterministic; `None` draws a fresh sample. |
 | Materialization budget | `gganndata(..., max_matrix_values=...)` bounds cumulative expression and `obsm` values before extraction. Observation metadata is free. High-level plotting helpers do not currently expose the hard limit. |
 | Colours | Categorical scales reuse `adata.uns["<column>_colors"]` when valid and otherwise use a qualitative scale. Numeric values use a continuous colour map. `color` is canonical; `colour` scale aliases remain available. |
+| Publication mode | `style_context(...)` changes family styling and rendering defaults without changing prepared tables. Later plotnine additions win. |
+| Rasterization | Dense embedding points and matrix tiles remain vectors unless `rasterized=True`; text, axes, guides, tags, and annotations remain vectors. |
 | Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `plot_clustermap` and `plot_upset` return their grid-backend objects. |
 
 ## Performance and ownership by family
@@ -144,7 +146,28 @@ convenience.
    plot_variance_ratio
 ```
 
-## Scales and theme
+## Publication design and exact export
+
+```{eval-rst}
+.. autosummary::
+   :toctree: generated/native
+   :nosignatures:
+
+   PublicationStyle
+   publication_style
+   theme_publication
+   style_context
+   publication_palette
+   save_publication
+```
+
+The `single-column` and `double-column` presets are generic 89 mm and 183 mm
+starting widths. They coordinate final-size typography and rendering but do not
+claim compliance with a named journal. See {doc}`publication` for palette
+validation, font fallback, rasterization, composition, and vector-editing
+contracts.
+
+## Exploratory scales and theme
 
 ```{eval-rst}
 .. autosummary::

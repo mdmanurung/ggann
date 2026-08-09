@@ -1,6 +1,9 @@
 # ggann
 
-`ggann` turns `AnnData` into composable plotnine graphics and concise single-cell plotting helpers.
+`ggann` turns `AnnData` into composable plotnine graphics and concise
+single-cell plotting helpers. Start with a one-call biological summary, refine
+it with the grammar of graphics, and export an editable multi-panel figure at
+its final physical size.
 
 [Documentation](https://mdmanurung.github.io/ggann/) ·
 [Quickstart](https://mdmanurung.github.io/ggann/quickstart.html) ·
@@ -33,6 +36,53 @@ plot = (
     + theme_classic()
 )
 ```
+
+## From AnnData to a publication figure
+
+Publication styling is opt-in and uses the same helper calls. This example uses
+Scanpy's bundled PBMC68k subset, so it can be run as written:
+
+```python
+import scanpy as sc
+import ggann as ag
+
+adata = sc.datasets.pbmc68k_reduced()
+genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
+
+with ag.style_context("double-column"):
+    embedding = ag.plot_embedding(
+        adata, "umap", color="bulk_labels", label=True
+    )
+    markers = ag.plot_dotplot(
+        adata, genes, group_by="bulk_labels", use_raw=True
+    )
+    figure = ag.compose(
+        [embedding, markers],
+        ncol=2,
+        widths=(0.9, 1.3),
+        gap=2,
+        guides="keep",
+    )
+
+paths = ag.save_publication(
+    figure,
+    "pbmc_lineages",
+    width="double-column",
+    height=90,
+    formats=("svg", "pdf", "png"),
+    dpi=600,
+)
+```
+
+The context coordinates typography, line weights, palettes, missing-value
+colours, embedding axes, and matrix guides. It restores plotnine and Matplotlib
+state exactly when the block exits. `save_publication` preserves the requested
+canvas instead of tight-cropping it; SVG text stays editable, PDF fonts use the
+TrueType path, and raster dimensions follow the requested millimetres and DPI.
+
+The executable [publication workflow](docs/vignettes/publication_panels.md)
+extends this to four unequal panels and records the claim, panel map, `n`,
+summary definitions, output dimensions, palette, and input fingerprint.
 
 ## Installation
 
@@ -69,6 +119,9 @@ pip install "ggann[density,heatmap,upset,pseudobulk]"
   plotnine grammar.
 - Except for the documented grid-backend functions `plot_clustermap` and
   `plot_upset`, plotting functions return composable plotnine objects.
+- Wrap existing helper or bare plotnine construction in `style_context(...)`
+  when all panels should share publication defaults. Add later themes, scales,
+  coordinates, facets, or annotations normally; the later layer wins.
 
 Bare aesthetic names resolve in this order: `adata.obs`, the selected
 expression matrix, then `adata.obsm` coordinates. Use explicit selectors when a
@@ -109,16 +162,21 @@ ordering, and missing-value behavior.
 
 Performance claims are accepted only from matched, reproducible comparisons
 against Scanpy. The [performance guide](docs/performance.md) defines the timing,
-memory, equivalence, and release gates; it deliberately does not substitute
+memory, equivalence, and acceptance criteria; it deliberately does not substitute
 microbenchmarks for end-to-end results.
 
 ## Development checks
 
 ```bash
-pytest -q
+python scripts/run_pyright.py
+ruff check src tests benchmarks docs/extensions examples scripts
+ruff format --check src tests benchmarks docs/extensions examples scripts
+PYTHONPATH=src python -m pytest -q
 GGANN_DOCS_OFFLINE=1 sphinx-build -W --keep-going -b html docs docs/_build/html
 ```
 
-The warning-as-error docs build executes all five deterministic scripts in
-`examples/vignettes/`. They use generated fixtures, a headless renderer, and no
-network downloads.
+The warning-as-error docs build executes all six scripts in
+`examples/vignettes/`. The first-use and publication workflows use Scanpy's
+bundled `pbmc68k_reduced` dataset; four focused workflows use a deterministic
+PBMC-like fixture. All use a headless renderer, write only to temporary
+directories by default, and require no network access.

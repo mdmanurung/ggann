@@ -8,9 +8,9 @@ pip install ggann
 
 The core install includes [plotnine](https://plotnine.org/),
 [`plotnine-extra`](https://github.com/mdmanurung/plotnine-extra), and
-[`annplyr`](https://github.com/mdmanurung/annplyr). A release is publishable only
-after every required dependency is available from the configured package index;
-the distribution metadata must not rely on Git commit URLs.
+[`annplyr`](https://github.com/mdmanurung/annplyr). All runtime requirements are
+declared as bounded package versions; ggann does not install dependencies from
+Git commit URLs.
 
 ## Optional extras
 

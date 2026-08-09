@@ -35,8 +35,14 @@ violin = ag.plot_violin(
 | `stat_central_tendency` | Mean or median marker |
 | `geom_signif` | Significance brackets |
 
-`plot_violin` and `plot_box` accept `stats=True` as a shortcut for adding a
-group-comparison layer.
+`plot_violin` and `plot_box` accept `stats=True` as a shortcut for one global
+test in each feature facet. With two groups this is a two-sided, unpaired
+Mann-Whitney U test; with more than two groups it is Kruskal-Wallis. The label
+is the p-value formatted to three significant digits. The shortcut does not
+apply a multiplicity correction across feature facets. Use an explicit
+`stat_compare_means(...)`, `stat_pwc(...)`, or `stat_pvalue_manual(...)` layer
+when the design needs paired tests, prespecified contrasts, adjusted p-values,
+or a different label.
 
 ## Pseudobulk
 
@@ -57,9 +63,8 @@ pb = ag.pseudobulk(
 ```
 
 Pass `use_raw=True` instead of `layer=` to aggregate `counts_adata.raw`.
-`raw=` is accepted as a deprecated spelling. decoupler checks for integer
-counts unless `skip_checks=True` is set. Profiles with fewer than `min_cells`
-cells are omitted.
+decoupler checks for integer counts unless `skip_checks=True` is set. Profiles
+with fewer than `min_cells` cells are omitted.
 
 The returned object works with the grammar and expression-summary helpers when
 their required observation columns are present:

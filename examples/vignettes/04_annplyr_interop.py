@@ -29,16 +29,16 @@ def main() -> None:
 
     summary = adata.ap.summarize(
         x={"mean_CD3D": ap.mean(ap.col("CD3D"))},
-        by="cell_type",
+        by=["cell_type", "condition"],
         max_matrix_values=adata.n_obs,
     )
     if isinstance(summary["mean_CD3D"].dtype, pd.SparseDtype):
         summary["mean_CD3D"] = summary["mean_CD3D"].sparse.to_dense()
     custom = (
-        ggplot(summary, aes("cell_type", "mean_CD3D", fill="cell_type"))
-        + geom_col(show_legend=False)
-        + labs(x="", y="mean CD3D expression")
-        + ag.theme_ggann()
+        ggplot(summary, aes("cell_type", "mean_CD3D", fill="condition"))
+        + geom_col(position="dodge")
+        + labs(x="", y="mean CD3D expression", fill="condition")
+        + ag.theme_publication()
     )
     custom.draw()
     ag.plot_dotplot(

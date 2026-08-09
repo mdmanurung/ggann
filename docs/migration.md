@@ -1,88 +1,222 @@
-# Migration guide
+# Coming from Scanpy or scplotter
 
-## Release-candidate change ledger
+`ggann` is useful when an AnnData plotting workflow needs reusable plot objects,
+plotnine composition, or one coherent path from exploration to exact-size
+publication export. The data model remains AnnData; there is no conversion to a
+second analysis object.
 
-No breaking change to an already released ggann public API is recorded for the
-current `0.1.0` candidate. The release-candidate work adds optional grammar and
-coordinate-extraction budgets. Before publishing another version, update this
-table from the actual API diff and add a deprecation path for every renamed or
-removed symbol.
+## The main mental-model shift
 
-| Before | Current | Status | Action |
-|---|---|---|---|
-| `gganndata(...)` without a hard read budget | `gganndata(..., max_matrix_values=None)` | Additive | Set an integer only when the mapping needs a hard cumulative limit |
-| `embedding_coords(adata, basis, n=2)` | Adds keyword-only `max_matrix_values=None` | Additive | Existing calls are unchanged |
-| Grouped summaries could retain a missing (`NA`) grouping row | Rows missing any `group_by`/`split_by` key are omitted | Consistency fix | Fill missing labels before plotting if they should form an explicit category |
-| Sparse grouped means had backend-dependent `NaN` behavior | Expression `NaN` values are skipped for means and treated as not detected for fractions | Correctness fix | No change for finite matrices |
-
-Documentation-only clarification is not a public API change. The current
-contracts are summarized below so later releases have an explicit baseline.
-
-## Current naming baseline
-
-| Concept | Canonical ggann spelling | Notes |
-|---|---|---|
-| Primary group | `group_by` | Scanpy spells this `groupby` |
-| Secondary split | `split_by` | Facet or within-group split, depending on helper |
-| Aesthetic colour | `color` | `scale_colour_*` aliases remain available |
-| Expression layer | `layer` | Mutually exclusive with `use_raw=True` |
-| Raw matrix switch | `use_raw` | `None` selects `.raw` when present |
-| Cell cap | `downsample` | Never applied silently |
-| Sampling seed | `random_state` | Defaults to deterministic `0` |
-| Primary category order | `categories_order` | Must include observed non-missing groups |
-| Grammar read budget | `max_matrix_values` | Cumulative expression and `obsm` values; observation metadata is free |
-
-## Moving from Scanpy
-
-The closest direct translations are:
+Scanpy plotting functions usually draw immediately. `ggann` prepares the same
+kind of biological summary and returns a plot object:
 
 ```python
 # Scanpy
-sc.pl.dotplot(adata, genes, groupby="cell_type", show=False)
+sc.pl.dotplot(adata, genes, groupby="bulk_labels", show=False)
 
 # ggann
-plot = ag.plot_dotplot(adata, genes, group_by="cell_type")
+dotplot = ag.plot_dotplot(adata, genes, group_by="bulk_labels")
 ```
 
-ggann returns rather than immediately showing a plot. Compose it with plotnine,
-then draw or save explicitly:
+You can display `dotplot`, add plotnine components with `+`, place it in a
+composition, or export it later. Except for clustermap and UpSet, helper output
+is an ordinary `plotnine.ggplot`.
+
+## Naming map
+
+| Task | ggann spelling | Practical meaning |
+|---|---|---|
+| primary category | `group_by` | category used for summaries, fills, or rows |
+| secondary category | `split_by` | facet or within-group split |
+| expression source | `layer` / `use_raw` | named layer, `.raw`, or `.X` |
+| category order | `categories_order` | complete order of observed non-missing groups |
+| explicit cell cap | `downsample` | never applied silently |
+| reproducible sampling | `random_state` | deterministic `0` by default |
+| grammar read bound | `max_matrix_values` | cumulative gene and `obsm` values before extraction |
+| colour aesthetic | `color` | canonical spelling; `scale_colour_*` aliases are available |
+
+## Common Scanpy translations
+
+The examples use the bundled PBMC68k subset:
 
 ```python
-from plotnine import labs, theme
+import scanpy as sc
+import ggann as ag
 
-plot = plot + labs(title="Markers") + theme(figure_size=(7, 4))
-plot.save("markers.pdf", width=180, height=100, units="mm")
+adata = sc.datasets.pbmc68k_reduced()
+genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
 ```
 
-See {doc}`vignettes/scanpy_migration` and {doc}`scanpy_parity` for full mappings
-and semantic differences.
+### UMAP by annotation
 
-## Source-selection baseline
+```python
+# Scanpy
+sc.pl.umap(adata, color="bulk_labels", legend_loc="on data", show=False)
+
+# ggann
+umap = ag.plot_embedding(
+    adata,
+    "umap",
+    color="bulk_labels",
+    label=True,
+)
+```
+
+The ggann version keeps both direct labels and the legend. Use
+`rasterized=True` for a dense vector figure, or `downsample=` only when the
+scientific use permits an explicit subset.
+
+### Marker dotplot and matrixplot
+
+```python
+# Scanpy
+sc.pl.dotplot(adata, genes, groupby="bulk_labels", use_raw=True, show=False)
+sc.pl.matrixplot(adata, genes, groupby="bulk_labels", use_raw=True, show=False)
+
+# ggann
+dotplot = ag.plot_dotplot(
+    adata, genes, group_by="bulk_labels", use_raw=True
+)
+matrix = ag.plot_matrixplot(
+    adata, genes, group_by="bulk_labels", use_raw=True
+)
+```
+
+Dot colour is mean expression and size is fraction above
+`expression_cutoff`. Matrix tiles are group means. In publication mode,
+`annotate="auto"` adds contrast-aware values only when a final-size cell is at
+least 12 points wide and high.
+
+### Violin with a visible centre and interval
+
+```python
+# Scanpy
+sc.pl.violin(adata, "CD3D", groupby="bulk_labels", use_raw=True, show=False)
+
+# ggann
+violin = ag.plot_violin(
+    adata,
+    ["CD3D"],
+    group_by="bulk_labels",
+    use_raw=True,
+    add_box=True,     # median and interquartile range
+    add_points=False,
+    stats=False,
+)
+```
+
+The KDE and inner box use every cell unless `downsample` is set. If
+`stats=True`, the test is computed on the retained cells, so leave downsampling
+off when the p-value must represent the full population.
+
+### Cell-type composition
+
+```python
+composition = ag.plot_proportions(
+    adata,
+    group_by="bulk_labels",
+    split_by="phase",
+    normalize=True,
+)
+```
+
+Each phase bar sums to one. The helper counts observation metadata only and
+does not materialize expression.
+
+## scplotter-style ergonomic options
+
+The helper vocabulary includes direct embedding labels, `split_by` facets,
+grouped marker maps, nested violin boxes, sina/ridge distributions, expression
+summaries, differential-expression views, composition plots, correlations,
+dendrograms, clustermaps, and UpSet diagrams. These stay in Python/AnnData and
+return plotnine objects wherever the underlying geometry permits it.
+
+For a custom layout, compose helpers rather than configuring a bespoke plotting
+class:
+
+```python
+figure = ag.compose(
+    [umap, dotplot, violin, composition],
+    ncol=2,
+    widths=(0.95, 1.25),
+    heights=(1.0, 1.0),
+    gap=2,
+    tag_levels="auto",
+)
+```
+
+## When to use the grammar directly
+
+Use `gganndata` when plotnine already describes the figure:
+
+```python
+from ggann import aes, gene, gganndata, obs, obsm
+from plotnine import facet_wrap, geom_point
+
+phase_umap = (
+    gganndata(
+        adata,
+        aes(
+            x=obsm("umap", 0),
+            y=obsm("umap", 1),
+            color=gene("CD3D", use_raw=True),
+            group=obs("phase"),
+        ),
+    )
+    + geom_point(size=1)
+    + facet_wrap("phase")
+)
+```
+
+Explicit selectors remove ambiguity when an observation column and a gene have
+the same name. Bare names resolve through observation metadata, the selected
+expression source, then embedding coordinates.
+
+## Expression-source rules
 
 With neither `layer` nor `use_raw` set, ggann uses `.raw` when available and
-otherwise `.X`. Use `use_raw=False` to force `.X`. A named layer always wins;
-combining `layer=` with `use_raw=True` is an error.
+otherwise `.X`, matching Scanpy's plotting convention. Use `use_raw=False` to
+force `.X`; a named `layer` selects that layer. Combining `layer=` with
+`use_raw=True` is an error. A source attached to `gene(...)` overrides the
+plot-wide selection for that gene.
 
-Grammar code that previously relied on a bare-name collision should move to an
-explicit selector:
+Only requested variables are projected through annplyr before conversion or
+aggregation. Grammar calls can set `max_matrix_values` to reject an oversized
+gene/embedding request before the first matrix read.
+
+## Category, palette, and missing-value behavior
+
+Categorical order in `adata.obs` is preserved. An explicit
+`categories_order` must cover every observed, non-missing group. Grouped
+summaries omit rows with missing grouping keys.
+
+Categorical plots reuse `adata.uns["<obs>_colors"]`. Publication mode validates
+exact category alignment and colour syntax; an invalid palette warns and falls
+back deterministically without changing the AnnData. Missing observations in
+embeddings remain present and use neutral grey.
+
+## Move the assembled figure to publication mode
+
+The calls do not need to be rewritten:
 
 ```python
-from ggann import gene, obs
+with ag.style_context("double-column"):
+    panels = [
+        ag.plot_embedding(adata, "umap", color="bulk_labels", label=True),
+        ag.plot_dotplot(adata, genes, group_by="bulk_labels", use_raw=True),
+    ]
+    figure = ag.compose(panels, ncol=2, widths=(0.9, 1.3), gap=2)
 
-cell_annotation = obs("CD3D")
-gene_expression = gene("CD3D", use_raw=True)
+ag.save_publication(
+    figure,
+    "pbmc_figure",
+    width="double-column",
+    height=90,
+    formats=("svg", "pdf", "png"),
+    dpi=600,
+)
 ```
 
-## Return-type baseline
-
-All plotnine-native helpers return `plotnine.ggplot`. The only plotting
-exceptions are `plot_clustermap` and `plot_upset`, which return their grid
-backend objects. Code should not assume those two support plotnine's `+`
-operator.
-
-## Deprecation policy for future changes
-
-An unavoidable public rename should retain the old spelling for at least one
-minor release, emit a targeted `DeprecationWarning`, document the replacement,
-and add both old and new calls to the API contract tests. Silent behavior changes
-are not an acceptable migration strategy.
+See {doc}`vignettes/scanpy_migration` for an executable translation,
+{doc}`scanpy_parity` and {doc}`scplotter_parity` for detailed coverage, and
+{doc}`publication` for final-size design and export contracts.
