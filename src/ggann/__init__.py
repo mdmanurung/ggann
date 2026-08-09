@@ -31,6 +31,7 @@ from plotnine_extra import (
     stat_regline_equation,
 )
 
+from ._matplotlib_backend import MatplotlibGGPlot
 from ._palette import obs_colors, scale_color_obs, scale_colour_obs, scale_fill_obs
 from ._resolve import embedding_coords, gene, obs, obsm
 from .clustermap import plot_clustermap
@@ -102,6 +103,7 @@ __all__ = [
     "obs",
     "obsm",
     "embedding_coords",
+    "MatplotlibGGPlot",
     "plot_embedding",
     "plot_embedding_density",
     "plot_features",

@@ -11,6 +11,7 @@ from __future__ import annotations
 import warnings
 from typing import Iterable, Sequence
 
+import numpy as np
 import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
@@ -30,12 +31,29 @@ from plotnine import (
     scale_size,
     theme,
 )
+from scipy import sparse
 
-from ._aggregate import aggregate_expression, aggregate_means, tidy_expression
-from ._expression import ordered_unique
+from ._aggregate import (
+    aggregate_expression,
+    aggregate_expression_native,
+    aggregate_means,
+    aggregate_means_native,
+    tidy_expression,
+)
+from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
 from ._grouping import _downsample_cells, _group_categories, _order_groups
-from ._palette import scale_color_obs
-from ._resolve import embedding_coords, embedding_key, obsm, plain_name, resolve_frame
+from ._matplotlib_backend import categorical_palette, promote_matplotlib_plot
+from ._palette import obs_colors, scale_color_obs
+from ._resolve import (
+    ObsmRef,
+    Ref,
+    embedding_coords,
+    embedding_key,
+    obsm,
+    parse_token,
+    plain_name,
+    resolve_frame,
+)
 from .theme import theme_ggann
 
 __all__ = [
@@ -52,6 +70,91 @@ def _is_numeric(series: pd.Series) -> bool:
     return pd.api.types.is_numeric_dtype(series) and not isinstance(
         series.dtype, pd.CategoricalDtype
     )
+
+
+def _validate_backend(backend: str) -> None:
+    if backend not in {"plotnine", "matplotlib"}:
+        raise ValueError("backend must be 'plotnine' or 'matplotlib'.")
+
+
+def _native_vector(matrix) -> np.ndarray:
+    if sparse.issparse(matrix):
+        return matrix.toarray().reshape(-1)
+    return np.asarray(matrix).reshape(-1)
+
+
+def _native_embedding_frame(
+    adata,
+    key: str,
+    color,
+    *,
+    layer: str | None,
+    use_raw: bool | None,
+) -> tuple[pd.DataFrame, str, str, str | None]:
+    """Project the explicit Matplotlib embedding payload by position."""
+    value = adata.obsm[key]
+    coordinates = (
+        value.iloc[:, :2].to_numpy(copy=False)
+        if isinstance(value, pd.DataFrame)
+        else np.asarray(value)[:, :2]
+    )
+    refs = [obsm(key, 0), obsm(key, 1)]
+    xcol, ycol = (plain_name(adata, ref) for ref in refs)
+    frame = pd.DataFrame(
+        {xcol: coordinates[:, 0], ycol: coordinates[:, 1]},
+        index=adata.obs_names.copy(),
+    )
+    if color is None:
+        return frame, xcol, ycol, None
+
+    default_kind, default_layer = resolve_source(adata, layer, use_raw)
+    token = parse_token(color)
+    cname = plain_name(adata, token)
+    if isinstance(token, ObsmRef):
+        color_key = embedding_key(adata, token.basis)
+        color_value = adata.obsm[color_key]
+        if token.index < 0 or token.index >= color_value.shape[1]:
+            raise IndexError(
+                f"Embedding {color_key!r} has {color_value.shape[1]} coordinates; "
+                f"requested index {token.index}."
+            )
+        vector = (
+            color_value.iloc[:, token.index].array
+            if isinstance(color_value, pd.DataFrame)
+            else np.asarray(color_value)[:, token.index]
+        )
+    elif isinstance(token, Ref) and token.source == "obs":
+        if token.name not in adata.obs.columns:
+            raise KeyError(f"obs('{token.name}') not found in adata.")
+        vector = adata.obs[token.name].array
+    else:
+        name = token.name if isinstance(token, Ref) else str(token)
+        if not isinstance(token, Ref) and name in adata.obs.columns:
+            if name in source_var_names(adata, default_kind):
+                warnings.warn(
+                    f"'{name}' is both an obs column and a gene; using obs. "
+                    f"Use 'gene:{name}' to plot expression.",
+                    stacklevel=3,
+                )
+            vector = adata.obs[name].array
+        else:
+            kind, selected_layer = default_kind, default_layer
+            if isinstance(token, Ref):
+                if token.layer is not None:
+                    kind, selected_layer = resolve_source(adata, token.layer, token.use_raw)
+                elif token.use_raw is not None:
+                    kind, selected_layer = resolve_source(adata, None, token.use_raw)
+            if name not in source_var_names(adata, kind):
+                raise KeyError(f"Could not resolve color={color!r} from obs, genes or obsm.")
+            projected, _ = expression_matrix(
+                adata,
+                [name],
+                kind=kind,
+                layer=selected_layer,
+            )
+            vector = _native_vector(projected)
+    frame[cname] = vector
+    return frame, xcol, ycol, cname
 
 
 def _feature_facet(split_by: str | None, *, ncol: int = 1, scales: str = "free_y"):
@@ -104,6 +207,7 @@ def plot_embedding(
     high: str = "#2166ac",
     downsample: int | None = None,
     random_state: int | None = 0,
+    backend: str = "plotnine",
 ):
     """Scatter over an embedding (UMAP/t-SNE/PCA), optionally coloured and split.
 
@@ -146,18 +250,24 @@ def plot_embedding(
         Maximum total observations to draw.
     random_state : int, optional
         Reproducible downsampling seed; ``None`` is non-deterministic.
+    backend : {"plotnine", "matplotlib"}, default="plotnine"
+        Rendering path. The explicit Matplotlib path accelerates an unsplit
+        point scatter while returning a composable ggplot subclass.
 
     Returns
     -------
     plotnine.ggplot
-        Composable embedding plot.
+        Composable embedding plot. The Matplotlib backend returns a
+        :class:`ggann.MatplotlibGGPlot` subclass.
 
     Raises
     ------
     KeyError
         If the embedding or an explicit colour/split source is missing.
     ValueError
-        If the embedding has fewer than two coordinates or downsampling is invalid.
+        If the embedding has fewer than two coordinates, downsampling/backend is
+        invalid, or the Matplotlib backend is asked for an unsupported density,
+        facet, or centroid-label layout.
 
     Notes
     -----
@@ -168,6 +278,12 @@ def plot_embedding(
     --------
     >>> p = plot_embedding(adata, "umap", color="cell_type")
     """
+    _validate_backend(backend)
+    if backend == "matplotlib" and (split_by is not None or label):
+        raise ValueError(
+            "backend='matplotlib' currently supports unsplit embeddings without "
+            "centroid labels; use backend='plotnine' for facets or label=True."
+        )
     adata = _downsample_cells(adata, None, downsample, random_state=random_state)
     key = embedding_key(adata, basis)
     width = adata.obsm[key].shape[1]
@@ -176,14 +292,24 @@ def plot_embedding(
             f"Embedding '{basis}' has only {width} dimension(s); "
             "plot_embedding requires at least 2."
         )
-    coordinate_refs = [obsm(key, 0), obsm(key, 1)]
-    requested = [*coordinate_refs]
-    if color is not None:
-        requested.append(color)
-    if split_by is not None:
-        requested.append(split_by)
-    df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw)
-    xcol, ycol = (plain_name(adata, ref) for ref in coordinate_refs)
+    if backend == "matplotlib":
+        df, xcol, ycol, native_cname = _native_embedding_frame(
+            adata,
+            key,
+            color,
+            layer=layer,
+            use_raw=use_raw,
+        )
+    else:
+        coordinate_refs = [obsm(key, 0), obsm(key, 1)]
+        requested = [*coordinate_refs]
+        if color is not None:
+            requested.append(color)
+        if split_by is not None:
+            requested.append(split_by)
+        df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw)
+        xcol, ycol = (plain_name(adata, ref) for ref in coordinate_refs)
+        native_cname = None
     facet = pe.facet_wrap("~" + split_by) if split_by is not None else None
 
     def _with_facet(components):
@@ -194,6 +320,30 @@ def plot_embedding(
         # conversion and artist work. A zero-width outline with a 0.5 size
         # offset preserves the rendered diameter and represented observations.
         return geom_point(size=size + 0.5, alpha=alpha, stroke=0)
+
+    def _finish(plot, *, value: str | None = None, categorical: bool = False):
+        if backend == "plotnine":
+            return plot
+        categories: tuple = ()
+        palette: tuple[str, ...] = ()
+        if categorical and value is not None:
+            stored = obs_colors(adata, value) if value in adata.obs.columns else None
+            categories, palette = categorical_palette(df[value], stored)
+        return promote_matplotlib_plot(
+            plot,
+            kind="embedding",
+            data=df,
+            x=xcol,
+            y=ycol,
+            value=value,
+            categorical=categorical,
+            categories=categories,
+            palette=palette,
+            point_size=size,
+            alpha=alpha,
+            low=low,
+            high=high,
+        )
 
     if label and color is None:
         warnings.warn(
@@ -206,6 +356,11 @@ def plot_embedding(
         if pointdensity is None:
             pointdensity = True
         if pointdensity:
+            if backend == "matplotlib":
+                raise ValueError(
+                    "backend='matplotlib' does not implement point-density "
+                    "estimation; pass pointdensity=False or use backend='plotnine'."
+                )
             return ggplot(df, aes(xcol, ycol)) + _with_facet(
                 [
                     pe.geom_pointdensity(size=size, alpha=alpha),
@@ -214,12 +369,13 @@ def plot_embedding(
                     _embedding_axes(),
                 ]
             )
-        return ggplot(df, aes(xcol, ycol)) + _with_facet(
-            [_solid_point(), theme_ggann(), _embedding_axes()]
+        return _finish(
+            ggplot(df, aes(xcol, ycol))
+            + _with_facet([_solid_point(), theme_ggann(), _embedding_axes()])
         )
 
     # `color` may be a bare name, a prefix string ("gene:CD3D@logcounts") or an accessor
-    cname = plain_name(adata, color)
+    cname = native_cname if native_cname is not None else plain_name(adata, color)
     if cname not in df.columns:
         raise KeyError(f"Could not resolve color={color!r} from obs, genes or obsm.")
 
@@ -233,13 +389,17 @@ def plot_embedding(
         # Draw low-expression cells first so high-expression cells are not occluded
         # (mirrors scanpy's sc.pl.embedding ordering).
         df = df.sort_values(cname)
-        return ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(
-            [
-                _solid_point(),
-                scale_color_gradient(low=low, high=high),
-                theme_ggann(),
-                _embedding_axes(),
-            ]
+        return _finish(
+            ggplot(df, aes(xcol, ycol, color=cname))
+            + _with_facet(
+                [
+                    _solid_point(),
+                    scale_color_gradient(low=low, high=high),
+                    theme_ggann(),
+                    _embedding_axes(),
+                ]
+            ),
+            value=cname,
         )
     components = [
         _solid_point(),
@@ -262,7 +422,11 @@ def plot_embedding(
                 inherit_aes=False,
             )
         )
-    return ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(components)
+    return _finish(
+        ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(components),
+        value=cname,
+        categorical=True,
+    )
 
 
 def plot_features(
@@ -406,6 +570,7 @@ def plot_dotplot(
     cmap: str = "Reds",
     size_range: tuple[float, float] = (0.5, 8.0),
     categories_order: Iterable[str] | None = None,
+    backend: str = "plotnine",
 ):
     """Marker dotplot: dot *size* = fraction expressing, *colour* = mean expression.
 
@@ -434,18 +599,23 @@ def plot_dotplot(
         Minimum and maximum dot size.
     categories_order : iterable of str, optional
         Complete order of observed groups.
+    backend : {"plotnine", "matplotlib"}, default="plotnine"
+        Rendering path. The explicit Matplotlib path supports the unsplit layout
+        and returns a composable ggplot subclass.
 
     Returns
     -------
     plotnine.ggplot
-        Composable dotplot.
+        Composable dotplot; the explicit backend returns
+        :class:`ggann.MatplotlibGGPlot`.
 
     Raises
     ------
     KeyError
         If a gene, grouping column, or selected layer is missing.
     ValueError
-        If source, scaling, or category ordering is invalid.
+        If source, scaling, category ordering, backend, or the requested direct
+        layout is invalid.
 
     Notes
     -----
@@ -456,9 +626,16 @@ def plot_dotplot(
     --------
     >>> p = plot_dotplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    _validate_backend(backend)
+    if backend == "matplotlib" and split_by is not None:
+        raise ValueError(
+            "backend='matplotlib' currently supports unsplit dotplots; "
+            "use backend='plotnine' for split_by facets."
+        )
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    agg = aggregate_expression(
+    aggregate = aggregate_expression_native if backend == "matplotlib" else aggregate_expression
+    agg = aggregate(
         adata,
         genes,
         group_by,
@@ -482,7 +659,21 @@ def plot_dotplot(
     ]
     if split_by:
         components.append(pe.facet_wrap(f"~{split_by}"))
-    return ggplot(agg, aes("feature", group_by)) + components
+    plot = ggplot(agg, aes("feature", group_by)) + components
+    if backend == "plotnine":
+        return plot
+    return promote_matplotlib_plot(
+        plot,
+        kind="dotplot",
+        data=agg,
+        x="feature",
+        y=group_by,
+        value="mean_expression",
+        fraction="fraction",
+        cmap=cmap,
+        size_range=size_range,
+        value_label=color_lab,
+    )
 
 
 def plot_matrixplot(
@@ -496,6 +687,7 @@ def plot_matrixplot(
     standard_scale: str | None = None,
     cmap: str = "viridis",
     categories_order: Iterable[str] | None = None,
+    backend: str = "plotnine",
 ):
     """Aggregated mean-expression heatmap (genes x groups) as a plotnine tile plot.
 
@@ -522,18 +714,23 @@ def plot_matrixplot(
         Matplotlib colormap name.
     categories_order : iterable of str, optional
         Complete order of observed groups.
+    backend : {"plotnine", "matplotlib"}, default="plotnine"
+        Rendering path. The explicit Matplotlib path supports the unsplit layout
+        and returns a composable ggplot subclass.
 
     Returns
     -------
     plotnine.ggplot
-        Composable mean-expression tile plot.
+        Composable mean-expression tile plot; the explicit backend returns
+        :class:`ggann.MatplotlibGGPlot`.
 
     Raises
     ------
     KeyError
         If a gene, grouping column, or selected layer is missing.
     ValueError
-        If source, scaling, or category ordering is invalid.
+        If source, scaling, category ordering, backend, or the requested direct
+        layout is invalid.
 
     Notes
     -----
@@ -544,9 +741,16 @@ def plot_matrixplot(
     --------
     >>> p = plot_matrixplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    _validate_backend(backend)
+    if backend == "matplotlib" and split_by is not None:
+        raise ValueError(
+            "backend='matplotlib' currently supports unsplit matrixplots; "
+            "use backend='plotnine' for split_by facets."
+        )
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
-    agg = aggregate_means(
+    aggregate = aggregate_means_native if backend == "matplotlib" else aggregate_means
+    agg = aggregate(
         adata,
         genes,
         group_by,
@@ -568,7 +772,19 @@ def plot_matrixplot(
     ]
     if split_by:
         components.append(pe.facet_wrap(f"~{split_by}"))
-    return ggplot(agg, aes("feature", group_by, fill="mean_expression")) + components
+    plot = ggplot(agg, aes("feature", group_by, fill="mean_expression")) + components
+    if backend == "plotnine":
+        return plot
+    return promote_matplotlib_plot(
+        plot,
+        kind="matrixplot",
+        data=agg,
+        x="feature",
+        y=group_by,
+        value="mean_expression",
+        cmap=cmap,
+        value_label=color_lab,
+    )
 
 
 def plot_embedding_density(
