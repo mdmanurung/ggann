@@ -105,36 +105,36 @@ def _expression_totals(matrix) -> tuple[np.ndarray, bool]:
 
 def _mean_percentages(
     matrix,
-    totals: np.ndarray,
-    valid_totals: np.ndarray,
+    denominators: np.ndarray,
+    included_rows: np.ndarray,
     *,
     elementwise: bool,
 ) -> np.ndarray:
-    """Mean per-gene percentages, excluding undefined values like pandas."""
+    """Mean per-gene percentages with Scanpy-compatible zero-row handling."""
     from scipy import sparse
 
     n_vars = matrix.shape[1]
     if not elementwise:
-        if not valid_totals.any():
+        if not included_rows.any():
             return np.full(n_vars, np.nan, dtype=float)
-        weights = np.zeros_like(totals, dtype=float)
-        weights[valid_totals] = 1.0 / totals[valid_totals]
-        return np.asarray(matrix.T @ weights).reshape(-1) * (100.0 / valid_totals.sum())
+        weights = np.zeros_like(denominators, dtype=float)
+        weights[included_rows] = 1.0 / denominators[included_rows]
+        return np.asarray(matrix.T @ weights).reshape(-1) * (100.0 / included_rows.sum())
 
     means = np.full(n_vars, np.nan, dtype=float)
     if sparse.issparse(matrix):
         columns = matrix.tocsc(copy=True)
         columns.sum_duplicates()
-        denominator = int(valid_totals.sum())
+        denominator = int(included_rows.sum())
         for index in range(n_vars):
             start, stop = columns.indptr[index : index + 2]
             rows = columns.indices[start:stop]
-            keep = valid_totals[rows]
+            keep = included_rows[rows]
             fractions = np.full(stop - start, np.nan, dtype=float)
             with np.errstate(divide="ignore", invalid="ignore"):
                 np.divide(
                     columns.data[start:stop],
-                    totals[rows],
+                    denominators[rows],
                     out=fractions,
                     where=keep,
                 )
@@ -152,9 +152,9 @@ def _mean_percentages(
         with np.errstate(divide="ignore", invalid="ignore"):
             np.divide(
                 values,
-                totals[start:stop, None],
+                denominators[start:stop, None],
                 out=fractions,
-                where=valid_totals[start:stop, None],
+                where=included_rows[start:stop, None],
             )
         defined = ~np.isnan(fractions)
         with np.errstate(invalid="ignore"):
@@ -163,6 +163,21 @@ def _mean_percentages(
     np.divide(numerators, counts, out=means, where=counts > 0)
     means *= 100.0
     return means
+
+
+def _percentage_normalization(totals: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return safe denominators, included rows, and zero-total rows.
+
+    Scanpy leaves an all-zero observation as zeros during ``normalize_total``
+    and includes it when computing per-gene means. Replacing only the zero
+    denominator with one gives the same result while non-finite totals remain
+    undefined.
+    """
+    included = np.isfinite(totals)
+    zero_total = totals == 0
+    denominators = totals.copy()
+    denominators[zero_total] = 1.0
+    return denominators, included, zero_total
 
 
 def _select_backed_dense_columns(matrix, indices: np.ndarray) -> np.ndarray:
@@ -405,18 +420,18 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
             "log-normalized values.",
             stacklevel=2,
         )
-    zero_total = totals == 0
-    valid = ~np.isnan(totals) & ~zero_total
+    denominators, included, zero_total = _percentage_normalization(totals)
     n_zero = int(zero_total.sum())
     if n_zero:
         warnings.warn(
-            f"{n_zero} cell(s) with zero total counts excluded from plot_highest_expr_genes.",
+            f"{n_zero} cell(s) with zero total counts retained as 0% in "
+            "plot_highest_expr_genes, matching Scanpy.",
             stacklevel=2,
         )
     means = _mean_percentages(
         matrix,
-        totals,
-        valid,
+        denominators,
+        included,
         elementwise=elementwise,
     )
     n = min(n, len(var_names))
@@ -431,9 +446,9 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
     percentages = np.full(selected.shape, np.nan, dtype=float)
     np.divide(
         selected,
-        totals[:, None],
+        denominators[:, None],
         out=percentages,
-        where=valid[:, None],
+        where=included[:, None],
     )
     percentages *= 100.0
     long = pd.DataFrame(percentages, columns=top).melt(var_name="gene", value_name="percent")

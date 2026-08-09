@@ -162,6 +162,103 @@ def test_highest_expression_skips_nan_per_cell_and_gene(matrix_format):
         assert np.allclose(actual, expected[gene], equal_nan=True)
 
 
+@pytest.mark.parametrize("source", ["x", "layer", "raw"])
+@pytest.mark.parametrize(
+    "matrix_format",
+    [
+        pytest.param(lambda values: values.copy(), id="dense"),
+        pytest.param(sparse.csr_matrix, id="csr"),
+        pytest.param(sparse.csc_matrix, id="csc"),
+    ],
+)
+def test_highest_expression_zero_totals_match_scanpy_and_preserve_source(matrix_format, source):
+    values = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 3.0, 0.0],
+            [2.0, 2.0, 0.0],
+            [9.0, 1.0, 0.0],
+        ]
+    )
+    names = ["g1", "g2", "g3"]
+    adata = ad.AnnData(
+        matrix_format(values),
+        obs=pd.DataFrame(index=["zero", "c2", "c3", "c4"]),
+        var=pd.DataFrame(index=names),
+    )
+    adata.layers["counts"] = matrix_format(values)
+    adata.raw = ad.AnnData(matrix_format(values), var=pd.DataFrame(index=names))
+    kwargs = {
+        "x": {"use_raw": False},
+        "layer": {"layer": "counts"},
+        "raw": {"use_raw": True},
+    }[source]
+    selected = {
+        "x": adata.X,
+        "layer": adata.layers["counts"],
+        "raw": adata.raw.X,
+    }[source]
+    selected_before = selected.copy()
+
+    with pytest.warns(UserWarning, match="zero total counts retained as 0%"):
+        plot = ag.plot_highest_expr_genes(adata, n=3, **kwargs)
+
+    denominators = values.sum(axis=1)
+    denominators[denominators == 0] = 1.0
+    expected = pd.DataFrame(values / denominators[:, None] * 100.0, columns=names)
+    expected_order = expected.mean().sort_values(ascending=False, kind="stable").index.tolist()
+    assert list(reversed(plot.data["gene"].cat.categories)) == expected_order
+    for gene in names:
+        actual = plot.data.loc[plot.data["gene"] == gene, "percent"].to_numpy()
+        assert np.allclose(actual, expected[gene], rtol=1e-6, atol=1e-7, equal_nan=True)
+        assert actual[0] == 0.0
+
+    if sparse.issparse(selected_before):
+        assert sparse.issparse(selected)
+        assert selected.getformat() == selected_before.getformat()
+        assert (selected != selected_before).nnz == 0
+    else:
+        np.testing.assert_array_equal(selected, selected_before)
+
+
+@pytest.mark.parametrize(
+    "matrix_format",
+    [
+        pytest.param(lambda values: values.copy(), id="dense"),
+        pytest.param(sparse.csr_matrix, id="csr"),
+        pytest.param(sparse.csc_matrix, id="csc"),
+    ],
+)
+def test_highest_expression_zero_totals_support_backed_input(tmp_path, matrix_format):
+    values = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 3.0, 0.0],
+            [2.0, 2.0, 0.0],
+        ],
+        dtype=np.float32,
+    )
+    adata = ad.AnnData(
+        matrix_format(values),
+        var=pd.DataFrame(index=["g1", "g2", "g3"]),
+    )
+    path = tmp_path / "zero-totals.h5ad"
+    adata.write_h5ad(path)
+    backed = ad.read_h5ad(path, backed="r")
+    matrix_type = type(backed.X)
+    try:
+        with pytest.warns(UserWarning, match="zero total counts retained as 0%"):
+            plot = ag.plot_highest_expr_genes(backed, n=3, use_raw=False)
+        assert backed.isbacked
+        assert type(backed.X) is matrix_type
+    finally:
+        backed.file.close()
+
+    for gene in ["g1", "g2", "g3"]:
+        values_for_gene = plot.data.loc[plot.data["gene"] == gene, "percent"].to_numpy()
+        assert values_for_gene[0] == 0.0
+
+
 def test_highest_expression_supports_backed_dense_matrix(tmp_path):
     values = np.arange(1, 41, dtype=np.float32).reshape(10, 4)
     adata = ad.AnnData(

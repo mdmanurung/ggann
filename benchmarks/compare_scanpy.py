@@ -324,19 +324,19 @@ def _ggann_highest_frame(adata: Any, n: int, source: str) -> Any:
     from scipy import sparse
 
     from ggann._expression import resolve_source, source_matrix
-    from ggann.qc import _expression_totals, _mean_percentages
+    from ggann.qc import _expression_totals, _mean_percentages, _percentage_normalization
 
     kwargs = _source_kwargs(source)
     kind, layer = resolve_source(adata, kwargs.get("layer"), kwargs.get("use_raw"))
     matrix, var_names = source_matrix(adata, kind, layer)
     totals, elementwise = _expression_totals(matrix)
-    valid = np.isfinite(totals) & (totals != 0)
-    means = _mean_percentages(matrix, totals, valid, elementwise=elementwise)
+    denominators, included, _ = _percentage_normalization(totals)
+    means = _mean_percentages(matrix, denominators, included, elementwise=elementwise)
     top_indices = np.argsort(-means, kind="stable")[: min(n, len(var_names))]
     selected = matrix[:, top_indices]
     selected = selected.toarray() if sparse.issparse(selected) else np.asarray(selected)
     percentages = np.full(selected.shape, np.nan, dtype=float)
-    np.divide(selected, totals[:, None], out=percentages, where=valid[:, None])
+    np.divide(selected, denominators[:, None], out=percentages, where=included[:, None])
     percentages *= 100.0
     return pd.DataFrame(percentages, columns=var_names[top_indices]).melt(
         var_name="gene", value_name="percent"

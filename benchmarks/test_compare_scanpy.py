@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import unittest
+import warnings
 
+import numpy as np
 import pandas as pd
+from anndata import AnnData
+from scipy import sparse
 
 from benchmarks.compare_scanpy import (
     ComparisonSpec,
@@ -13,7 +17,9 @@ from benchmarks.compare_scanpy import (
     _compare_prepared,
     _evaluate_release_gates,
     _execute_case,
+    _ggann_highest_frame,
     _ggann_preparation,
+    _scanpy_highest_frame,
     _scanpy_preparation,
     _selected_sources,
     _selected_workloads,
@@ -82,6 +88,50 @@ class ComparabilityTests(unittest.TestCase):
         right = _scanpy_preparation(adata, genes, spec)
         result = _compare_prepared(left, right, spec.workload)
         self.assertEqual(result["status"], "pass", result["issues"])
+
+    def test_highest_expression_zero_total_rows_match_scanpy(self) -> None:
+        values = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 3.0, 0.0],
+                [2.0, 0.0, 2.0],
+            ]
+        )
+        formats = {
+            "dense": lambda matrix: matrix,
+            "csr": sparse.csr_matrix,
+            "csc": sparse.csc_matrix,
+        }
+        for name, convert in formats.items():
+            with self.subTest(matrix_format=name):
+                adata = AnnData(
+                    convert(values),
+                    var=pd.DataFrame(index=["g1", "g2", "g3"]),
+                )
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    left = _ggann_highest_frame(adata, 3, "x")
+                    right = _scanpy_highest_frame(adata, 3, "x")
+                result = _compare_prepared(left, right, "highest_expr_genes")
+                self.assertEqual(result["status"], "pass", result["issues"])
+
+    def test_highest_expression_nan_difference_remains_visible(self) -> None:
+        values = np.array(
+            [
+                [1.0, np.nan, 3.0],
+                [2.0, 2.0, 0.0],
+            ]
+        )
+        adata = AnnData(values, var=pd.DataFrame(index=["g1", "g2", "g3"]))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            left = _ggann_highest_frame(adata, 3, "x")
+            right = _scanpy_highest_frame(adata, 3, "x")
+
+        result = _compare_prepared(left, right, "highest_expr_genes")
+
+        self.assertEqual(result["status"], "fail")
+        self.assertIn("prepared numeric column 'percent' differs", result["issues"])
 
 
 class InputOwnershipTests(unittest.TestCase):
