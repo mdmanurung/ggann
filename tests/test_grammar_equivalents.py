@@ -15,9 +15,7 @@ import numpy as np
 import plotnine as p9
 import pytest
 
-_GE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "examples", "grammar_equivalents.py"
-)
+_GE_PATH = os.path.join(os.path.dirname(__file__), "..", "examples", "grammar_equivalents.py")
 _spec = importlib.util.spec_from_file_location("grammar_equivalents", _GE_PATH)
 ge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ge)
@@ -75,4 +73,7 @@ def test_correlation_reference_matches_helper_data(adata, has_raw):
     helper_values = keyed(helper)
     reference_values = keyed(reference)
     assert helper_values.index.equals(reference_values.index)
-    np.testing.assert_allclose(helper_values, reference_values, rtol=1e-12, atol=1e-12)
+    # The helper uses a sparse matrix reduction while the grammar reference uses
+    # annplyr/pandas column reductions; both are numerically equivalent but sum
+    # float32 inputs in a different order.
+    np.testing.assert_allclose(helper_values, reference_values, rtol=1e-6, atol=1e-7)

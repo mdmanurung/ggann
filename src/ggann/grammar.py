@@ -55,6 +55,7 @@ def gganndata(
     *,
     layer: str | None = None,
     use_raw: bool | None = None,
+    max_matrix_values: int | None = None,
     add_theme: bool = True,
 ):
     """Start a ggplot over an ``AnnData``.
@@ -72,6 +73,11 @@ def gganndata(
     use_raw
         Read expression from ``adata.raw``. Defaults to ``True`` when ``adata.raw``
         exists and no ``layer`` is given (scanpy's convention).
+    max_matrix_values
+        Maximum cumulative number of expression and ``obsm`` values that may be
+        materialized while resolving the mapping. The request is rejected before
+        extraction when it exceeds this annplyr-compatible budget. Observation
+        metadata does not count toward the budget. ``None`` disables the limit.
     add_theme
         Add :func:`theme_ggann` to the returned plot.
 
@@ -80,9 +86,35 @@ def gganndata(
     plotnine.ggplot
         Compose it with any plotnine layer, e.g.
         ``gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()``.
+
+    Raises
+    ------
+    KeyError
+        If an explicitly selected observation, gene, embedding, or layer is absent.
+    ValueError
+        If ``layer`` and ``use_raw=True`` are combined.
+    annplyr.AnnplyrError
+        If ``max_matrix_values`` is negative or the cumulative projection exceeds it.
+
+    Notes
+    -----
+    Only mapped columns are projected through annplyr. The input ``adata`` is not
+    mutated, and the returned object is an ordinary composable plotnine plot.
+
+    Examples
+    --------
+    >>> from plotnine import geom_point
+    >>> p = gganndata(adata, aes("UMAP_1", "UMAP_2", color="cell_type"))
+    >>> p = p + geom_point()
     """
     mapping = aes() if mapping is None else mapping
-    df = resolve_frame(adata, _referenced_names(mapping), layer=layer, use_raw=use_raw)
+    df = resolve_frame(
+        adata,
+        _referenced_names(mapping),
+        layer=layer,
+        use_raw=use_raw,
+        max_matrix_values=max_matrix_values,
+    )
     plot = ggplot(df, _plain_mapping(adata, mapping))
     if add_theme:
         plot = plot + theme_ggann()

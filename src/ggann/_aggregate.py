@@ -1,4 +1,4 @@
-"""Grouped expression aggregation, expressed through annplyr ``summarize``.
+"""Grouped expression aggregation over annplyr-projected expression frames.
 
 Produces the two quantities scanpy's dotplot / matrixplot are built from:
 
@@ -15,12 +15,12 @@ from __future__ import annotations
 
 from typing import Iterable, Literal
 
-import annplyr as ap
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
 from ._expression import densify_frame as _densify
-from ._expression import ordered_unique, project_expression, resolve_source
+from ._expression import expression_with_obs_frame, ordered_unique, resolve_source
 
 __all__ = [
     "aggregate_expression",
@@ -36,19 +36,123 @@ expression_source = resolve_source
 StandardScale = Literal["var", "group", "zscore"]
 
 
-def _result_names(stem: str, count: int, reserved: Iterable[str]) -> list[str]:
-    """Return deterministic temporary columns that cannot shadow group keys."""
-    taken = set(reserved)
-    names: list[str] = []
-    index = 0
-    while len(names) < count:
-        candidate = f"__ggann_{stem}_{index}"
-        index += 1
-        if candidate in taken:
-            continue
-        names.append(candidate)
-        taken.add(candidate)
-    return names
+def _projected_frames(adata, genes, by, *, kind, layer):
+    """Extract one expression projection and its grouping columns positionally."""
+    expression, groups, genes = expression_with_obs_frame(
+        adata,
+        genes,
+        by,
+        kind=kind,
+        layer=layer,
+    )
+    if len(expression) != len(groups):  # defensive: both accessors must preserve rows
+        raise RuntimeError(
+            "annplyr returned expression and observation projections with different row counts."
+        )
+    return expression.reset_index(drop=True), groups.reset_index(drop=True), genes
+
+
+def _matrix_from_frame(frame: pd.DataFrame):
+    """Return a dense array or sparse CSR matrix without widening the projection."""
+    sparse_columns = [isinstance(dtype, pd.SparseDtype) for dtype in frame.dtypes]
+    if sparse_columns and all(sparse_columns):
+        return frame.sparse.to_coo().tocsr()
+    if any(sparse_columns):
+        frame = _densify(frame)
+    return frame.to_numpy(copy=False)
+
+
+def _grouped_expression(
+    adata,
+    genes,
+    by,
+    *,
+    kind,
+    layer,
+    expression_cutoff: float | None,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """Compute group means and optional detection fractions in one vectorized pass."""
+    expression, groups, genes = _projected_frames(
+        adata,
+        genes,
+        by,
+        kind=kind,
+        layer=layer,
+    )
+
+    # Grouped summaries omit rows missing any grouping key, matching pandas and
+    # the documented plotting contract. The projected expression row order is
+    # identical, so positional filtering remains safe with duplicate obs names.
+    valid = groups[list(by)].notna().all(axis=1).to_numpy()
+    valid_groups = groups.loc[valid, list(by)].reset_index(drop=True)
+    keys = pd.MultiIndex.from_frame(valid_groups, names=list(by))
+    codes, _ = pd.factorize(keys, sort=False)
+    first = ~keys.duplicated()
+    group_frame = valid_groups.loc[first].reset_index(drop=True)
+    n_groups = len(group_frame)
+
+    matrix = _matrix_from_frame(expression)
+    matrix = matrix[np.flatnonzero(valid)]
+    counts = np.bincount(codes, minlength=n_groups).astype(float, copy=False)
+    indicator = sparse.csr_matrix(
+        (np.ones(len(codes), dtype=float), (codes, np.arange(len(codes)))),
+        shape=(n_groups, len(codes)),
+    )
+
+    def _dense_product(values) -> np.ndarray:
+        product = indicator @ values
+        if sparse.issparse(product):
+            product = product.toarray()
+        return np.asarray(product, dtype=float)
+
+    if n_groups:
+        if sparse.issparse(matrix):
+            missing = matrix.copy()
+            missing.data = np.isnan(missing.data).astype(np.float32, copy=False)
+            missing.eliminate_zeros()
+            valid_counts = counts[:, None] - _dense_product(missing)
+            clean = matrix.copy()
+            clean.data = np.where(np.isnan(clean.data), 0, clean.data)
+        else:
+            missing = np.isnan(matrix)
+            valid_counts = _dense_product(~missing)
+            clean = np.where(missing, 0, matrix)
+        sums = _dense_product(clean)
+        means = np.full(sums.shape, np.nan, dtype=float)
+        np.divide(sums, valid_counts, out=means, where=valid_counts > 0)
+    else:
+        means = np.empty((0, len(genes)), dtype=float)
+    group_index = (
+        pd.Index(group_frame[by[0]], name=by[0])
+        if len(by) == 1
+        else pd.MultiIndex.from_frame(group_frame, names=list(by))
+    )
+    mean_df = pd.DataFrame(means, index=group_index, columns=genes)
+
+    if expression_cutoff is None:
+        return mean_df, None
+
+    if sparse.issparse(matrix):
+        compared = matrix.copy()
+        if expression_cutoff >= 0:
+            compared.data = (compared.data > expression_cutoff).astype(np.float32, copy=False)
+            compared.eliminate_zeros()
+            detected = _dense_product(compared)
+        else:
+            # Implicit sparse zeros exceed a negative cutoff. Count only explicit
+            # values that fail (including NaN), then subtract their group rate
+            # from one.
+            compared.data = (np.isnan(compared.data) | (compared.data <= expression_cutoff)).astype(
+                np.float32, copy=False
+            )
+            compared.eliminate_zeros()
+            failed = _dense_product(compared)
+            detected = counts[:, None] - failed
+    else:
+        detected = _dense_product(np.greater(matrix, expression_cutoff))
+    fractions = detected / counts[:, None] if n_groups else np.empty((0, len(genes)), dtype=float)
+    fraction_df = pd.DataFrame(fractions, index=group_index, columns=genes)
+    return mean_df, fraction_df
 
 
 def tidy_expression(adata, genes, group_by, *, layer=None, use_raw=None, extra_obs=()):
@@ -61,14 +165,28 @@ def tidy_expression(adata, genes, group_by, *, layer=None, use_raw=None, extra_o
     genes = ordered_unique(genes)
     obs = list(dict.fromkeys([group_by, *extra_obs]))  # dedupe, keep order
     kind, lyr = resolve_source(adata, layer, use_raw)
-    projected, genes = project_expression(adata, genes, kind=kind, layer=lyr, obs=obs)
-    tidy = projected.ap.to_tidy(obs=obs, x=genes)
-    tidy = _densify(tidy)
-    original_names = pd.Series(
-        adata.obs_names.to_numpy(), index=projected.obs_names, dtype=object
+    expression, observations, genes = _projected_frames(
+        adata,
+        genes,
+        obs,
+        kind=kind,
+        layer=lyr,
     )
-    tidy["obs_name"] = tidy["obs_name"].map(original_names).to_numpy()
-    tidy["feature"] = pd.Categorical(tidy["feature"], categories=genes, ordered=True)
+    values = _densify(expression).to_numpy(copy=False)
+    n_genes = len(genes)
+    tidy = pd.DataFrame(
+        {
+            "obs_name": pd.Series(adata.obs_names).repeat(n_genes).reset_index(drop=True),
+            "feature": pd.Categorical(
+                np.tile(genes, adata.n_obs),
+                categories=genes,
+                ordered=True,
+            ),
+            "value": values.reshape(-1),
+        }
+    )
+    for name in obs:
+        tidy[name] = observations[name].repeat(n_genes).reset_index(drop=True)
     return tidy
 
 
@@ -89,15 +207,14 @@ def group_means(
     genes = ordered_unique(genes)
     kind, lyr = resolve_source(adata, layer, use_raw)
     by = list(dict.fromkeys([group_by, *extra_by]))
-    projected, genes = project_expression(adata, genes, kind=kind, layer=lyr, obs=by)
-    result_names = _result_names("mean", len(genes), by)
-    mean_expr = {
-        result: ap.mean(ap.col(gene))
-        for result, gene in zip(result_names, genes, strict=True)
-    }
-    mean_df = projected.ap.summarize(x=mean_expr, by=by)
-    mean_df = _densify(mean_df).set_index(by)[result_names].astype(float)
-    mean_df.columns = genes
+    mean_df, _ = _grouped_expression(
+        adata,
+        genes,
+        by,
+        kind=kind,
+        layer=lyr,
+        expression_cutoff=None,
+    )
     return mean_df
 
 
@@ -146,8 +263,14 @@ def aggregate_means(
         extra_by=extra_by,
     )
     means = _standardize(means, standard_scale)
-    long = means.reset_index().melt(
-        id_vars=by, var_name="feature", value_name="mean_expression"
+    n_groups = len(means)
+    index_frame = means.index.to_frame(index=False)
+    long = pd.DataFrame(
+        {
+            **{name: np.tile(index_frame[name].to_numpy(), len(genes)) for name in by},
+            "feature": np.repeat(genes, n_groups),
+            "mean_expression": means.to_numpy().T.reshape(-1),
+        }
     )
     long["feature"] = pd.Categorical(long["feature"], categories=genes, ordered=True)
     return long
@@ -176,53 +299,15 @@ def aggregate_expression(
     genes = ordered_unique(genes)
     by = list(dict.fromkeys([group_by, *extra_by]))  # dedupe, keep order
     kind, lyr = resolve_source(adata, layer, use_raw)
-    projected, genes = project_expression(adata, genes, kind=kind, layer=lyr, obs=by)
-
-    mean_columns = _result_names("mean", len(genes), by)
-    fraction_columns = _result_names("fraction", len(genes), by)
-    mean_summary = _densify(
-        projected.ap.summarize(
-            x={
-                column: ap.mean(ap.col(gene))
-                for column, gene in zip(mean_columns, genes, strict=True)
-            },
-            by=by,
-        )
+    mean_df, frac_df = _grouped_expression(
+        adata,
+        genes,
+        by,
+        kind=kind,
+        layer=lyr,
+        expression_cutoff=expression_cutoff,
     )
-
-    # annplyr treats ``col > cutoff`` as a complex group-by expression. Build a
-    # bounded boolean projection instead, then use its native mean reduction.
-    # For a negative cutoff, implicit sparse zeros are true, so only the already
-    # gene-projected n_obs x n_requested matrix must become dense.
-    from anndata import AnnData
-    from scipy import sparse
-
-    expression = projected.X
-    if sparse.issparse(expression) and expression_cutoff >= 0:
-        detected = (expression > expression_cutoff).astype(np.float32)
-    else:
-        values = (
-            expression.toarray()
-            if sparse.issparse(expression)
-            else np.asarray(expression)
-        )
-        detected = np.greater(values, expression_cutoff).astype(np.float32)
-    detected_adata = AnnData(X=detected, obs=projected.obs, var=projected.var)
-    fraction_summary = _densify(
-        detected_adata.ap.summarize(
-            x={
-                column: ap.mean(ap.col(gene))
-                for column, gene in zip(fraction_columns, genes, strict=True)
-            },
-            by=by,
-        )
-    )
-
-    mean_df = mean_summary.set_index(by)[mean_columns].astype(float)
-    mean_df.columns = genes
-    frac_df = fraction_summary.set_index(by)[fraction_columns].astype(float)
-    frac_df = frac_df.reindex(mean_df.index)
-    frac_df.columns = genes
+    assert frac_df is not None
     mean_df = _standardize(mean_df, standard_scale)
 
     n_groups = len(mean_df)

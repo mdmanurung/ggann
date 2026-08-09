@@ -44,6 +44,21 @@ class _Sizes:
     mm (a ggplot2 footgun), convert with :meth:`geom`::
 
         geom_text(size=ag.sizes.geom(ag.sizes.small))
+
+    Attributes
+    ----------
+    normal, small, large, title : float
+        Related text sizes in points.
+
+    Notes
+    -----
+    :func:`set_theme` updates this process-global scale. ``geom`` converts points
+    to the millimetre unit used by plotnine text geometries.
+
+    Examples
+    --------
+    >>> sizes.geom(sizes.small) > 0
+    True
     """
 
     def __init__(self, base_size: float = 11) -> None:
@@ -76,8 +91,36 @@ def theme_ggann(base_size: float = 11, base_family: str | None = None):
 
     The signature scplotter look is a thin black panel border (a full box) with
     no axis lines and no grid -- not the L-shaped axes of ``theme_classic``.
+
+    Parameters
+    ----------
+    base_size : float
+        Base text size in points.
+    base_family : str, optional
+        Installed font family.
+
+    Returns
+    -------
+    plotnine.theme
+        Composable theme object.
+
+    Raises
+    ------
+    ValueError
+        If plotnine rejects a theme argument.
+
+    Notes
+    -----
+    Constructing the theme does not change global state.
+
+    Examples
+    --------
+    >>> p = p + theme_ggann(base_size=9)
     """
-    return theme_bw(base_size=base_size, base_family=base_family) + theme(
+    result = theme_bw(base_size=base_size, base_family=base_family)
+    # ``result`` is fresh, so in-place composition avoids an otherwise wasted
+    # deep copy of the complete base theme on every helper construction.
+    result += theme(
         panel_grid=element_blank(),
         panel_border=element_rect(color="black", fill=None, size=1),
         axis_line=element_blank(),
@@ -87,6 +130,7 @@ def theme_ggann(base_size: float = 11, base_family: str | None = None):
         strip_background=element_blank(),
         strip_text=element_text(color="black"),
     )
+    return result
 
 
 def set_theme(base_size: float = 11, family: str | None = None, *, register: bool = True):
@@ -104,6 +148,34 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
     ``family`` sets the font (any installed family, e.g. ``"Arial"`` /
     ``"IBM Plex Sans"``); ``None`` keeps matplotlib's default -- ggann requires no
     particular font to be installed.
+
+    Parameters
+    ----------
+    base_size : float
+        Base text size in points.
+    family : str, optional
+        Installed font family.
+    register : bool, default=True
+        Register the theme as plotnine's global default.
+
+    Returns
+    -------
+    plotnine.theme
+        Configured composable theme.
+
+    Raises
+    ------
+    ValueError
+        If plotnine rejects a theme argument.
+
+    Notes
+    -----
+    Always updates :data:`sizes`; with ``register=True`` it deliberately mutates
+    process-global plotnine theme state, but never AnnData.
+
+    Examples
+    --------
+    >>> th = set_theme(base_size=9, register=False)
     """
     th = theme_ggann(base_size=base_size, base_family=family)
     sizes.update(base_size)
@@ -113,12 +185,60 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
 
 
 def reset_theme() -> None:
-    """Restore plotnine's default theme (undo :func:`set_theme`)."""
+    """Restore plotnine's default theme.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    RuntimeError
+        If plotnine cannot replace its global theme.
+
+    Notes
+    -----
+    This intentionally changes process-global plotnine state.
+
+    Examples
+    --------
+    >>> reset_theme()
+    """
     theme_set(theme_gray())
 
 
 def scale_color_expression(cmap: str = "Reds", **kwargs):
-    """Continuous colour scale for expression (perceptually ordered)."""
+    """Build a continuous colour scale for expression.
+
+    Parameters
+    ----------
+    cmap : str
+        Matplotlib colormap name.
+    **kwargs
+        Passed to plotnine's colour-map scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable colour scale.
+
+    Raises
+    ------
+    ValueError
+        If the colormap or a scale argument is invalid.
+
+    Notes
+    -----
+    ``scale_colour_expression`` is an exact British-spelling alias.
+
+    Examples
+    --------
+    >>> p = p + scale_color_expression("magma")
+    """
     return pe.scale_color_cmap(cmap_name=cmap, **kwargs)
 
 
@@ -127,12 +247,62 @@ scale_colour_expression = scale_color_expression
 
 
 def scale_fill_expression(cmap: str = "viridis", **kwargs):
-    """Continuous fill scale for expression heatmaps."""
+    """Build a continuous fill scale for expression heatmaps.
+
+    Parameters
+    ----------
+    cmap : str
+        Matplotlib colormap name.
+    **kwargs
+        Passed to plotnine's fill-map scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable fill scale.
+
+    Raises
+    ------
+    ValueError
+        If the colormap or a scale argument is invalid.
+
+    Notes
+    -----
+    The scale does not inspect or copy AnnData.
+
+    Examples
+    --------
+    >>> p = p + scale_fill_expression("viridis")
+    """
     return pe.scale_fill_cmap(cmap_name=cmap, **kwargs)
 
 
 def scale_color_celltype(**kwargs):
-    """Categorical colour scale for discrete cell identities."""
+    """Build a categorical colour scale for cell identities.
+
+    Parameters
+    ----------
+    **kwargs
+        Passed to plotnine's hue scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable colour scale.
+
+    Raises
+    ------
+    ValueError
+        If a scale argument is invalid.
+
+    Notes
+    -----
+    ``scale_colour_celltype`` is an exact British-spelling alias.
+
+    Examples
+    --------
+    >>> p = p + scale_color_celltype()
+    """
     return pe.scale_color_hue(**kwargs)
 
 
@@ -141,5 +311,29 @@ scale_colour_celltype = scale_color_celltype
 
 
 def scale_fill_celltype(**kwargs):
-    """Categorical fill scale for discrete cell identities."""
+    """Build a categorical fill scale for cell identities.
+
+    Parameters
+    ----------
+    **kwargs
+        Passed to plotnine's hue scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable fill scale.
+
+    Raises
+    ------
+    ValueError
+        If a scale argument is invalid.
+
+    Notes
+    -----
+    The scale does not inspect or copy AnnData.
+
+    Examples
+    --------
+    >>> p = p + scale_fill_celltype()
+    """
     return pe.scale_fill_hue(**kwargs)

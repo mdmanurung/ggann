@@ -25,6 +25,7 @@ from plotnine import (
     guides,
     labs,
     scale_color_cmap,
+    scale_color_gradient,
     scale_fill_cmap,
     scale_size,
     theme,
@@ -34,7 +35,7 @@ from ._aggregate import aggregate_expression, aggregate_means, tidy_expression
 from ._expression import ordered_unique
 from ._grouping import _downsample_cells, _group_categories, _order_groups
 from ._palette import scale_color_obs
-from ._resolve import embedding_coords, plain_name, resolve_frame
+from ._resolve import embedding_coords, embedding_key, obsm, plain_name, resolve_frame
 from .theme import theme_ggann
 
 __all__ = [
@@ -118,22 +119,81 @@ def plot_embedding(
     * ``downsample=N`` -> randomly keep at most ``N`` cells before drawing, for a
       much lighter scatter on large data (density reads the same; exact points differ).
       ``random_state`` controls which cells are retained.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    basis : str, default="umap"
+        Embedding basis in ``adata.obsm``.
+    color : str or selector, optional
+        Observation column, gene, or explicit :func:`ggann.obs`/:func:`ggann.gene`.
+    split_by : str, optional
+        Observation column used for facets.
+    layer, use_raw : optional
+        Expression source for gene colour; these options are mutually exclusive.
+    size, alpha : float
+        Point size and opacity.
+    pointdensity : bool, optional
+        Use density colouring when ``color`` is absent.
+    label : bool, default=False
+        Label categorical colour centroids.
+    label_size : float
+        Centroid-label size.
+    low, high : str
+        End colours for continuous values.
+    downsample : int, optional
+        Maximum total observations to draw.
+    random_state : int, optional
+        Reproducible downsampling seed; ``None`` is non-deterministic.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable embedding plot.
+
+    Raises
+    ------
+    KeyError
+        If the embedding or an explicit colour/split source is missing.
+    ValueError
+        If the embedding has fewer than two coordinates or downsampling is invalid.
+
+    Notes
+    -----
+    Only two embedding coordinates and the requested colour metadata are projected.
+    Downsampling occurs before extraction and never mutates ``adata``.
+
+    Examples
+    --------
+    >>> p = plot_embedding(adata, "umap", color="cell_type")
     """
     adata = _downsample_cells(adata, None, downsample, random_state=random_state)
-    coords = embedding_coords(adata, basis)
-    if coords.shape[1] < 2:
+    key = embedding_key(adata, basis)
+    width = adata.obsm[key].shape[1]
+    if width < 2:
         raise ValueError(
-            f"Embedding '{basis}' has only {coords.shape[1]} dimension(s); "
+            f"Embedding '{basis}' has only {width} dimension(s); "
             "plot_embedding requires at least 2."
         )
-    xcol, ycol = coords.columns[:2]
-
-    split_col = None
+    coordinate_refs = [obsm(key, 0), obsm(key, 1)]
+    requested = [*coordinate_refs]
+    if color is not None:
+        requested.append(color)
     if split_by is not None:
-        split_col = resolve_frame(adata, [split_by])[[split_by]]
+        requested.append(split_by)
+    df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw)
+    xcol, ycol = (plain_name(adata, ref) for ref in coordinate_refs)
+    facet = pe.facet_wrap("~" + split_by) if split_by is not None else None
 
-    def _facet(plot):
-        return plot + pe.facet_wrap("~" + split_by) if split_by is not None else plot
+    def _with_facet(components):
+        return [*components, facet] if facet is not None else components
+
+    def _solid_point():
+        # plotnine's default 0.5-point same-colour outline duplicates colour
+        # conversion and artist work. A zero-width outline with a 0.5 size
+        # offset preserves the rendered diameter and represented observations.
+        return geom_point(size=size + 0.5, alpha=alpha, stroke=0)
 
     if label and color is None:
         warnings.warn(
@@ -145,29 +205,23 @@ def plot_embedding(
     if color is None:
         if pointdensity is None:
             pointdensity = True
-        base = coords if split_col is None else coords.join(split_col)
         if pointdensity:
-            return _facet(
-                ggplot(base, aes(xcol, ycol))
-                + pe.geom_pointdensity(size=size, alpha=alpha)
-                + labs(color="density")
-                + theme_ggann()
-                + _embedding_axes()
+            return ggplot(df, aes(xcol, ycol)) + _with_facet(
+                [
+                    pe.geom_pointdensity(size=size, alpha=alpha),
+                    labs(color="density"),
+                    theme_ggann(),
+                    _embedding_axes(),
+                ]
             )
-        return _facet(
-            pe.DimPlot(base, x=xcol, y=ycol, size=size, alpha=alpha)
-            + theme_ggann()
-            + _embedding_axes()
+        return ggplot(df, aes(xcol, ycol)) + _with_facet(
+            [_solid_point(), theme_ggann(), _embedding_axes()]
         )
 
     # `color` may be a bare name, a prefix string ("gene:CD3D@logcounts") or an accessor
     cname = plain_name(adata, color)
-    values = resolve_frame(adata, [color], layer=layer, use_raw=use_raw)
-    if cname not in values.columns:
+    if cname not in df.columns:
         raise KeyError(f"Could not resolve color={color!r} from obs, genes or obsm.")
-    df = coords.join(values[[cname]])
-    if split_col is not None and split_by not in df.columns:
-        df = df.join(split_col)
 
     if _is_numeric(df[cname]):
         if label:
@@ -179,40 +233,36 @@ def plot_embedding(
         # Draw low-expression cells first so high-expression cells are not occluded
         # (mirrors scanpy's sc.pl.embedding ordering).
         df = df.sort_values(cname)
-        return _facet(
-            pe.FeatureDimPlot(
-                df,
-                feature=cname,
-                x=xcol,
-                y=ycol,
-                low=low,
-                high=high,
-                size=size,
-                alpha=alpha,
-            )
-            + theme_ggann()
-            + _embedding_axes()
+        return ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(
+            [
+                _solid_point(),
+                scale_color_gradient(low=low, high=high),
+                theme_ggann(),
+                _embedding_axes(),
+            ]
         )
-    plot = (
-        pe.DimPlot(df, x=xcol, y=ycol, color=cname, size=size, alpha=alpha)
-        + scale_color_obs(adata, cname)
+    components = [
+        _solid_point(),
+        scale_color_obs(adata, cname),
         # enlarge the legend swatches so categories stay readable (scplotter does this)
-        + guides(color=guide_legend(override_aes={"size": 4}))
-        + theme_ggann()
-        + _embedding_axes()
-    )
+        guides(color=guide_legend(override_aes={"size": 4})),
+        theme_ggann(),
+        _embedding_axes(),
+    ]
     if label:
         cents = _centroid_labels(df, cname, xcol, ycol, split_by=split_by)
         # white-backed repelled labels at centroids, like scplotter's label_bg="white"
-        plot = plot + pe.geom_label_repel(
-            aes(xcol, ycol, label="label"),
-            data=cents,
-            size=label_size * 0.85,
-            fill="white",
-            color="black",
-            inherit_aes=False,
+        components.append(
+            pe.geom_label_repel(
+                aes(xcol, ycol, label="label"),
+                data=cents,
+                size=label_size * 0.85,
+                fill="white",
+                color="black",
+                inherit_aes=False,
+            )
         )
-    return _facet(plot)
+    return ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(components)
 
 
 def plot_features(
@@ -238,6 +288,48 @@ def plot_features(
     calls with the re-exported ``Wrap`` / ``plot_layout`` instead. ``downsample=N``
     caps cells before drawing for lighter panels on large data; ``random_state``
     controls the retained cells.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    features : sequence of str
+        Genes or numeric observation columns.
+    basis : str, default="umap"
+        Embedding basis.
+    layer, use_raw : optional
+        Mutually exclusive expression-source selection.
+    ncol : int, optional
+        Facet columns.
+    size, alpha : float
+        Point size and opacity.
+    cmap : str
+        Matplotlib colormap name.
+    downsample : int, optional
+        Maximum total observations to draw.
+    random_state : int, optional
+        Downsampling seed.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable faceted feature plot.
+
+    Raises
+    ------
+    KeyError
+        If the embedding or an explicit source is missing.
+    ValueError
+        If no numeric feature resolves, the embedding is one-dimensional, or
+        downsampling/source selection is invalid.
+
+    Notes
+    -----
+    annplyr projects requested fields only; ``adata`` is never mutated.
+
+    Examples
+    --------
+    >>> p = plot_features(adata, ["CD3D", "NKG7"], basis="umap")
     """
     features = ordered_unique(features)
     adata = _downsample_cells(adata, None, downsample, random_state=random_state)
@@ -248,14 +340,10 @@ def plot_features(
 
     values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw)
     feats = list(
-        dict.fromkeys(
-            f for f in features if f in values.columns and _is_numeric(values[f])
-        )
+        dict.fromkeys(f for f in features if f in values.columns and _is_numeric(values[f]))
     )
     if not feats:
-        raise ValueError(
-            "plot_features needs at least one numeric feature (gene or metric)."
-        )
+        raise ValueError("plot_features needs at least one numeric feature (gene or metric).")
 
     df = coords.join(values[feats])
     long = df.melt(
@@ -323,6 +411,50 @@ def plot_dotplot(
 
     Defaults to ``adata.raw`` so values match ``sc.pl.dotplot``. ``split_by`` adds a
     facet column so the dotplot is repeated per split level (scplotter ``split_by``).
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    genes : sequence of str
+        Genes to summarize, in display order.
+    group_by : str
+        Primary observation grouping column.
+    split_by : str, optional
+        Additional grouping and facet column.
+    layer, use_raw : optional
+        Mutually exclusive expression-source selection.
+    standard_scale : {None, "var", "group", "zscore"}
+        Optional scaling of summarized means.
+    expression_cutoff : float
+        Threshold used for the expressing fraction.
+    cmap : str
+        Matplotlib colormap name.
+    size_range : tuple of float
+        Minimum and maximum dot size.
+    categories_order : iterable of str, optional
+        Complete order of observed groups.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable dotplot.
+
+    Raises
+    ------
+    KeyError
+        If a gene, grouping column, or selected layer is missing.
+    ValueError
+        If source, scaling, or category ordering is invalid.
+
+    Notes
+    -----
+    Requested genes are projected before sparse-native aggregation; no implicit
+    downsampling or whole-matrix materialization occurs. ``adata`` is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_dotplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
@@ -340,16 +472,17 @@ def plot_dotplot(
         categories_order = _group_categories(adata, group_by)
     agg = _order_groups(agg, group_by, categories_order)
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
-    plot = (
-        ggplot(agg, aes("feature", group_by))
-        + geom_point(aes(size="fraction", color="mean_expression"))
-        + scale_color_cmap(cmap_name=cmap)
-        + scale_size(range=size_range, labels=lambda xs: [f"{x:.0%}" for x in xs])
-        + labs(x="", y="", color=color_lab, size="fraction\nexpressing")
-        + theme_ggann()
-        + pe.rotate_x_text(45)
-    )
-    return plot + pe.facet_wrap(f"~{split_by}") if split_by else plot
+    components = [
+        geom_point(aes(size="fraction", color="mean_expression")),
+        scale_color_cmap(cmap_name=cmap),
+        scale_size(range=size_range, labels=lambda xs: [f"{x:.0%}" for x in xs]),
+        labs(x="", y="", color=color_lab, size="fraction\nexpressing"),
+        theme_ggann(),
+        pe.rotate_x_text(45),
+    ]
+    if split_by:
+        components.append(pe.facet_wrap(f"~{split_by}"))
+    return ggplot(agg, aes("feature", group_by)) + components
 
 
 def plot_matrixplot(
@@ -370,6 +503,46 @@ def plot_matrixplot(
     means). Pass ``standard_scale="var"`` to rescale each gene to ``[0, 1]``, which
     keeps cross-gene patterns legible when magnitudes differ widely. ``split_by``
     adds a facet column so the heatmap is repeated per split level.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    genes : sequence of str
+        Genes to summarize, in display order.
+    group_by : str
+        Primary observation grouping column.
+    split_by : str, optional
+        Additional grouping and facet column.
+    layer, use_raw : optional
+        Mutually exclusive expression-source selection.
+    standard_scale : {None, "var", "group", "zscore"}
+        Optional scaling of group means.
+    cmap : str
+        Matplotlib colormap name.
+    categories_order : iterable of str, optional
+        Complete order of observed groups.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable mean-expression tile plot.
+
+    Raises
+    ------
+    KeyError
+        If a gene, grouping column, or selected layer is missing.
+    ValueError
+        If source, scaling, or category ordering is invalid.
+
+    Notes
+    -----
+    Requested genes are projected before sparse-native aggregation. ``adata`` is
+    not mutated.
+
+    Examples
+    --------
+    >>> p = plot_matrixplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
@@ -386,15 +559,16 @@ def plot_matrixplot(
         categories_order = _group_categories(adata, group_by)
     agg = _order_groups(agg, group_by, categories_order)
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
-    plot = (
-        ggplot(agg, aes("feature", group_by, fill="mean_expression"))
-        + geom_tile()
-        + scale_fill_cmap(cmap_name=cmap)
-        + labs(x="", y="", fill=color_lab)
-        + theme_ggann()
-        + pe.rotate_x_text(45)
-    )
-    return plot + pe.facet_wrap(f"~{split_by}") if split_by else plot
+    components = [
+        geom_tile(),
+        scale_fill_cmap(cmap_name=cmap),
+        labs(x="", y="", fill=color_lab),
+        theme_ggann(),
+        pe.rotate_x_text(45),
+    ]
+    if split_by:
+        components.append(pe.facet_wrap(f"~{split_by}"))
+    return ggplot(agg, aes("feature", group_by, fill="mean_expression")) + components
 
 
 def plot_embedding_density(
@@ -419,6 +593,46 @@ def plot_embedding_density(
     than reading a pre-computed ``sc.tl.embedding_density`` result, so it is a
     native alternative rather than a byte-for-byte reproduction of scanpy's output.
     ``downsample`` caps cells per group; ``random_state`` controls the sample.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    basis : str, default="umap"
+        Embedding basis.
+    group_by : str, optional
+        Observation column defining density facets.
+    size : float
+        Point size.
+    ncol : int, optional
+        Facet columns.
+    cmap : str
+        Matplotlib colormap name.
+    downsample : int, optional
+        Maximum observations per group.
+    random_state : int, optional
+        Downsampling seed.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable density plot.
+
+    Raises
+    ------
+    KeyError
+        If the embedding or grouping column is missing.
+    ValueError
+        If the embedding is one-dimensional or downsampling is invalid.
+
+    Notes
+    -----
+    KDE cost grows with retained cells; downsampling is explicit and deterministic
+    by default. The input is not mutated.
+
+    Examples
+    --------
+    >>> p = plot_embedding_density(adata, "umap", group_by="cell_type")
     """
     import numpy as np
     from scipy.stats import gaussian_kde
@@ -451,9 +665,7 @@ def plot_embedding_density(
         df = coords.join(gcol)
         # groupby(...).apply concatenates in group-sorted order, so reindex back
         # to df's cell order (a bare .to_numpy() would misalign interleaved groups)
-        per_group = df.groupby(group_by, observed=True, group_keys=False).apply(
-            _density
-        )
+        per_group = df.groupby(group_by, observed=True, group_keys=False).apply(_density)
         df["density"] = per_group.reindex(df.index).to_numpy()
         cats = _group_categories(adata, group_by)
         df = _order_groups(df, group_by, cats)
@@ -486,6 +698,48 @@ def plot_heatmap(
     ``[0, 1]`` across cells so low- and high-range genes stay comparable.
     ``downsample=N`` caps cells per group first; ``random_state`` controls which
     cells are retained.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    genes : sequence of str
+        Genes shown as rows.
+    group_by : str
+        Observation column defining cell blocks.
+    layer, use_raw : optional
+        Mutually exclusive expression-source selection.
+    cmap : str
+        Matplotlib colormap name.
+    standard_scale : {None, "var", "group", "zscore"}
+        Optional per-gene or per-cell scaling.
+    categories_order : sequence of str, optional
+        Complete order of observed groups.
+    downsample : int, optional
+        Maximum observations retained per group.
+    random_state : int, optional
+        Downsampling seed.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable per-cell heatmap.
+
+    Raises
+    ------
+    KeyError
+        If a gene, grouping column, or layer is missing.
+    ValueError
+        If source, scaling, ordering, or downsampling is invalid.
+
+    Notes
+    -----
+    The prepared long table has one row per retained cell and gene; use explicit
+    downsampling for large inputs. ``adata`` is not mutated.
+
+    Examples
+    --------
+    >>> p = plot_heatmap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     genes = ordered_unique(genes)
@@ -496,8 +750,7 @@ def plot_heatmap(
 
     if standard_scale not in {None, "var", "group", "zscore"}:
         raise ValueError(
-            "standard_scale must be None, 'var', 'group' or 'zscore', "
-            f"got {standard_scale!r}"
+            f"standard_scale must be None, 'var', 'group' or 'zscore', got {standard_scale!r}"
         )
     if standard_scale is not None:
         key = "obs_name" if standard_scale == "group" else "feature"
