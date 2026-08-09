@@ -24,7 +24,9 @@ from benchmarks.compare_scanpy import (
     _isolated_memory_metric,
     _scanpy_highest_frame,
     _scanpy_preparation,
+    _selected_formats,
     _selected_sources,
+    _selected_variants,
     _selected_workloads,
     _summarize_isolated_memory_probes,
 )
@@ -57,6 +59,31 @@ class SelectionTests(unittest.TestCase):
             ["embedding_categorical", "dotplot", "matrixplot"],
         )
         self.assertEqual(_selected_sources("all"), ["x", "layer", "raw"])
+        self.assertEqual(
+            _selected_formats("all"),
+            [
+                "dense",
+                "pandas",
+                "csr",
+                "csc",
+                "csr_array",
+                "csc_array",
+                "backed_dense",
+                "backed_csr",
+                "backed_csc",
+            ],
+        )
+        self.assertEqual(
+            _selected_variants("all"),
+            [
+                "base",
+                "view",
+                "reordered",
+                "duplicate_names",
+                "missing_groups",
+                "expression_nans",
+            ],
+        )
 
     def test_raw_highest_expression_is_explicitly_unsupported(self) -> None:
         supported, reason = _case_supported("highest_expr_genes", "raw")
@@ -215,6 +242,27 @@ class RunnerSmokeTests(unittest.TestCase):
         self.assertEqual(result["comparability"]["status"], "pass")
         self.assertEqual(result["parameters"]["ggann_backend"], "matplotlib")
         self.assertTrue(result["input_immutable"])
+
+    def test_small_backed_csr_case_is_comparable_and_immutable(self) -> None:
+        spec = replace(
+            _spec("matrixplot"),
+            matrix_format="backed_csr",
+            ggann_backend="matplotlib",
+        )
+        result = _execute_case(spec)
+        self.assertEqual(result["comparability"]["status"], "pass")
+        self.assertTrue(result["input_immutable"])
+
+    def test_small_nan_variant_is_comparable_and_immutable(self) -> None:
+        spec = replace(
+            _spec("dotplot"),
+            ggann_backend="matplotlib",
+            variant="expression_nans",
+        )
+        result = _execute_case(spec)
+        self.assertEqual(result["comparability"]["status"], "pass")
+        self.assertTrue(result["input_immutable"])
+        self.assertIn("variant=expression_nans", result["case_id"])
 
     def test_release_gates_fail_closed_without_large_primary_cases(self) -> None:
         gates = _evaluate_release_gates([])

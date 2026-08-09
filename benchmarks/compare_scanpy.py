@@ -90,6 +90,14 @@ _WORKLOADS = (
 )
 _OBS_ONLY_WORKLOADS = {"embedding_categorical", "embedding_continuous"}
 _RANK_WORKLOADS = {"rank_genes_dotplot", "rank_genes_matrixplot"}
+_VARIANTS = (
+    "base",
+    "view",
+    "reordered",
+    "duplicate_names",
+    "missing_groups",
+    "expression_nans",
+)
 
 _STAGE_BOUNDARIES = {
     "preparation": (
@@ -130,6 +138,7 @@ class ComparisonSpec:
     repeats: int
     rss_interval_seconds: float
     ggann_backend: str = "plotnine"
+    variant: str = "base"
 
     @property
     def case_id(self) -> str:
@@ -140,10 +149,15 @@ class ComparisonSpec:
             if getattr(self, name) != defaults[name]
         ]
         suffix = f"[{','.join(changed)}]" if changed else ""
-        backend = (
-            f"[ggann_backend={self.ggann_backend}]" if self.ggann_backend != "plotnine" else ""
+        qualifiers = []
+        if self.ggann_backend != "plotnine":
+            qualifiers.append(f"ggann_backend={self.ggann_backend}")
+        if self.variant != "base":
+            qualifiers.append(f"variant={self.variant}")
+        qualifier = f"[{','.join(qualifiers)}]" if qualifiers else ""
+        return (
+            f"{self.preset}{suffix}/{self.matrix_format}/{self.source}/{self.workload}{qualifier}"
         )
-        return f"{self.preset}{suffix}/{self.matrix_format}/{self.source}/{self.workload}{backend}"
 
     def fixture_spec(self) -> CaseSpec:
         return CaseSpec(
@@ -180,10 +194,31 @@ def _selected_workloads(value: str) -> list[str]:
 def _selected_formats(value: str) -> list[str]:
     selected = [item.strip().lower() for item in value.split(",") if item.strip()]
     if selected == ["all"]:
-        selected = ["dense", "csr", "csc"]
+        selected = [
+            "dense",
+            "pandas",
+            "csr",
+            "csc",
+            "csr_array",
+            "csc_array",
+            "backed_dense",
+            "backed_csr",
+            "backed_csc",
+        ]
     if not selected:
         raise ValueError("At least one matrix format is required.")
-    invalid = sorted(set(selected) - {"dense", "csr", "csc"})
+    valid = {
+        "dense",
+        "pandas",
+        "csr",
+        "csc",
+        "csr_array",
+        "csc_array",
+        "backed_dense",
+        "backed_csr",
+        "backed_csc",
+    }
+    invalid = sorted(set(selected) - valid)
     if invalid:
         raise ValueError(f"Unknown matrix format(s): {', '.join(invalid)}")
     return list(dict.fromkeys(selected))
@@ -198,6 +233,18 @@ def _selected_sources(value: str) -> list[str]:
     invalid = sorted(set(selected) - {"x", "layer", "raw"})
     if invalid:
         raise ValueError(f"Unknown source(s): {', '.join(invalid)}")
+    return list(dict.fromkeys(selected))
+
+
+def _selected_variants(value: str) -> list[str]:
+    selected = [item.strip().lower() for item in value.split(",") if item.strip()]
+    if selected == ["all"]:
+        selected = list(_VARIANTS)
+    if not selected:
+        raise ValueError("At least one fixture variant is required.")
+    invalid = sorted(set(selected) - set(_VARIANTS))
+    if invalid:
+        raise ValueError(f"Unknown fixture variant(s): {', '.join(invalid)}")
     return list(dict.fromkeys(selected))
 
 
@@ -236,6 +283,64 @@ def _add_fixture_metadata(adata: Any) -> None:
     ]
 
 
+def _matrix_with_expression_nans(matrix: Any) -> Any:
+    import numpy as np
+    import pandas as pd
+    from scipy import sparse
+
+    rows = np.asarray([0, max(0, matrix.shape[0] // 3), matrix.shape[0] - 1], dtype=int)
+    columns = np.asarray([0, max(0, matrix.shape[1] // 2), matrix.shape[1] - 1], dtype=int)
+    if isinstance(matrix, pd.DataFrame):
+        result = matrix.copy()
+        for row, column in zip(rows, columns):
+            result.iat[row, column] = np.nan
+        return result
+    if sparse.issparse(matrix):
+        result = matrix.tolil(copy=True)
+        for row, column in zip(rows, columns):
+            result[row, column] = np.nan
+        if isinstance(matrix, sparse.sparray):
+            constructor = sparse.csr_array if matrix.format == "csr" else sparse.csc_array
+            return constructor(result)
+        return result.asformat(matrix.format)
+    result = np.asarray(matrix).copy()
+    result[rows, columns] = np.nan
+    return result
+
+
+def _apply_fixture_variant(adata: Any, variant: str) -> Any:
+    import numpy as np
+    import pandas as pd
+    from anndata import AnnData
+
+    if variant == "base":
+        return adata
+    if variant == "view":
+        return adata[: max(1, adata.n_obs // 2)]
+    if variant == "reordered":
+        return adata[np.arange(adata.n_obs - 1, -1, -1)]
+
+    result = adata.copy()
+    if variant == "duplicate_names":
+        result.obs_names = pd.Index([f"duplicate_{index // 2}" for index in range(result.n_obs)])
+        return result
+    if variant == "missing_groups":
+        result.obs.loc[result.obs.index[::7], "group"] = pd.NA
+        return result
+    if variant == "expression_nans":
+        result.X = _matrix_with_expression_nans(result.X)
+        for key in ("counts", "sqrt_counts"):
+            result.layers[key] = _matrix_with_expression_nans(result.layers[key])
+        if result.raw is not None:
+            result.raw = AnnData(
+                _matrix_with_expression_nans(result.raw.X),
+                obs=pd.DataFrame(index=result.obs_names.copy()),
+                var=result.raw.var.copy(),
+            )
+        return result
+    raise ValueError(f"Unknown fixture variant: {variant}")
+
+
 def _ensure_rank_results(adata: Any) -> None:
     import scanpy as sc
 
@@ -259,6 +364,9 @@ def _hash_array(digest: Any, value: Any) -> None:
         for array in (matrix.data, matrix.indices, matrix.indptr):
             contiguous = np.ascontiguousarray(array)
             digest.update(contiguous.view(np.uint8))
+        return
+    if hasattr(value, "to_memory"):
+        _hash_array(digest, value.to_memory())
         return
     array = np.asarray(value)
     digest.update(f"array:{array.shape}:{array.dtype}".encode())
@@ -1050,14 +1158,15 @@ def _stage_claim_status(stage: str, validation: dict[str, Any]) -> str:
     return "diagnostic_only"
 
 
-def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
+def _execute_case_with_fixture(
+    spec: ComparisonSpec,
+    adata: Any,
+    genes: list[str],
+    input_bytes: dict[str, int],
+) -> dict[str, Any]:
     import matplotlib
 
     matplotlib.use("Agg", force=True)
-    adata, genes, input_bytes = _make_fixture(spec.fixture_spec())
-    _add_fixture_metadata(adata)
-    if spec.workload in _RANK_WORKLOADS:
-        _ensure_rank_results(adata)
     initial_digest = _adata_digest(adata)
 
     prepared = {
@@ -1130,6 +1239,7 @@ def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
         "case_id": spec.case_id,
         "parameters": asdict(spec),
         "selected_genes": genes,
+        "observed_shape": [int(adata.n_obs), int(adata.n_vars)],
         "input_bytes": input_bytes,
         "input_fingerprint_before": initial_digest,
         "input_fingerprint_after": final_digest,
@@ -1138,6 +1248,27 @@ def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
         "stage_boundaries": _STAGE_BOUNDARIES,
         "stages": stages,
     }
+
+
+def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
+    import anndata as ad
+
+    adata, genes, input_bytes = _make_fixture(spec.fixture_spec())
+    _add_fixture_metadata(adata)
+    adata = _apply_fixture_variant(adata, spec.variant)
+    if spec.workload in _RANK_WORKLOADS:
+        _ensure_rank_results(adata)
+    if not spec.matrix_format.startswith("backed_"):
+        return _execute_case_with_fixture(spec, adata, genes, input_bytes)
+
+    with tempfile.TemporaryDirectory(prefix="ggann-scanpy-backed-") as temporary:
+        path = Path(temporary) / "fixture.h5ad"
+        adata.write_h5ad(path)
+        backed = ad.read_h5ad(path, backed="r")
+        try:
+            return _execute_case_with_fixture(spec, backed, genes, input_bytes)
+        finally:
+            backed.file.close()
 
 
 def _execute_isolated_memory_probe(
@@ -1149,8 +1280,17 @@ def _execute_isolated_memory_probe(
     matplotlib.use("Agg", force=True)
     adata, genes, input_bytes = _make_fixture(spec.fixture_spec())
     _add_fixture_metadata(adata)
+    adata = _apply_fixture_variant(adata, spec.variant)
     if spec.workload in _RANK_WORKLOADS:
         _ensure_rank_results(adata)
+    backed_temporary = None
+    if spec.matrix_format.startswith("backed_"):
+        import anndata as ad
+
+        backed_temporary = tempfile.TemporaryDirectory(prefix="ggann-scanpy-backed-memory-")
+        path = Path(backed_temporary.name) / "fixture.h5ad"
+        adata.write_h5ad(path)
+        adata = ad.read_h5ad(path, backed="r")
     # Package-import cold starts are measured by ``_cold_import_probe``. Keep
     # imports outside this RSS baseline so the memory ratio describes the plot
     # workload rather than the very different dependency trees.
@@ -1181,14 +1321,19 @@ def _execute_isolated_memory_probe(
         raise ValueError(f"Unsupported isolated-memory stage: {stage}")
     try:
         sample = _measure_call(function, spec.rss_interval_seconds)
+        after = _adata_digest(adata)
     finally:
         if stage == "end_to_end":
             temporary.cleanup()
-    after = _adata_digest(adata)
+        if spec.matrix_format.startswith("backed_"):
+            adata.file.close()
+            assert backed_temporary is not None
+            backed_temporary.cleanup()
     return {
         "library": library,
         "stage": stage,
         "sample": sample,
+        "observed_shape": [int(adata.n_obs), int(adata.n_vars)],
         "input_bytes": input_bytes,
         "input_fingerprint_before": before,
         "input_fingerprint_after": after,
@@ -1561,11 +1706,22 @@ def _markdown_report(document: dict[str, Any]) -> str:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", choices=("smoke", "standard", "extended"), default="smoke")
-    parser.add_argument("--formats", default="csr", help="dense, csr, csc, or all")
+    parser.add_argument(
+        "--formats",
+        default="csr",
+        help=(
+            "dense, pandas, csr/csc matrices or arrays, backed_dense/backed_csr/backed_csc, or all"
+        ),
+    )
     parser.add_argument(
         "--workloads", default="primary", help="primary, all, or a comma-separated list"
     )
     parser.add_argument("--sources", default="x", help="x, layer, raw, or all")
+    parser.add_argument(
+        "--variants",
+        default="base",
+        help=("base, view, reordered, duplicate_names, missing_groups, expression_nans, or all"),
+    )
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument(
         "--ggann-backend",
@@ -1668,6 +1824,7 @@ def main(argv: list[str] | None = None) -> int:
         formats = _selected_formats(args.formats)
         workloads = _selected_workloads(args.workloads)
         sources = _selected_sources(args.sources)
+        variants = _selected_variants(args.variants)
         isolated_memory_stages = [
             item.strip() for item in args.isolated_memory_stages.split(",") if item.strip()
         ]
@@ -1702,19 +1859,21 @@ def main(argv: list[str] | None = None) -> int:
                             }
                         )
                         continue
-                    cases.append(
-                        ComparisonSpec(
-                            preset=args.preset,
-                            matrix_format=matrix_format,
-                            workload=workload,
-                            source=source,
-                            seed=args.seed,
-                            repeats=args.repeats,
-                            rss_interval_seconds=args.rss_interval_ms / 1_000,
-                            ggann_backend=args.ggann_backend,
-                            **shape,
+                    for variant in variants:
+                        cases.append(
+                            ComparisonSpec(
+                                preset=args.preset,
+                                matrix_format=matrix_format,
+                                workload=workload,
+                                source=source,
+                                seed=args.seed,
+                                repeats=args.repeats,
+                                rss_interval_seconds=args.rss_interval_ms / 1_000,
+                                ggann_backend=args.ggann_backend,
+                                variant=variant,
+                                **shape,
+                            )
                         )
-                    )
 
     package_versions = _versions()
     ggann_source = _ggann_source_metadata()
@@ -1778,6 +1937,7 @@ def main(argv: list[str] | None = None) -> int:
             "formats": formats,
             "workloads": workloads,
             "sources": sources,
+            "variants": variants,
             "shape_overrides": {
                 name: value for name, value in overrides.items() if value is not None
             },

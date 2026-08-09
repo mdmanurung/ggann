@@ -340,12 +340,21 @@ def _make_fixture(spec: CaseSpec) -> tuple[Any, list[str], dict[str, int]]:
         random_state=rng,
         data_rvs=lambda size: rng.integers(1, 8, size=size).astype(np.float32),
     )
-    if spec.matrix_format == "dense":
+    storage_format = spec.matrix_format.removeprefix("backed_")
+    if storage_format in {"dense", "pandas"}:
         counts = counts_sparse.toarray()
-    elif spec.matrix_format == "csr":
+        if storage_format == "pandas":
+            # AnnData intentionally normalizes a pandas matrix to NumPy storage;
+            # this case records and tests that supported constructor route.
+            counts = pd.DataFrame(counts)
+    elif storage_format == "csr":
         counts = counts_sparse
-    elif spec.matrix_format == "csc":
+    elif storage_format == "csc":
         counts = counts_sparse.tocsc()
+    elif storage_format == "csr_array":
+        counts = sparse.csr_array(counts_sparse)
+    elif storage_format == "csc_array":
+        counts = sparse.csc_array(counts_sparse.tocsc())
     else:  # guarded by argument validation
         raise ValueError(f"Unknown matrix format: {spec.matrix_format}")
 
@@ -641,7 +650,7 @@ def _shape_for(preset: str, matrix_format: str) -> dict[str, Any]:
     config = _PRESETS[preset]
     if preset != "extended":
         return dict(config["default"])
-    key = "dense" if matrix_format == "dense" else "sparse"
+    key = "dense" if matrix_format in {"dense", "pandas", "backed_dense"} else "sparse"
     return dict(config[key])
 
 
