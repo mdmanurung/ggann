@@ -74,19 +74,79 @@ def _add_gene_group_facet(plot, gene_groups: dict):
 
 
 def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Dotplot with genes bracketed into labelled groups (scanpy ``var_group_labels``)."""
+    """Draw a dotplot with genes bracketed into labelled groups.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    gene_groups : mapping of str to sequence of str
+        Labelled marker groups in display order.
+    group_by : str
+        Observation grouping column.
+    **kwargs
+        Passed to :func:`ggann.plot_dotplot`.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable grouped marker dotplot.
+
+    Raises
+    ------
+    KeyError
+        If genes or grouping metadata are missing.
+    ValueError
+        If a gene occurs under multiple labels or forwarded options are invalid.
+
+    Notes
+    -----
+    Extraction and ownership match :func:`ggann.plot_dotplot`.
+
+    Examples
+    --------
+    >>> p = plot_dotplot_grouped(adata, {"T": ["CD3D"]}, group_by="cell_type")
+    """
     genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(
-        plot_dotplot(adata, genes, group_by, **kwargs), gene_groups
-    )
+    return _add_gene_group_facet(plot_dotplot(adata, genes, group_by, **kwargs), gene_groups)
 
 
 def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Matrixplot with genes bracketed into labelled groups (scanpy ``var_group_labels``)."""
+    """Draw a matrixplot with genes bracketed into labelled groups.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    gene_groups : mapping of str to sequence of str
+        Labelled marker groups in display order.
+    group_by : str
+        Observation grouping column.
+    **kwargs
+        Passed to :func:`ggann.plot_matrixplot`.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable grouped marker matrixplot.
+
+    Raises
+    ------
+    KeyError
+        If genes or grouping metadata are missing.
+    ValueError
+        If a gene occurs under multiple labels or forwarded options are invalid.
+
+    Notes
+    -----
+    Extraction and ownership match :func:`ggann.plot_matrixplot`.
+
+    Examples
+    --------
+    >>> p = plot_matrixplot_grouped(adata, {"T": ["CD3D"]}, group_by="cell_type")
+    """
     genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(
-        plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups
-    )
+    return _add_gene_group_facet(plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups)
 
 
 def plot_tracksplot(
@@ -102,6 +162,40 @@ def plot_tracksplot(
 
     ``categories_order`` overrides the order stored on a categorical ``obs``
     column. ``None`` uses the stored order.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    genes : sequence of str
+        Genes shown as tracks.
+    group_by : str
+        Observation column ordering cell blocks.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    categories_order : iterable of str, optional
+        Complete observed group order.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable per-cell tracks plot.
+
+    Raises
+    ------
+    KeyError
+        If genes, grouping metadata, or a layer are missing.
+    ValueError
+        If source selection or category ordering is invalid.
+
+    Notes
+    -----
+    The long table has one row per cell and gene; no implicit downsampling occurs.
+    Requested genes are projected and ``adata`` is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_tracksplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
     genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)

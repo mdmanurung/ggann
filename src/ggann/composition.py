@@ -51,6 +51,30 @@ def plot_proportions(
     categories_order, split_order
         Explicit orders for the group and split columns. ``None`` uses the order
         stored on categorical ``obs`` columns, then observed values.
+
+    adata
+        Annotated data matrix.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable composition plot.
+
+    Raises
+    ------
+    KeyError
+        If ``group_by`` or ``split_by`` is absent.
+    ValueError
+        If ``kind`` or ordering is invalid, or area/trend lacks ``split_by``.
+
+    Notes
+    -----
+    Only observation metadata is counted; no expression matrix is materialized and
+    ``adata`` is not mutated. Missing grouping values are omitted.
+
+    Examples
+    --------
+    >>> p = plot_proportions(adata, group_by="cell_type", split_by="condition")
     """
     if kind not in ("bar", "area", "trend"):
         raise ValueError(f"kind must be 'bar', 'area' or 'trend', got {kind!r}")
@@ -79,9 +103,7 @@ def plot_proportions(
         categories_order, split_order = gcats, scats
         full = pd.MultiIndex.from_product([scats, gcats], names=[split_by, group_by])
         counts = (
-            counts.set_index([split_by, group_by])["n"]
-            .reindex(full, fill_value=0)
-            .reset_index()
+            counts.set_index([split_by, group_by])["n"].reindex(full, fill_value=0).reset_index()
         )
 
     if normalize:

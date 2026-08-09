@@ -59,6 +59,37 @@ def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
 
     Columns: ``group, names, scores, logfoldchanges, pvals, pvals_adj``. Extra
     kwargs (``pval_cutoff``, ``log2fc_min``, ...) pass through to scanpy.
+
+    Parameters
+    ----------
+    adata
+        AnnData containing a scanpy rank-genes result.
+    group : str or sequence of str, optional
+        Group or groups to return; ``None`` returns all.
+    key : str
+        Key in ``adata.uns``.
+    **kwargs
+        Passed to ``scanpy.get.rank_genes_groups_df``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Tidy ranked-gene table.
+
+    Raises
+    ------
+    KeyError
+        If ``adata.uns[key]`` is absent.
+    ValueError
+        If scanpy rejects a group or filter.
+
+    Notes
+    -----
+    Reads the stored result without modifying ``adata``.
+
+    Examples
+    --------
+    >>> table = rank_genes_df(adata, group="T cells")
     """
     import scanpy as sc
 
@@ -79,7 +110,41 @@ def plot_rank_genes_dotplot(
     key: str = "rank_genes_groups",
     **kwargs,
 ):
-    """Dotplot of the top ``n_genes`` markers per group (``sc.pl.rank_genes_groups_dotplot``)."""
+    """Dotplot of the top markers per group.
+
+    Parameters
+    ----------
+    adata
+        AnnData containing a scanpy rank-genes result.
+    n_genes : int
+        Markers selected per group.
+    group_by : str, optional
+        Observation grouping column; inferred from the stored result by default.
+    key : str
+        Key in ``adata.uns``.
+    **kwargs
+        Passed to :func:`ggann.plot_dotplot`.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable marker dotplot.
+
+    Raises
+    ------
+    KeyError
+        If the stored result, genes, or grouping column is missing.
+    ValueError
+        If the result or forwarded plotting options are invalid.
+
+    Notes
+    -----
+    Only selected marker genes are projected for aggregation; input is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_rank_genes_dotplot(adata, n_genes=3)
+    """
     _require_de(adata, key)
     group_by = renamed_keyword(
         group_by,
@@ -105,6 +170,41 @@ def plot_rank_genes_matrixplot(
 
     Matches ``sc.pl.rank_genes_groups_matrixplot`` (group summary), not the
     per-cell ``..._heatmap``.
+
+    Parameters
+    ----------
+    adata
+        AnnData containing a scanpy rank-genes result.
+    n_genes : int
+        Markers selected per group.
+    group_by : str, optional
+        Observation grouping column; inferred by default.
+    key : str
+        Key in ``adata.uns``.
+    standard_scale : str, optional
+        Scaling forwarded to :func:`ggann.plot_matrixplot`.
+    **kwargs
+        Additional matrixplot arguments.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable marker matrixplot.
+
+    Raises
+    ------
+    KeyError
+        If the stored result, genes, or grouping column is missing.
+    ValueError
+        If the result or forwarded plotting options are invalid.
+
+    Notes
+    -----
+    Only selected marker genes are projected for aggregation; input is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_rank_genes_matrixplot(adata, n_genes=3)
     """
     _require_de(adata, key)
     group_by = renamed_keyword(
@@ -116,9 +216,7 @@ def plot_rank_genes_matrixplot(
     )
     group_by = _de_group_by(adata, key, group_by)
     genes = _top_genes(adata, n_genes, key)
-    return plot_matrixplot(
-        adata, genes, group_by, standard_scale=standard_scale, **kwargs
-    )
+    return plot_matrixplot(adata, genes, group_by, standard_scale=standard_scale, **kwargs)
 
 
 def plot_volcano(
@@ -136,6 +234,43 @@ def plot_volcano(
     significance cutoffs and ``label_top`` labels the strongest genes. Requires a
     ``rank_genes_groups`` computed with a method that reports p-values and
     log-fold-changes (``wilcoxon`` / ``t-test``, not ``logreg``).
+
+    Parameters
+    ----------
+    adata
+        AnnData containing a scanpy rank-genes result.
+    group : str
+        Group to display.
+    key : str
+        Key in ``adata.uns``.
+    lfc : float
+        Absolute log2-fold-change threshold.
+    padj : float
+        Adjusted-p-value threshold.
+    label_top : int
+        Number of strongest genes to label.
+    **kwargs
+        Passed to plotnine-extra's volcano helper.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable volcano plot.
+
+    Raises
+    ------
+    KeyError
+        If the stored result or group is absent.
+    ValueError
+        If p-values/fold changes are unavailable or thresholds are invalid.
+
+    Notes
+    -----
+    Reads only a stored rank-genes table and does not mutate ``adata``.
+
+    Examples
+    --------
+    >>> p = plot_volcano(adata, group="T cells")
     """
     _require_de(adata, key)
     df = rank_genes_df(adata, group=group, key=key)
@@ -185,6 +320,41 @@ def plot_ma(
     ``data`` is a :class:`pandas.DataFrame` (gene name in the index or a column
     named by ``label``). Set ``label_top=N`` to annotate the ``N`` genes with the
     largest absolute fold change among the significant ones.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Differential-expression table.
+    mean, lfc, pval : str
+        Mean-expression, log-fold-change, and adjusted-p-value columns.
+    padj : float
+        Significance threshold.
+    label : str, optional
+        Gene-label column; the index is used by default.
+    label_top : int
+        Number of significant genes to label.
+    size : float
+        Point size.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable MA plot.
+
+    Raises
+    ------
+    KeyError
+        If a required column is absent.
+    ValueError
+        If thresholds or label selection are invalid.
+
+    Notes
+    -----
+    A prepared copy is attached to the plot; ``data`` is not modified.
+
+    Examples
+    --------
+    >>> p = plot_ma(results)
     """
     missing = [c for c in (mean, lfc, pval) if c not in data.columns]
     if missing:
@@ -192,9 +362,7 @@ def plot_ma(
 
     # drop rows with no mean expression (can't sit on a log x axis); assign the
     # significance flag without a second full-frame copy
-    df = data[data[mean] > 0].assign(
-        significant=lambda d: (d[pval] < padj) & d[pval].notna()
-    )
+    df = data[data[mean] > 0].assign(significant=lambda d: (d[pval] < padj) & d[pval].notna())
 
     plot = (
         ggplot(df, aes(mean, lfc, color="significant"))
@@ -207,9 +375,7 @@ def plot_ma(
     )
     if label_top:
         sig = df[df["significant"]]
-        top = sig.sort_values(lfc, key=lambda s: s.abs(), ascending=False).head(
-            label_top
-        )
+        top = sig.sort_values(lfc, key=lambda s: s.abs(), ascending=False).head(label_top)
         if label is not None:
             top = top.assign(_lab=top[label])
         else:

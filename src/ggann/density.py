@@ -78,6 +78,54 @@ def plot_density(
     differ by orders of magnitude across genes). The scaling is monotonic, so the
     within-panel ordering is unchanged; for raw-magnitude colourbars, compose
     separate ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    features : str or sequence of str
+        Genes or numeric observation columns.
+    joint : bool
+        Add the product-density panel for multiple features.
+    basis : str
+        Embedding basis.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    method : {"wkde", "ks"}
+        pyNebulosa density estimator.
+    adjust : float
+        Bandwidth multiplier.
+    size, alpha : float
+        Point size and opacity.
+    cmap : str
+        Matplotlib colormap name.
+    ncol : int, optional
+        Facet columns.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable faceted density plot.
+
+    Raises
+    ------
+    ImportError
+        If the ``density`` extra is unavailable.
+    KeyError
+        If the embedding or an explicit feature source is missing.
+    TypeError
+        If a resolved feature is non-numeric.
+    ValueError
+        If the method or expression-source selection is invalid.
+
+    Notes
+    -----
+    Only selected features and two coordinates are projected. KDE cost scales with
+    observations and features; the input is not mutated.
+
+    Examples
+    --------
+    >>> p = plot_density(adata, ["CD3D", "NKG7"], joint=True)
     """
     calculate_density = _require_pynebulosa()
 
@@ -97,13 +145,9 @@ def plot_density(
     names = [plain_name(adata, f) for f in features]
     missing = [f for f, n in zip(features, names) if n not in values.columns]
     if missing:
-        raise KeyError(
-            f"Could not resolve feature(s) {missing} as genes or obs columns."
-        )
+        raise KeyError(f"Could not resolve feature(s) {missing} as genes or obs columns.")
     non_numeric = [
-        f
-        for f, n in zip(features, names)
-        if not pd.api.types.is_numeric_dtype(values[n])
+        f for f, n in zip(features, names) if not pd.api.types.is_numeric_dtype(values[n])
     ]
     if non_numeric:
         raise TypeError(
@@ -143,9 +187,7 @@ def plot_density(
     ]
     long = pd.concat(frames, ignore_index=True)
     long["feature"] = pd.Categorical(long["feature"], categories=panels, ordered=True)
-    long = long.sort_values(
-        ["feature", "density"]
-    )  # draw low density first, within each panel
+    long = long.sort_values(["feature", "density"])  # draw low density first, within each panel
 
     return (
         ggplot(long, aes(xcol, ycol, color="density"))

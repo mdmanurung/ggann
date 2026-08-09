@@ -50,6 +50,45 @@ def plot_upset(
     low-order intersections. Extra ``kwargs`` pass through to marsilea's ``Upset``.
     Returns the marsilea ``Upset`` (rendered to the current figure when
     ``render=True``).
+
+    Parameters
+    ----------
+    sets : mapping of str to iterable
+        Named member sets.
+    sort_subsets : {"cardinality", "degree"}
+        Intersection ordering.
+    min_cardinality : int, optional
+        Minimum intersection size.
+    min_degree : int, optional
+        Minimum number of participating sets.
+    orient : {"h", "v"}
+        Backend orientation.
+    render : bool
+        Render immediately.
+    **kwargs
+        Passed to ``marsilea.Upset``.
+
+    Returns
+    -------
+    marsilea.Upset
+        Grid-backend object; this is not a plotnine object.
+
+    Raises
+    ------
+    ImportError
+        If the ``upset`` extra is unavailable.
+    TypeError
+        If ``sets`` is not a mapping.
+    ValueError
+        If fewer than two sets are supplied or filters are invalid.
+
+    Notes
+    -----
+    Input iterables are copied into membership data; no AnnData is involved.
+
+    Examples
+    --------
+    >>> up = plot_upset({"T": {"CD3D", "IL7R"}, "NK": {"NKG7", "GNLY"}})
     """
     Upset, UpsetData = _require_marsilea()
 

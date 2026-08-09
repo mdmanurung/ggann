@@ -36,14 +36,44 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
     return adata.uns[key]["dendrogram_info"]
 
 
-def plot_dendrogram(
-    adata, group_by: str, *, key: str | None = None, orientation: str = "top"
-):
+def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation: str = "top"):
     """Hierarchical tree relating the categories of ``group_by`` (``sc.pl.dendrogram``).
 
     Reuses coordinates stored by ``sc.tl.dendrogram``. If they are absent, the
     coordinates are computed without modifying ``adata``. ``orientation='top'``
     draws leaves along the x axis; ``orientation='left'`` draws them along y.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    group_by : str
+        Categorical observation column.
+    key : str, optional
+        ``adata.uns`` dendrogram key.
+    orientation : {"top", "left"}
+        Direction of the rendered tree.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable dendrogram.
+
+    Raises
+    ------
+    KeyError
+        If grouping data or the requested stored result is missing.
+    ValueError
+        If ``orientation`` is unsupported or scanpy rejects grouping data.
+
+    Notes
+    -----
+    Missing coordinates are computed on a temporary AnnData copy; input ownership
+    is preserved.
+
+    Examples
+    --------
+    >>> p = plot_dendrogram(adata, group_by="cell_type")
     """
     if orientation not in {"top", "left"}:
         raise ValueError("orientation must be 'top' or 'left'.")

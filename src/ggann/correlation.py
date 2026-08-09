@@ -82,9 +82,7 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     if lo < 0.0:  # mixed sign -> diverging, white centred on zero
         m = float(np.abs(finite).max()) if finite.size else 1.0
         return scale_fill_cmap(cmap_name="RdBu_r", limits=(-m, m))
-    return scale_fill_cmap(
-        cmap_name="YlOrRd", limits=(lo, 1.0)
-    )  # all-positive -> sequential
+    return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
 
 
 def plot_correlation(
@@ -108,23 +106,57 @@ def plot_correlation(
     ``cmap=None`` uses a sequential scale when all correlations are positive and a
     zero-centred diverging scale when signs differ. Pass a colormap name to set it
     explicitly.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    group_by : str
+        Observation column defining mean profiles.
+    genes : sequence of str, optional
+        Genes included in profile correlations.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    method : {"pearson", "spearman", "kendall"}
+        Pandas correlation method.
+    cluster : bool
+        Hierarchically order groups.
+    annotate : bool
+        Print correlation coefficients.
+    cmap : str, optional
+        Explicit Matplotlib colormap.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable correlation heatmap.
+
+    Raises
+    ------
+    KeyError
+        If genes, grouping metadata, or a layer are missing.
+    ValueError
+        If fewer than two genes resolve or method/source selection is invalid.
+
+    Notes
+    -----
+    Requested genes are projected and sparse-aggregated before the small group
+    correlation matrix is materialized. ``adata`` is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_correlation(adata, group_by="cell_type", genes=["CD3D", "NKG7"])
     """
     if genes is None:
         genes = _default_genes(adata)
     genes = ordered_unique(genes)
     if len(genes) < 2:
-        raise ValueError(
-            "plot_correlation needs at least two genes to correlate profiles."
-        )
+        raise ValueError("plot_correlation needs at least two genes to correlate profiles.")
 
-    profiles = group_means(
-        adata, genes, group_by, layer=layer, use_raw=use_raw
-    ).T  # genes x groups
+    profiles = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw).T  # genes x groups
     corr = profiles.corr(method=method)
 
-    order = (
-        _cluster_order(corr) if cluster and corr.shape[0] >= 2 else list(corr.columns)
-    )
+    order = _cluster_order(corr) if cluster and corr.shape[0] >= 2 else list(corr.columns)
     corr = corr.loc[order, order]
 
     long = (

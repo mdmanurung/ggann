@@ -46,12 +46,14 @@ def pseudobulk(
 
     Parameters
     ----------
+    adata
+        Annotated data matrix containing cells and count-like expression.
     sample_col
         obs column identifying the biological replicate (donor / sample / batch).
     group_by
         obs column to split within each sample (e.g. cell type); ``None`` gives one
         profile per sample.
-    layer / use_raw
+    layer, use_raw
         Where the counts live. decoupler expects **integer counts**; pass the counts
         ``layer=`` (or ``use_raw=True``), or ``skip_checks=True`` to aggregate
         non-counts. ``raw`` is the deprecated spelling of ``use_raw``.
@@ -60,12 +62,34 @@ def pseudobulk(
     min_cells
         Drop pseudobulk profiles built from fewer than this many cells
         (decoupler records the count in ``obs['psbulk_cells']``).
+    raw
+        Deprecated alias of ``use_raw``.
+    skip_checks
+        Forwarded to decoupler to permit non-count input.
 
     Returns
     -------
     A pseudobulk :class:`~anndata.AnnData` whose observations are sample x group
     profiles. It can be passed to ``gganndata`` or expression-summary helpers
     when their required observation columns are present.
+
+    Raises
+    ------
+    ImportError
+        If the ``pseudobulk`` extra is unavailable.
+    KeyError
+        If required observation columns or a selected layer are absent.
+    ValueError
+        If ``layer`` and ``use_raw=True`` are combined or decoupler rejects data.
+
+    Notes
+    -----
+    A new AnnData object is returned. The input is not mutated; this whole-source
+    aggregation is delegated to decoupler and may materialize its selected matrix.
+
+    Examples
+    --------
+    >>> pb = pseudobulk(adata, sample_col="donor", group_by="cell_type")
     """
     use_raw = renamed_keyword(
         use_raw,

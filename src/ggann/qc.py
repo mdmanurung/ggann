@@ -58,9 +58,7 @@ def _resolve_metrics(adata, metrics):
         return list(metrics)
     found = [m for m in _DEFAULT_METRICS if m in adata.obs]
     if not found:
-        raise ValueError(
-            "No default QC metrics found in adata.obs; pass metrics=[...] explicitly."
-        )
+        raise ValueError("No default QC metrics found in adata.obs; pass metrics=[...] explicitly.")
     return found
 
 
@@ -95,11 +93,7 @@ def _expression_totals(matrix) -> tuple[np.ndarray, bool]:
             if np.issubdtype(cleaned.data.dtype, np.inexact):
                 cleaned.data[np.isnan(cleaned.data)] = 0
             with np.errstate(invalid="ignore"):
-                totals = (
-                    np.asarray(cleaned.sum(axis=1))
-                    .reshape(-1)
-                    .astype(float, copy=False)
-                )
+                totals = np.asarray(cleaned.sum(axis=1)).reshape(-1).astype(float, copy=False)
         else:
             totals = np.empty(matrix.shape[0], dtype=float)
             with np.errstate(invalid="ignore"):
@@ -198,14 +192,43 @@ def plot_qc_violin(
 
     With ``group_by`` the violins are split by that obs column (stored palette
     reused); without it, one violin per metric.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    metrics : sequence of str, optional
+        Numeric observation columns; common QC fields are detected by default.
+    group_by : str, optional
+        Observation column defining violins.
+    scale : str
+        plotnine violin-width scaling mode.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable QC violin plot.
+
+    Raises
+    ------
+    KeyError
+        If an explicit metric or grouping column is absent.
+    ValueError
+        If no default QC metric exists or scaling is invalid.
+
+    Notes
+    -----
+    Only observation metadata is copied into the plot; ``adata`` is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_qc_violin(adata, metrics=["total_counts", "pct_counts_mt"])
     """
     metrics = _resolve_metrics(adata, metrics)
     cols = ([group_by] if group_by else []) + metrics
     df = _densify(adata.ap.to_df(obs=cols))
     id_vars = [group_by] if group_by else []
-    long = df.melt(
-        id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value"
-    )
+    long = df.melt(id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value")
 
     if group_by:
         p = (
@@ -244,24 +267,53 @@ def plot_qc_scatter(
     """Scatter of two obs QC metrics (e.g. total_counts vs pct_counts_mt).
 
     Thin wrapper over the grammar path; ``color`` may be an obs column or a gene.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    x, y : str or selector
+        Observation columns or expression variables.
+    color : str or selector, optional
+        Observation column or expression variable.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    size : float
+        Point size.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable QC scatter plot.
+
+    Raises
+    ------
+    KeyError
+        If an explicit field or layer is missing.
+    ValueError
+        If expression-source selection is invalid.
+
+    Notes
+    -----
+    Only mapped fields are projected through the grammar path; input is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_qc_scatter(adata, x="total_counts", y="n_genes_by_counts")
     """
     from plotnine import geom_point
 
     from ._palette import scale_color_obs
+    from ._resolve import plain_name
     from .grammar import aes as _aes
     from .grammar import gganndata
-    from ._resolve import plain_name
 
     mapping = _aes(x, y) if color is None else _aes(x, y, color=color)
     plot = gganndata(adata, mapping, layer=layer, use_raw=use_raw)
     fields = [x, y, *([color] if color is not None else [])]
-    missing = [
-        field for field in fields if plain_name(adata, field) not in plot.data.columns
-    ]
+    missing = [field for field in fields if plain_name(adata, field) not in plot.data.columns]
     if missing:
-        raise KeyError(
-            f"Could not resolve field(s) from observations or expression: {missing}."
-        )
+        raise KeyError(f"Could not resolve field(s) from observations or expression: {missing}.")
 
     plot = plot + geom_point(size=size, alpha=0.6)
     if color is not None:
@@ -279,9 +331,7 @@ def plot_qc_scatter(
     return plot
 
 
-def plot_highest_expr_genes(
-    adata, n: int = 20, *, use_raw: bool = False, layer: str | None = None
-):
+def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer: str | None = None):
     """Boxplots of the ``n`` genes accounting for the most counts per cell.
 
     Like ``sc.pl.highest_expr_genes``, this reads ``adata.X`` by default (pass
@@ -290,6 +340,38 @@ def plot_highest_expr_genes(
     per-cell percentage. For meaningful results ``adata.X`` should hold counts or
     normalized (not scaled) expression. This whole-matrix calculation stays sparse
     until the selected genes are prepared for plotting.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    n : int
+        Number of top genes.
+    use_raw : bool
+        Read ``adata.raw`` rather than ``adata.X``.
+    layer : str, optional
+        Named expression layer.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable percentage box plot.
+
+    Raises
+    ------
+    KeyError
+        If the selected layer is absent.
+    ValueError
+        If ``n`` is non-positive or source selection is invalid.
+
+    Notes
+    -----
+    Ranking requires a streamed or sparse pass over the selected whole matrix by
+    definition. Only top-gene columns are then materialized; input is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_highest_expr_genes(adata, n=10, layer="counts")
     """
     from scipy import sparse
 
@@ -345,9 +427,7 @@ def plot_highest_expr_genes(
         selected = _select_backed_dense_columns(matrix, top_indices)
     else:
         selected = matrix[:, top_indices]
-        selected = (
-            selected.toarray() if sparse.issparse(selected) else np.asarray(selected)
-        )
+        selected = selected.toarray() if sparse.issparse(selected) else np.asarray(selected)
     percentages = np.full(selected.shape, np.nan, dtype=float)
     np.divide(
         selected,
@@ -356,12 +436,8 @@ def plot_highest_expr_genes(
         where=valid[:, None],
     )
     percentages *= 100.0
-    long = pd.DataFrame(percentages, columns=top).melt(
-        var_name="gene", value_name="percent"
-    )
-    long["gene"] = pd.Categorical(
-        long["gene"], categories=list(reversed(top)), ordered=True
-    )
+    long = pd.DataFrame(percentages, columns=top).melt(var_name="gene", value_name="percent")
+    long["gene"] = pd.Categorical(long["gene"], categories=list(reversed(top)), ordered=True)
     return (
         ggplot(long, aes("gene", "percent"))
         + geom_boxplot(fill="#4c72b0", outlier_alpha=0.2)
@@ -378,6 +454,37 @@ def plot_variance_ratio(adata, n_pcs: int = 50, *, key: str = "pca", log: bool =
     ``adata.uns[key]['variance_ratio']`` and draws it as a point-and-line elbow, to
     help pick how many PCs to keep. ``log=True`` (scanpy's default) puts the y axis
     on a log scale so the elbow is easier to read.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix with stored PCA results.
+    n_pcs : int
+        Maximum principal components to display.
+    key : str
+        Key in ``adata.uns``.
+    log : bool
+        Use a logarithmic y scale.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable scree plot.
+
+    Raises
+    ------
+    KeyError
+        If variance-ratio information is absent.
+    ValueError
+        If ``n_pcs`` is invalid.
+
+    Notes
+    -----
+    Reads only a small vector from ``adata.uns`` and does not mutate input.
+
+    Examples
+    --------
+    >>> p = plot_variance_ratio(adata, n_pcs=20)
     """
     uns = adata.uns.get(key)
     if uns is None or "variance_ratio" not in uns:

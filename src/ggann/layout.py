@@ -43,14 +43,45 @@ def _tag_labels(levels: str, n: int) -> list[str]:
 
 
 def tag_panels(panels: Sequence, levels: str = "A") -> list:
-    """Add panel tags (``A``, ``B`` ... / ``a`` / ``1`` / ``i``) to a list of plots."""
+    """Add panel tags to a list of plots.
+
+    Parameters
+    ----------
+    panels : sequence
+        Plotnine plots or compositions.
+    levels : {"A", "a", "1", "I", "i"}
+        Tag sequence style.
+
+    Returns
+    -------
+    list
+        New tagged plot objects in input order.
+
+    Raises
+    ------
+    ValueError
+        If ``levels`` is unsupported.
+
+    Notes
+    -----
+    Input plot objects are composed immutably; no AnnData is involved.
+
+    Examples
+    --------
+    >>> tagged = tag_panels([p1, p2], levels="A")
+    """
     panels = list(panels)
     tags = _tag_labels(levels, len(panels))
     return [p + labs(tag=t) for p, t in zip(panels, tags)]
 
 
-def compose(panels: Sequence, *, ncol: int | None = None, nrow: int | None = None,
-            tag_levels: str | None = "A"):
+def compose(
+    panels: Sequence,
+    *,
+    ncol: int | None = None,
+    nrow: int | None = None,
+    tag_levels: str | None = "A",
+):
     """Arrange plots into a tagged multi-panel figure.
 
     ``panels`` is a flat list of plotnine plots (ggann helpers return these). They
@@ -60,6 +91,33 @@ def compose(panels: Sequence, *, ncol: int | None = None, nrow: int | None = Non
     Returns a plotnine composition; save it at an exact size with
     ``.save(width=, height=, units="mm")``. For uneven panel sizes, compose the
     sub-figures yourself with ``|`` / ``/`` and pass them in.
+
+    Parameters
+    ----------
+    panels : sequence
+        Plotnine plots or compositions.
+    ncol, nrow : int, optional
+        Grid dimensions; at most one is normally needed.
+    tag_levels : {"A", "a", "1", "I", "i"}, optional
+        Tag style, or ``None`` to omit tags.
+
+    Returns
+    -------
+    plotnine.composition
+        Composable multi-panel figure.
+
+    Raises
+    ------
+    ValueError
+        If panels are empty, dimensions are invalid, or tags are unsupported.
+
+    Notes
+    -----
+    Composition does not render plots or mutate their source data.
+
+    Examples
+    --------
+    >>> figure = compose([p1, p2], ncol=2)
     """
     panels = list(panels)
     if not panels:

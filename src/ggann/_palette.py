@@ -19,6 +19,31 @@ def obs_colors(adata, col: str) -> dict | None:
 
     Falls back to ``None`` when the column is not a categorical or has no stored
     colours (or the colour list is shorter than the categories).
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    col : str
+        Categorical observation column.
+
+    Returns
+    -------
+    dict or None
+        Category-to-colour mapping when a complete stored palette exists.
+
+    Raises
+    ------
+    None
+        Missing or non-categorical columns return ``None``.
+
+    Notes
+    -----
+    The stored palette is read without modifying ``adata.uns``.
+
+    Examples
+    --------
+    >>> palette = obs_colors(adata, "cell_type")
     """
     dtype = adata.obs[col].dtype if col in adata.obs else None
     if not isinstance(dtype, pd.CategoricalDtype):
@@ -31,7 +56,35 @@ def obs_colors(adata, col: str) -> dict | None:
 
 
 def scale_color_obs(adata, col: str, **kwargs):
-    """Categorical colour scale using scanpy's stored colours, else a qualitative default."""
+    """Build a categorical colour scale from observation metadata.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    col : str
+        Categorical observation column.
+    **kwargs
+        Passed to the plotnine manual or hue scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable colour scale.
+
+    Raises
+    ------
+    ValueError
+        If plotnine rejects a forwarded scale argument.
+
+    Notes
+    -----
+    Scanpy colours are reused when complete; otherwise plotnine chooses hues.
+
+    Examples
+    --------
+    >>> p = p + scale_color_obs(adata, "cell_type")
+    """
     mapping = obs_colors(adata, col)
     if mapping is None:
         return pe.scale_color_hue(**kwargs)
@@ -43,7 +96,35 @@ scale_colour_obs = scale_color_obs
 
 
 def scale_fill_obs(adata, col: str, **kwargs):
-    """Categorical fill scale using scanpy's stored colours, else a qualitative default."""
+    """Build a categorical fill scale from observation metadata.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    col : str
+        Categorical observation column.
+    **kwargs
+        Passed to the plotnine manual or hue scale.
+
+    Returns
+    -------
+    plotnine.scales.scale
+        Composable fill scale.
+
+    Raises
+    ------
+    ValueError
+        If plotnine rejects a forwarded scale argument.
+
+    Notes
+    -----
+    Scanpy colours are reused when complete; otherwise plotnine chooses hues.
+
+    Examples
+    --------
+    >>> p = p + scale_fill_obs(adata, "cell_type")
+    """
     mapping = obs_colors(adata, col)
     if mapping is None:
         return pe.scale_fill_hue(**kwargs)
