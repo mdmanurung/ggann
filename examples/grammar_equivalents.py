@@ -31,6 +31,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
+    element_blank,
     geom_boxplot,
     geom_col,
     geom_errorbar,
@@ -38,16 +39,15 @@ from plotnine import (
     geom_line,
     geom_point,
     geom_tile,
-    element_blank,
     geom_violin,
     ggplot,
     guide_legend,
     guides,
     labs,
-    theme,
     scale_color_cmap,
     scale_fill_cmap,
     scale_size,
+    theme,
 )
 
 import ggann as ag
@@ -68,14 +68,10 @@ def embedding_grammar(adata, color=GROUP, basis="umap", label=True):
         + ag.scale_color_obs(adata, color)
         + guides(color=guide_legend(override_aes={"size": 4}))
         + ag.theme_ggann()
-        + theme(
-            axis_text=element_blank(), axis_ticks=element_blank()
-        )  # arbitrary UMAP units
+        + theme(axis_text=element_blank(), axis_ticks=element_blank())  # arbitrary UMAP units
     )
     if label:
-        cents = (
-            base.data.groupby(color, observed=True)[[xcol, ycol]].median().reset_index()
-        )
+        cents = base.data.groupby(color, observed=True)[[xcol, ycol]].median().reset_index()
         cents = cents.rename(columns={color: "label"})
         plot = plot + pe.geom_label_repel(
             aes(xcol, ycol, label="label"),
@@ -92,9 +88,7 @@ def features_grammar(adata, features=("CD3D", "NKG7", "CST3", "GNLY"), basis="um
     coords = ag.embedding_coords(adata, basis)
     xcol, ycol = coords.columns[:2]
     feats = list(features)
-    wide = gganndata(adata, ag.aes(xcol, ycol, color=ag.gene(feats[0]))).data[
-        [xcol, ycol]
-    ]
+    wide = gganndata(adata, ag.aes(xcol, ycol, color=ag.gene(feats[0]))).data[[xcol, ycol]]
     for f in feats:
         wide[f] = gganndata(adata, ag.aes(xcol, ycol, color=ag.gene(f))).data[f]
     long = wide.melt(
@@ -137,11 +131,7 @@ def density_grammar(adata, feature="CD3D", basis="umap"):
 def _order_group(df, group, adata):
     """Order a group column by its obs categorical order, as the helpers do."""
     col = adata.obs[group]
-    cats = (
-        list(col.cat.categories)
-        if hasattr(col, "cat")
-        else sorted(pd.unique(df[group]))
-    )
+    cats = list(col.cat.categories) if hasattr(col, "cat") else sorted(pd.unique(df[group]))
     df = df.copy()
     df[group] = pd.Categorical(df[group], categories=cats, ordered=False)
     return df
@@ -150,24 +140,18 @@ def _order_group(df, group, adata):
 def _grouped_means(adata, genes, group, cutoff=0.0):
     """Group-by-gene mean expression and fraction expressing, via annplyr."""
     mean = adata.ap.summarize(raw={g: ap.mean(ap.col(g)) for g in genes}, by=group)
-    frac = adata.ap.summarize(
-        raw={g: ap.mean(ap.col(g) > cutoff) for g in genes}, by=group
-    )
+    frac = adata.ap.summarize(raw={g: ap.mean(ap.col(g) > cutoff) for g in genes}, by=group)
     mean = mean.set_index(group)[genes].astype(float)
     frac = frac.set_index(group)[genes].astype(float)
     long = (
         mean.reset_index()
         .melt(id_vars=group, var_name="feature", value_name="mean")
         .merge(
-            frac.reset_index().melt(
-                id_vars=group, var_name="feature", value_name="frac"
-            ),
+            frac.reset_index().melt(id_vars=group, var_name="feature", value_name="frac"),
             on=[group, "feature"],
         )
     )
-    long["feature"] = pd.Categorical(
-        long["feature"], categories=list(genes), ordered=True
-    )
+    long["feature"] = pd.Categorical(long["feature"], categories=list(genes), ordered=True)
     return _order_group(long, group, adata)
 
 
@@ -201,9 +185,7 @@ def matrixplot_grammar(adata, genes=MARKERS, group=GROUP):
 # --- plot_violin(genes, group) --------------------------------------------- #
 def violin_grammar(adata, gene="CD3D", group=GROUP):
     # one gene shown; for a facet-per-gene grid melt the genes and add facet_wrap
-    d = _order_group(
-        gganndata(adata, ag.aes(group, ag.gene(gene), fill=group)).data, group, adata
-    )
+    d = _order_group(gganndata(adata, ag.aes(group, ag.gene(gene), fill=group)).data, group, adata)
     return (
         ggplot(d, aes(group, gene, fill=group))
         + geom_violin(scale="width")
@@ -217,9 +199,7 @@ def violin_grammar(adata, gene="CD3D", group=GROUP):
 
 # --- plot_box(gene, group) ------------------------------------------------- #
 def box_grammar(adata, gene="CD3D", group=GROUP):
-    d = _order_group(
-        gganndata(adata, ag.aes(group, ag.gene(gene), fill=group)).data, group, adata
-    )
+    d = _order_group(gganndata(adata, ag.aes(group, ag.gene(gene), fill=group)).data, group, adata)
     return (
         ggplot(d, aes(group, gene, fill=group))
         + geom_boxplot(width=0.7, outlier_alpha=0.0)
@@ -234,11 +214,7 @@ def box_grammar(adata, gene="CD3D", group=GROUP):
 # --- plot_expression_bar(gene, group) -------------------------------------- #
 def bar_grammar(adata, gene="CD3D", group=GROUP):
     d = gganndata(adata, ag.aes(group, ag.gene(gene))).data
-    s = (
-        d.groupby(group, observed=True)[gene]
-        .agg(mean="mean", sd="std", n="count")
-        .reset_index()
-    )
+    s = d.groupby(group, observed=True)[gene].agg(mean="mean", sd="std", n="count").reset_index()
     s["se"] = s["sd"] / np.sqrt(s["n"])
     s["ymin"], s["ymax"] = s["mean"] - s["se"], s["mean"] + s["se"]
     s = _order_group(s, group, adata)
@@ -271,9 +247,7 @@ def line_grammar(adata, gene="CD3D", x="phase", group=GROUP):
 def proportions_grammar(adata, group=GROUP, split="phase"):
     d = gganndata(adata, ag.aes(split, fill=group)).data
     counts = d.groupby([split, group], observed=True).size().reset_index(name="n")
-    counts["frac"] = counts.groupby(split, observed=True)["n"].transform(
-        lambda x: x / x.sum()
-    )
+    counts["frac"] = counts.groupby(split, observed=True)["n"].transform(lambda x: x / x.sum())
     counts = _order_group(counts, group, adata)
     return (
         ggplot(counts, aes(split, "frac", fill=group))
@@ -300,9 +274,7 @@ def correlation_grammar(adata, group=GROUP, n_genes=None):
     )  # genes x groups
     corr = profiles.corr()
     long = (
-        corr.rename_axis("row")
-        .reset_index()
-        .melt(id_vars="row", var_name="col", value_name="corr")
+        corr.rename_axis("row").reset_index().melt(id_vars="row", var_name="col", value_name="corr")
     )
     return (
         ggplot(long, aes("col", "row", fill="corr"))

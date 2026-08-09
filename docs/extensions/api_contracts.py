@@ -50,11 +50,13 @@ _CONTRACTS: dict[str, dict[str, str]] = {
     "ggann.gganndata": _contract(
         "A regular ``plotnine.ggplot`` built from the resolved per-cell data.",
         "An explicit missing gene, observation column, embedding, or layer raises "
-        "``KeyError``. Combining ``layer=`` with ``use_raw=True`` raises ``ValueError``.",
+        "``KeyError``. Combining ``layer=`` with ``use_raw=True`` raises ``ValueError``. "
+        "A negative or exceeded materialization budget raises ``annplyr.AnnplyrError``.",
         _pbmc(
             "from plotnine import geom_point\n\n"
             "plot = ag.gganndata(\n"
-            '    adata, ag.aes("UMAP_1", "UMAP_2", color="bulk_labels")\n'
+            '    adata, ag.aes("UMAP_1", "UMAP_2", color="bulk_labels"),\n'
+            "    max_matrix_values=2 * adata.n_obs,\n"
             ") + geom_point()"
         ),
     ),
@@ -71,10 +73,7 @@ _CONTRACTS: dict[str, dict[str, str]] = {
         "A source-qualified observation-column reference.",
         "Construction does not inspect ``adata``. A missing observation column is "
         "reported when the reference is resolved.",
-        _pbmc(
-            'mapping = ag.aes(color=ag.obs("bulk_labels"))\n'
-            "plot = ag.gganndata(adata, mapping)"
-        ),
+        _pbmc('mapping = ag.aes(color=ag.obs("bulk_labels"))\nplot = ag.gganndata(adata, mapping)'),
     ),
     "ggann.obsm": _contract(
         "A reference to one zero-based coordinate of an ``obsm`` matrix.",
@@ -87,8 +86,13 @@ _CONTRACTS: dict[str, dict[str, str]] = {
     ),
     "ggann.embedding_coords": _contract(
         "A ``pandas.DataFrame`` indexed like ``adata.obs``.",
-        "A missing basis raises ``KeyError``; a negative ``n`` raises ``ValueError``.",
-        _pbmc('coordinates = ag.embedding_coords(adata, "umap", n=2)'),
+        "A missing basis raises ``KeyError``; a negative ``n`` raises ``ValueError``. "
+        "A negative or exceeded materialization budget raises ``annplyr.AnnplyrError``.",
+        _pbmc(
+            "coordinates = ag.embedding_coords(\n"
+            '    adata, "umap", n=2, max_matrix_values=2 * adata.n_obs\n'
+            ")"
+        ),
     ),
 }
 
@@ -96,25 +100,19 @@ _CONTRACTS: dict[str, dict[str, str]] = {
 _GGPLOT_CALLS = {
     "plot_embedding": 'plot = ag.plot_embedding(adata, "umap", color="bulk_labels")',
     "plot_embedding_density": (
-        "plot = ag.plot_embedding_density(\n"
-        '    adata, "umap", group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_embedding_density(\n    adata, "umap", group_by="bulk_labels"\n)'
     ),
     "plot_features": 'plot = ag.plot_features(adata, ["CD3D", "NKG7"])',
     "plot_density": 'plot = ag.plot_density(adata, ["CD3D", "NKG7"])',
     "plot_dotplot": (
-        "plot = ag.plot_dotplot(\n"
-        '    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_dotplot(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
     "plot_dotplot_grouped": (
         'genes = {"T cells": ["CD3D"], "NK cells": ["NKG7"]}\n'
         'plot = ag.plot_dotplot_grouped(adata, genes, group_by="bulk_labels")'
     ),
     "plot_matrixplot": (
-        "plot = ag.plot_matrixplot(\n"
-        '    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_matrixplot(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
     "plot_matrixplot_grouped": (
         'genes = {"T cells": ["CD3D"], "NK cells": ["NKG7"]}\n'
@@ -129,49 +127,31 @@ _GGPLOT_CALLS = {
     "plot_violin": (
         'plot = ag.plot_violin(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
-    "plot_ridge": (
-        'plot = ag.plot_ridge(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
-    ),
+    "plot_ridge": ('plot = ag.plot_ridge(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'),
     "plot_stacked_violin": (
-        "plot = ag.plot_stacked_violin(\n"
-        '    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_stacked_violin(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
     "plot_tracksplot": (
-        "plot = ag.plot_tracksplot(\n"
-        '    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_tracksplot(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
     "plot_dendrogram": 'plot = ag.plot_dendrogram(adata, group_by="bulk_labels")',
-    "plot_box": (
-        'plot = ag.plot_box(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
-    ),
-    "plot_sina": (
-        'plot = ag.plot_sina(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
-    ),
+    "plot_box": ('plot = ag.plot_box(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'),
+    "plot_sina": ('plot = ag.plot_sina(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'),
     "plot_expression_bar": (
-        "plot = ag.plot_expression_bar(\n"
-        '    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_expression_bar(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
     "plot_expression_line": (
-        "plot = ag.plot_expression_line(\n"
-        '    adata, ["CD3D"], x="phase", group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_expression_line(\n    adata, ["CD3D"], x="phase", group_by="bulk_labels"\n)'
     ),
     "plot_proportions": (
-        "plot = ag.plot_proportions(\n"
-        '    adata, group_by="bulk_labels", split_by="phase"\n'
-        ")"
+        'plot = ag.plot_proportions(\n    adata, group_by="bulk_labels", split_by="phase"\n)'
     ),
     "plot_correlation": 'plot = ag.plot_correlation(adata, group_by="bulk_labels")',
     "plot_qc_violin": (
         'plot = ag.plot_qc_violin(\n    adata, metrics=["n_genes", "percent_mito"]\n)'
     ),
     "plot_qc_scatter": ('plot = ag.plot_qc_scatter(adata, x="n_counts", y="n_genes")'),
-    "plot_highest_expr_genes": (
-        "plot = ag.plot_highest_expr_genes(adata, n=10, use_raw=True)"
-    ),
+    "plot_highest_expr_genes": ("plot = ag.plot_highest_expr_genes(adata, n=10, use_raw=True)"),
     "plot_variance_ratio": "plot = ag.plot_variance_ratio(adata, n_pcs=20)",
 }
 
@@ -214,9 +194,7 @@ _GGPLOT_ERRORS.update(
             "A non-positive ``n`` or incompatible expression sources raise "
             "``ValueError``; a missing layer raises ``KeyError``."
         ),
-        "plot_variance_ratio": (
-            "Missing PCA variance information raises ``KeyError``."
-        ),
+        "plot_variance_ratio": ("Missing PCA variance information raises ``KeyError``."),
     }
 )
 
@@ -229,14 +207,10 @@ for _name, _call in _GGPLOT_CALLS.items():
 
 for _name, _call in {
     "plot_rank_genes_dotplot": (
-        "plot = ag.plot_rank_genes_dotplot(\n"
-        '    adata, n_genes=3, group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_rank_genes_dotplot(\n    adata, n_genes=3, group_by="bulk_labels"\n)'
     ),
     "plot_rank_genes_matrixplot": (
-        "plot = ag.plot_rank_genes_matrixplot(\n"
-        '    adata, n_genes=3, group_by="bulk_labels"\n'
-        ")"
+        'plot = ag.plot_rank_genes_matrixplot(\n    adata, n_genes=3, group_by="bulk_labels"\n)'
     ),
     "plot_volcano": 'plot = ag.plot_volcano(adata, group="CD56+ NK")',
 }.items():
@@ -435,9 +409,7 @@ def _process_docstring(app, what, name, obj, options, lines):
         ".. code-block:: python",
         "",
     ]
-    lines.extend(
-        f"   {line}" if line else "   " for line in contract["example"].splitlines()
-    )
+    lines.extend(f"   {line}" if line else "   " for line in contract["example"].splitlines())
     lines.append("")
 
 

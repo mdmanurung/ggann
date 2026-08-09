@@ -1,105 +1,135 @@
 # Quickstart
 
-## Load example data
+This guide assumes an `AnnData` named `adata` with `X_umap` in `adata.obsm`, a
+`cell_type` column in `adata.obs`, and the genes used below. The
+{doc}`vignettes/grammar_of_graphics` version runs during every documentation
+build against a deterministic local fixture.
+
+## One-call helper
+
+Use a helper for a standard single-cell figure:
 
 ```python
-import scanpy as sc
 import ggann as ag
-from ggann import aes, gene, gganndata
-from plotnine import geom_point
 
-adata = sc.datasets.pbmc68k_reduced()
-markers = ["CD3D", "NKG7", "CST3"]
-group = "bulk_labels"
-```
-
-## Use the grammar
-
-`gganndata` resolves observation columns, genes, and embedding coordinates into
-the DataFrame used by plotnine:
-
-```python
-plot = gganndata(
+embedding = ag.plot_embedding(
     adata,
-    aes("UMAP_1", "UMAP_2", color=group),
-) + geom_point(size=1.5)
+    basis="umap",
+    color="cell_type",
+    label=True,
+)
 ```
 
-The result is a `plotnine.ggplot`. Add plotnine layers, scales, facets, and
-themes with `+`.
-
-Use an accessor when the source is ambiguous or a specific expression matrix is
-required:
+Other common one-call summaries follow the same naming conventions:
 
 ```python
-plot = gganndata(
+genes = ["CD3D", "NKG7", "MS4A1", "CST3"]
+
+dotplot = ag.plot_dotplot(adata, genes, group_by="cell_type")
+matrix = ag.plot_matrixplot(adata, genes, group_by="cell_type")
+violin = ag.plot_violin(adata, ["CD3D"], group_by="cell_type")
+```
+
+These return ordinary `plotnine.ggplot` objects.
+
+## Grammar-style plot
+
+Use `gganndata` when plotnine already expresses the figure clearly. Include a
+field in the aesthetic mapping when a later facet or layer needs that column;
+`group=` is a convenient non-visual mapping for `condition` here.
+
+```python
+from ggann import aes, gganndata, obs, obsm
+from plotnine import facet_wrap, geom_point, scale_color_brewer, theme_classic
+
+plot = (
+    gganndata(
+        adata,
+        aes(
+            x=obsm("umap", 0),
+            y=obsm("umap", 1),
+            color=obs("cell_type"),
+            group=obs("condition"),
+        ),
+        add_theme=False,
+    )
+    + geom_point(size=1.8, alpha=0.85)
+    + scale_color_brewer(type="qual", palette="Set2")
+    + facet_wrap("condition")
+    + theme_classic()
+)
+```
+
+The returned object is a real `plotnine.ggplot`: add any compatible geom,
+stat, scale, coordinate system, facet, label, or theme with `+`.
+
+## Choose the expression source
+
+The same source arguments apply to the grammar and expression helpers.
+
+```python
+# adata.X
+x_plot = ag.plot_embedding(adata, "umap", color="CD3D", use_raw=False)
+
+# adata.raw.X
+raw_plot = ag.plot_embedding(adata, "umap", color="CD3D", use_raw=True)
+
+# adata.layers["counts"]
+counts_plot = ag.plot_embedding(adata, "umap", color="CD3D", layer="counts")
+```
+
+With neither argument, expression uses `adata.raw` when present and otherwise
+`.X`, matching Scanpy's plotting convention. `layer=` and `use_raw=True` are
+mutually exclusive.
+
+Pin individual genes when one grammar plot mixes sources:
+
+```python
+from ggann import gene
+
+mixed = gganndata(
     adata,
-    aes("UMAP_1", "UMAP_2", color=gene("CD3D", use_raw=True)),
-) + geom_point(size=1.5)
+    aes(
+        x=gene("CD3D", use_raw=True),
+        y=gene("NKG7", layer="counts"),
+        color=obs("cell_type"),
+    ),
+) + geom_point()
 ```
 
-Bare gene names use `adata.raw` when it exists. Pass `use_raw=False` for
-`adata.X`, or `layer="counts"` for a named layer.
+## Bound grammar materialization
 
-## Use a helper
-
-Plotnine-native helpers prepare the data and return a plotnine object:
+`gganndata` can reject a mapping before its first matrix read when the complete
+request exceeds a known boundary. The example below resolves two `obsm`
+coordinates and one gene, or `3 × n_obs` logical matrix values; observation
+metadata is not charged.
 
 ```python
-embedding = ag.plot_embedding(adata, "umap", color=group, label=True)
-dotplot = ag.plot_dotplot(adata, markers, group_by=group)
-violin = ag.plot_violin(adata, markers[:1], group_by=group)
-heatmap = ag.plot_heatmap(adata, markers, group_by=group, standard_scale="var")
+bounded = gganndata(
+    adata,
+    aes(
+        x=obsm("umap", 0),
+        y=obsm("umap", 1),
+        color=gene("CD3D", use_raw=False),
+    ),
+    max_matrix_values=3 * adata.n_obs,
+) + geom_point()
 ```
 
-For `plot_heatmap`, `standard_scale` may be `None`, `"var"`, `"group"`, or
-`"zscore"`.
+An invalid or exceeded budget raises `annplyr.AnnplyrError`. High-level plotting
+helpers do not currently expose this argument; use the grammar or extract a
+custom bounded table with annplyr when a hard limit is required.
 
-The helper result remains composable:
+## Refine and save
+
+Helper output remains composable:
 
 ```python
 from plotnine import labs, theme
 
-dotplot + labs(title="Marker expression") + theme(figure_size=(7, 4))
+final = dotplot + labs(title="Lineage markers") + theme(figure_size=(7, 4))
+final.save("markers.pdf", width=180, height=100, units="mm")
 ```
 
-Complete helper and grammar constructions are in
-[`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py).
-
-## Set a session-wide theme
-
-`set_theme` changes plotnine's global default theme. Call `reset_theme` to undo
-that change.
-
-```python
-ag.set_theme(base_size=9, family="Arial")
-themed = ag.plot_embedding(adata, "umap", color=group)
-ag.reset_theme()
-```
-
-`ag.sizes` exposes the font sizes used by the current ggann theme. Use
-`ag.sizes.geom(...)` when passing a point size to `geom_text`.
-
-## Compose panels
-
-```python
-figure = ag.compose(
-    [
-        ag.plot_embedding(adata, "umap", color=group),
-        ag.plot_dotplot(adata, markers, group),
-        ag.plot_violin(adata, markers[:1], group),
-        ag.plot_proportions(adata, group, split_by="phase"),
-    ],
-    ncol=2,
-)
-
-figure.save("figure1.pdf", width=180, height=140, units="mm")
-```
-
-Set `tag_levels` to `"a"`, `"1"`, `"i"`, or `None` to change panel labels.
-
-## Grid-based plots
-
-`plot_clustermap` and `plot_upset` do not return plotnine objects. Install their
-optional extras and use the save methods provided by their backends. See
-{doc}`installation` for the corresponding extras.
+Continue with {doc}`concepts` for name resolution, ordering, missing values,
+downsampling, ownership, and return types.

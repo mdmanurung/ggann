@@ -139,8 +139,7 @@ def main() -> None:
     de = ag.rank_genes_df(adata)
     selected_groups = ["CD14+ Monocyte", "CD19+ B", "CD56+ NK", "Dendritic"]
     marker_sets = {
-        name: list(de[de["group"] == name].head(20)["names"])
-        for name in selected_groups
+        name: list(de[de["group"] == name].head(20)["names"]) for name in selected_groups
     }
     upset_path = OUT / "upset.png"
     ag.plot_upset(marker_sets, min_cardinality=1).save(upset_path, dpi=100)

@@ -65,22 +65,12 @@ def _examples(adata):
             + geom_point(size=1.2)
             + ag.theme_ggann()
         ),
-        "ggann.plot_embedding": lambda: ag.plot_embedding(
-            adata, "umap", color=GROUP, label=True
-        ),
-        "ggann.plot_features": lambda: ag.plot_features(
-            adata, MARKERS[:4], basis="umap"
-        ),
-        "ggann.plot_density": lambda: ag.plot_density(
-            adata, ["CD3D", "NKG7"], joint=True
-        ),
-        "ggann.plot_embedding_density": lambda: ag.plot_embedding_density(
-            adata, "umap", GROUP
-        ),
+        "ggann.plot_embedding": lambda: ag.plot_embedding(adata, "umap", color=GROUP, label=True),
+        "ggann.plot_features": lambda: ag.plot_features(adata, MARKERS[:4], basis="umap"),
+        "ggann.plot_density": lambda: ag.plot_density(adata, ["CD3D", "NKG7"], joint=True),
+        "ggann.plot_embedding_density": lambda: ag.plot_embedding_density(adata, "umap", GROUP),
         "ggann.plot_dotplot": lambda: ag.plot_dotplot(adata, MARKERS, GROUP),
-        "ggann.plot_dotplot_grouped": lambda: ag.plot_dotplot_grouped(
-            adata, GENE_GROUPS, GROUP
-        ),
+        "ggann.plot_dotplot_grouped": lambda: ag.plot_dotplot_grouped(adata, GENE_GROUPS, GROUP),
         "ggann.plot_matrixplot": lambda: ag.plot_matrixplot(
             adata, MARKERS, GROUP, standard_scale="var"
         ),
@@ -92,31 +82,19 @@ def _examples(adata):
         ),
         "ggann.plot_violin": lambda: ag.plot_violin(adata, MARKERS[:3], GROUP),
         "ggann.plot_ridge": lambda: ag.plot_ridge(adata, MARKERS[:3], GROUP),
-        "ggann.plot_stacked_violin": lambda: ag.plot_stacked_violin(
-            adata, MARKERS, GROUP
-        ),
+        "ggann.plot_stacked_violin": lambda: ag.plot_stacked_violin(adata, MARKERS, GROUP),
         "ggann.plot_tracksplot": lambda: ag.plot_tracksplot(adata, MARKERS, GROUP),
         "ggann.plot_dendrogram": lambda: ag.plot_dendrogram(adata, GROUP),
         "ggann.plot_box": lambda: ag.plot_box(adata, MARKERS[:3], GROUP),
-        "ggann.plot_sina": lambda: ag.plot_sina(
-            adata, MARKERS[:3], GROUP, use_raw=True
-        ),
-        "ggann.plot_expression_bar": lambda: ag.plot_expression_bar(
-            adata, MARKERS[:3], GROUP
-        ),
+        "ggann.plot_sina": lambda: ag.plot_sina(adata, MARKERS[:3], GROUP, use_raw=True),
+        "ggann.plot_expression_bar": lambda: ag.plot_expression_bar(adata, MARKERS[:3], GROUP),
         "ggann.plot_expression_line": lambda: ag.plot_expression_line(
             adata, ["CD3D"], x="phase", group_by=GROUP
         ),
-        "ggann.plot_proportions": lambda: ag.plot_proportions(
-            adata, GROUP, split_by="phase"
-        ),
+        "ggann.plot_proportions": lambda: ag.plot_proportions(adata, GROUP, split_by="phase"),
         "ggann.plot_correlation": lambda: ag.plot_correlation(adata, GROUP),
-        "ggann.plot_rank_genes_dotplot": lambda: ag.plot_rank_genes_dotplot(
-            adata, n_genes=3
-        ),
-        "ggann.plot_rank_genes_matrixplot": lambda: ag.plot_rank_genes_matrixplot(
-            adata, n_genes=3
-        ),
+        "ggann.plot_rank_genes_dotplot": lambda: ag.plot_rank_genes_dotplot(adata, n_genes=3),
+        "ggann.plot_rank_genes_matrixplot": lambda: ag.plot_rank_genes_matrixplot(adata, n_genes=3),
         "ggann.plot_volcano": lambda: ag.plot_volcano(adata, group="CD56+ NK"),
         "ggann.plot_ma": lambda: ag.plot_ma(_ma_frame(adata), label_top=8),
         "ggann.plot_qc_violin": lambda: ag.plot_qc_violin(
@@ -131,9 +109,7 @@ def _examples(adata):
             adata, n=20, use_raw=True
         ),
         "ggann.plot_variance_ratio": lambda: ag.plot_variance_ratio(adata, n_pcs=30),
-        "ggann.plot_clustermap": lambda: ag.plot_clustermap(
-            adata, MARKERS, group_by=GROUP
-        ),
+        "ggann.plot_clustermap": lambda: ag.plot_clustermap(adata, MARKERS, group_by=GROUP),
         "ggann.plot_upset": lambda: ag.plot_upset(marker_sets, min_cardinality=1),
     }
 

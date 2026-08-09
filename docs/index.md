@@ -1,80 +1,98 @@
 # ggann
 
-`ggann` prepares `AnnData` fields for plotnine and provides plotting helpers for
-common single-cell figures. `gganndata(...)` and the plotnine-native helpers
-return regular [`plotnine.ggplot`](https://plotnine.org/) objects.
+`ggann` turns `AnnData` into composable plotnine graphics and concise
+single-cell plotting helpers.
 
 ```python
-import scanpy as sc
 import ggann as ag
+
+plot = ag.plot_embedding(adata, "umap", color="cell_type")
+```
+
+For custom figures, `gganndata` returns an ordinary `plotnine.ggplot`:
+
+```python
 from ggann import aes, gganndata
 from plotnine import geom_point
 
-adata = sc.datasets.pbmc68k_reduced()
-markers = ["CD3D", "NKG7", "CST3"]
-
-gganndata(
+plot = gganndata(
     adata,
-    aes("UMAP_1", "UMAP_2", color="bulk_labels"),
-) + geom_point(size=1.5)
-
-ag.plot_dotplot(adata, markers, group_by="bulk_labels")
+    aes("UMAP_1", "UMAP_2", color="cell_type"),
+) + geom_point()
 ```
 
-`plot_clustermap` and `plot_upset` use grid-based backends and return their
-backend objects rather than `ggplot` objects.
+All plotnine-native helpers remain composable. `plot_clustermap` and
+`plot_upset` are the two documented grid-backend exceptions.
 
 ## Start here
 
 ::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} Installation
-:link: installation
-:link-type: doc
-
-Install the package and optional plotting backends.
-:::
-
 :::{grid-item-card} Quickstart
 :link: quickstart
 :link-type: doc
 
-Build plots with the grammar and helper interfaces.
+Create a helper plot, then build the same data flow with the grammar.
 :::
 
-:::{grid-item-card} Gallery
-:link: gallery
+:::{grid-item-card} API concepts
+:link: concepts
 :link-type: doc
 
-View figures generated from `pbmc68k_reduced`.
+Understand source resolution, grouping, ownership, and return types.
 :::
 
-:::{grid-item-card} API reference
-:link: api
+:::{grid-item-card} Executable vignettes
+:link: vignettes/index
 :link-type: doc
 
-Check signatures, parameters, and return types.
+Run five offline workflows from migration through final figure assembly.
+:::
+
+:::{grid-item-card} Performance
+:link: performance
+:link-type: doc
+
+Reproduce matched Scanpy timings, memory measurements, and release gates.
 :::
 
 ::::
 
 ```{toctree}
-:caption: Get Started
+:caption: Get started
 :maxdepth: 1
 :hidden:
 
 installation
 quickstart
+concepts
 gallery
 comparisons
-scplotter_parity
+```
+
+```{toctree}
+:caption: Workflows
+:maxdepth: 2
+:hidden:
+
+vignettes/index
 scanpy_parity
+scplotter_parity
 stats_pseudobulk
 ```
 
 ```{toctree}
-:caption: API Reference
+:caption: Release evidence
+:maxdepth: 1
+:hidden:
+
+performance
+migration
+```
+
+```{toctree}
+:caption: Reference
 :maxdepth: 1
 :hidden:
 

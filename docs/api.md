@@ -13,8 +13,23 @@
 | Expression source | `layer=` and `use_raw=True` are mutually exclusive. With neither set, expression uses `adata.raw` when present and otherwise `adata.X`. A source set on `gene(...)` overrides the plot-wide source. |
 | Ordering | Categorical observation order is preserved. An explicit `categories_order` must include every observed, non-missing group; unused requested levels are dropped. |
 | Downsampling | `downsample=` caps total cells for embedding/feature panels and cells per group for grouped distributions and heatmaps. `random_state=0` is deterministic; `None` draws a fresh sample. |
+| Materialization budget | `gganndata(..., max_matrix_values=...)` bounds cumulative expression and `obsm` values before extraction. Observation metadata is free. High-level plotting helpers do not currently expose the hard limit. |
 | Colours | Categorical scales reuse `adata.uns["<column>_colors"]` when valid and otherwise use a qualitative scale. Numeric values use a continuous colour map. `color` is canonical; `colour` scale aliases remain available. |
 | Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `plot_clustermap` and `plot_upset` return their grid-backend objects. |
+
+## Performance and ownership by family
+
+| Family | Important behavior |
+|---|---|
+| `gganndata`, embeddings, QC scatter | Resolve only mapped fields; per-cell rendering still scales with retained observations. Grammar calls can enforce `max_matrix_values`. |
+| Dotplot, matrixplot, correlation | Project requested genes before annplyr aggregation; no implicit downsampling. |
+| Violin, box, sina, ridge, tracks, heatmap | Prepare long per-cell tables. Use explicit `downsample=` where supported and scientifically appropriate. |
+| `plot_highest_expr_genes` | Reads the selected whole expression source by definition, remains sparse through ranking, then materializes only top genes. |
+| Density and clustering | KDE and hierarchical clustering add compute beyond extraction; optional backends document their own object and memory boundaries. |
+
+Plot construction leaves the input `AnnData` unchanged. Prepared pandas data
+are owned by the returned object; `set_theme` is the documented process-global
+state change. See {doc}`concepts` and {doc}`performance` for the full contracts.
 
 ## Grammar
 

@@ -67,6 +67,8 @@ myst_enable_extensions = [
     "html_admonition",
 ]
 myst_url_schemes = ("http", "https", "mailto")
+# Notebook execution remains off; ``executable_vignettes`` runs the five
+# deterministic Python workflows in isolated processes before every build.
 nb_execution_mode = "off"
 typehints_defaults = "braces"
 always_use_bars_union = True
