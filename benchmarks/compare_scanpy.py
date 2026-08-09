@@ -1312,6 +1312,49 @@ def _run_isolated_memory_process(
     return result
 
 
+def _summarize_isolated_memory_probes(probes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Retain raw child results and summarize their independently measured deltas."""
+    if not probes:
+        raise ValueError("At least one isolated-memory probe is required.")
+
+    def metric(name: str) -> dict[str, Any]:
+        values = [probe["sample"][name] for probe in probes]
+        return {
+            "samples": values,
+            "median": statistics.median(values),
+            "min": min(values),
+            "max": max(values),
+        }
+
+    first = probes[0]
+    return {
+        "library": first["library"],
+        "stage": first["stage"],
+        "repeat_count": len(probes),
+        "probes": probes,
+        "summary": {
+            name: metric(name)
+            for name in (
+                "peak_rss_delta_bytes",
+                "retained_with_output_bytes",
+                "retained_after_gc_bytes",
+            )
+        },
+        "input_immutable": all(probe["input_immutable"] for probe in probes),
+        "process_scope": (
+            "independent fresh children; imports and fixture creation precede each RSS "
+            "baseline; summaries use the median and retain every raw range/sample"
+        ),
+    }
+
+
+def _isolated_memory_metric(record: dict[str, Any], name: str) -> float:
+    """Read the repeated-child median or a legacy single-child sample."""
+    if "summary" in record:
+        return float(record["summary"][name]["median"])
+    return float(record["sample"][name])
+
+
 def _versions() -> dict[str, str | None]:
     packages = (
         "ggann",
@@ -1422,9 +1465,10 @@ def _evaluate_release_gates(results: list[dict[str, Any]]) -> dict[str, Any]:
         e2e_speedup = end_to_end["speedup_scanpy_over_ggann"]
         isolated = result.get("isolated_memory", {}).get("end_to_end", {})
         if set(isolated) == {"ggann", "scanpy"}:
-            ggann_peak = isolated["ggann"]["sample"]["peak_rss_delta_bytes"]
-            scanpy_peak = isolated["scanpy"]["sample"]["peak_rss_delta_bytes"]
-            memory_source = "fresh_child_end_to_end"
+            ggann_peak = _isolated_memory_metric(isolated["ggann"], "peak_rss_delta_bytes")
+            scanpy_peak = _isolated_memory_metric(isolated["scanpy"], "peak_rss_delta_bytes")
+            repeats = isolated["ggann"].get("repeat_count", 1)
+            memory_source = f"fresh_child_end_to_end_median_of_{repeats}"
         else:
             ggann_peak = end_to_end["libraries"]["ggann"]["repeated"]["max_peak_rss_delta_bytes"]
             scanpy_peak = end_to_end["libraries"]["scanpy"]["repeated"]["max_peak_rss_delta_bytes"]
@@ -1544,6 +1588,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "in a fresh child; use this for release RSS evidence."
         ),
     )
+    parser.add_argument(
+        "--isolated-memory-repeats",
+        type=int,
+        default=1,
+        help="Independent fresh children per library and selected memory stage.",
+    )
     for field in _SCALING_FIELDS:
         parser.add_argument(
             "--" + field.replace("_", "-"),
@@ -1609,6 +1659,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--repeats must be at least 1")
     if args.rss_interval_ms <= 0:
         parser.error("--rss-interval-ms must be positive")
+    if args.isolated_memory_repeats < 1:
+        parser.error("--isolated-memory-repeats must be at least 1")
     if args.output is None:
         parser.error("--output is required")
 
@@ -1680,10 +1732,20 @@ def main(argv: list[str] | None = None) -> int:
         if isolated_memory_stages:
             result["isolated_memory"] = {}
             for stage in isolated_memory_stages:
+                probes = {library: [] for library in ("ggann", "scanpy")}
+                for repeat in range(args.isolated_memory_repeats):
+                    order = ("ggann", "scanpy") if repeat % 2 == 0 else ("scanpy", "ggann")
+                    for library in order:
+                        probes[library].append(
+                            _run_isolated_memory_process(
+                                spec,
+                                library,
+                                stage,
+                                args.timeout_seconds,
+                            )
+                        )
                 result["isolated_memory"][stage] = {
-                    library: _run_isolated_memory_process(
-                        spec, library, stage, args.timeout_seconds
-                    )
+                    library: _summarize_isolated_memory_probes(probes[library])
                     for library in ("ggann", "scanpy")
                 }
         results.append(result)
@@ -1725,6 +1787,7 @@ def main(argv: list[str] | None = None) -> int:
             "rss_interval_ms": args.rss_interval_ms,
             "cold_imports": cold_imports,
             "isolated_memory_stages": isolated_memory_stages,
+            "isolated_memory_repeats": args.isolated_memory_repeats,
             "skipped_cases": skipped,
             "claim_policy": (
                 "Only preparation and end_to_end stages with comparability=pass may support speed claims. "

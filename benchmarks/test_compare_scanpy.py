@@ -21,10 +21,12 @@ from benchmarks.compare_scanpy import (
     _ggann_highest_frame,
     _ggann_native_preparation,
     _ggann_preparation,
+    _isolated_memory_metric,
     _scanpy_highest_frame,
     _scanpy_preparation,
     _selected_sources,
     _selected_workloads,
+    _summarize_isolated_memory_probes,
 )
 from benchmarks.run_benchmarks import _make_fixture
 
@@ -162,6 +164,35 @@ class InputOwnershipTests(unittest.TestCase):
         before = _adata_digest(adata)
         adata.X.data[0] += 1
         self.assertNotEqual(before, _adata_digest(adata))
+
+
+class IsolatedMemoryTests(unittest.TestCase):
+    def test_repeated_fresh_children_retain_raw_samples_and_median(self) -> None:
+        probes = [
+            {
+                "library": "ggann",
+                "stage": "end_to_end",
+                "sample": {
+                    "peak_rss_delta_bytes": peak,
+                    "retained_with_output_bytes": peak - 1,
+                    "retained_after_gc_bytes": peak - 2,
+                },
+                "input_immutable": True,
+            }
+            for peak in (100, 300, 200)
+        ]
+        result = _summarize_isolated_memory_probes(probes)
+
+        self.assertEqual(result["repeat_count"], 3)
+        self.assertEqual(result["probes"], probes)
+        self.assertEqual(result["summary"]["peak_rss_delta_bytes"]["median"], 200)
+        self.assertEqual(result["summary"]["peak_rss_delta_bytes"]["min"], 100)
+        self.assertEqual(result["summary"]["peak_rss_delta_bytes"]["max"], 300)
+        self.assertEqual(_isolated_memory_metric(result, "peak_rss_delta_bytes"), 200)
+
+    def test_legacy_single_child_memory_remains_readable(self) -> None:
+        record = {"sample": {"peak_rss_delta_bytes": 123}}
+        self.assertEqual(_isolated_memory_metric(record, "peak_rss_delta_bytes"), 123)
 
 
 class RunnerSmokeTests(unittest.TestCase):

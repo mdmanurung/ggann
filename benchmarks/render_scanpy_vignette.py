@@ -23,6 +23,21 @@ def _mebibytes(value: int) -> str:
     return f"{value / 2**20:.2f} MiB"
 
 
+def _memory_metric(record: dict[str, Any], name: str) -> tuple[float, float, float]:
+    if "summary" in record:
+        summary = record["summary"][name]
+        return float(summary["median"]), float(summary["min"]), float(summary["max"])
+    value = float(record["sample"][name])
+    return value, value, value
+
+
+def _memory_text(values: tuple[float, float, float]) -> str:
+    median, minimum, maximum = values
+    if minimum == maximum:
+        return _mebibytes(int(median))
+    return f"{_mebibytes(int(median))} [{_mebibytes(int(minimum))}, {_mebibytes(int(maximum))}]"
+
+
 def render_document(document: dict[str, Any]) -> str:
     """Return the primary benchmark tables derived from one raw result document."""
     if document.get("schema_version") != 1:
@@ -76,14 +91,16 @@ def render_document(document: dict[str, Any]) -> str:
     )
     for workload, label in _LABELS.items():
         memory = results[workload]["isolated_memory"]["end_to_end"]
-        ggann = memory["ggann"]["sample"]
-        scanpy = memory["scanpy"]["sample"]
-        ratio = ggann["peak_rss_delta_bytes"] / scanpy["peak_rss_delta_bytes"]
+        ggann_peak = _memory_metric(memory["ggann"], "peak_rss_delta_bytes")
+        scanpy_peak = _memory_metric(memory["scanpy"], "peak_rss_delta_bytes")
+        ggann_retained = _memory_metric(memory["ggann"], "retained_after_gc_bytes")
+        scanpy_retained = _memory_metric(memory["scanpy"], "retained_after_gc_bytes")
+        ratio = ggann_peak[0] / scanpy_peak[0]
         lines.append(
-            f"| {label} | {_mebibytes(ggann['peak_rss_delta_bytes'])} | "
-            f"{_mebibytes(scanpy['peak_rss_delta_bytes'])} | "
-            f"{_mebibytes(ggann['retained_after_gc_bytes'])} | "
-            f"{_mebibytes(scanpy['retained_after_gc_bytes'])} | {ratio:.2f}x |"
+            f"| {label} | {_memory_text(ggann_peak)} | "
+            f"{_memory_text(scanpy_peak)} | "
+            f"{_memory_text(ggann_retained)} | "
+            f"{_memory_text(scanpy_retained)} | {ratio:.2f}x |"
         )
 
     gates = document["release_gates"]
