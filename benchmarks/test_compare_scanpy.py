@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 import warnings
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from benchmarks.compare_scanpy import (
     _evaluate_release_gates,
     _execute_case,
     _ggann_highest_frame,
+    _ggann_native_preparation,
     _ggann_preparation,
     _scanpy_highest_frame,
     _scanpy_preparation,
@@ -89,6 +91,25 @@ class ComparabilityTests(unittest.TestCase):
         result = _compare_prepared(left, right, spec.workload)
         self.assertEqual(result["status"], "pass", result["issues"])
 
+    def test_matplotlib_backend_uses_compact_native_primary_payloads(self) -> None:
+        for workload in ("embedding_categorical", "dotplot", "matrixplot"):
+            with self.subTest(workload=workload):
+                spec = replace(_spec(workload), ggann_backend="matplotlib")
+                adata, genes, _ = _make_fixture(spec.fixture_spec())
+                canonical = _ggann_preparation(adata, genes, spec)
+                scanpy = _scanpy_preparation(adata, genes, spec)
+                native = _ggann_native_preparation(adata, genes, spec)
+
+                result = _compare_prepared(canonical, scanpy, workload)
+                self.assertEqual(result["status"], "pass", result["issues"])
+                self.assertIn("ggann_backend=matplotlib", spec.case_id)
+                if workload == "embedding_categorical":
+                    self.assertEqual(native.shape[1], 3)
+                elif workload == "dotplot":
+                    self.assertEqual(set(native), {"mean_expression", "fraction"})
+                else:
+                    self.assertIsInstance(native, pd.DataFrame)
+
     def test_highest_expression_zero_total_rows_match_scanpy(self) -> None:
         values = np.array(
             [
@@ -156,6 +177,13 @@ class RunnerSmokeTests(unittest.TestCase):
         for stage in result["stages"].values():
             for library in ("ggann", "scanpy"):
                 self.assertEqual(len(stage["libraries"][library]["repeated"]["samples"]), 1)
+
+    def test_small_direct_backend_case_records_backend_and_passes(self) -> None:
+        spec = replace(_spec("matrixplot"), ggann_backend="matplotlib")
+        result = _execute_case(spec)
+        self.assertEqual(result["comparability"]["status"], "pass")
+        self.assertEqual(result["parameters"]["ggann_backend"], "matplotlib")
+        self.assertTrue(result["input_immutable"])
 
     def test_release_gates_fail_closed_without_large_primary_cases(self) -> None:
         gates = _evaluate_release_gates([])

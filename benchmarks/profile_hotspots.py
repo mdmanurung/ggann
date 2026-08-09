@@ -41,7 +41,7 @@ try:
         _close_output,
         _construct,
         _end_to_end_function,
-        _ggann_preparation,
+        _ggann_native_preparation,
     )
     from benchmarks.run_benchmarks import (
         _ggann_source_metadata,
@@ -58,7 +58,7 @@ except ModuleNotFoundError:  # direct ``python benchmarks/profile_hotspots.py``
         _close_output,
         _construct,
         _end_to_end_function,
-        _ggann_preparation,
+        _ggann_native_preparation,
     )
     from run_benchmarks import (  # type: ignore[no-redef]
         _ggann_source_metadata,
@@ -181,7 +181,7 @@ def _stage_call(
     from matplotlib import pyplot as plt
 
     if stage == "preparation":
-        return lambda: _ggann_preparation(adata, genes, spec), lambda _output: None
+        return lambda: _ggann_native_preparation(adata, genes, spec), lambda _output: None
     if stage == "construction":
         return lambda: _construct("ggann", adata, genes, spec), _close_output
     if stage == "draw":
@@ -336,6 +336,7 @@ def _metadata(args: argparse.Namespace) -> dict[str, Any]:
         "packages": packages,
         "ggann_source": _ggann_source_metadata(),
         "git_revision": args.git_revision,
+        "ggann_backend": args.ggann_backend,
         "thread_settings": {
             name: os.environ.get(name)
             for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
@@ -354,6 +355,11 @@ def main() -> None:
     parser.add_argument("--workloads", default=",".join(_WORKLOADS))
     parser.add_argument("--stages", default=",".join(_STAGES))
     parser.add_argument("--source", choices=("x", "layer", "raw"), default="x")
+    parser.add_argument(
+        "--ggann-backend",
+        choices=("plotnine", "matplotlib"),
+        default="plotnine",
+    )
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260809)
     parser.add_argument("--rss-interval-ms", type=float, default=1.0)
@@ -388,6 +394,7 @@ def main() -> None:
                 repeats=args.repeats,
                 seed=args.seed,
                 rss_interval_seconds=args.rss_interval_ms / 1000,
+                ggann_backend=args.ggann_backend,
                 **shape,
             )
             adata, genes, input_bytes = _make_fixture(spec.fixture_spec())

@@ -129,6 +129,7 @@ class ComparisonSpec:
     seed: int
     repeats: int
     rss_interval_seconds: float
+    ggann_backend: str = "plotnine"
 
     @property
     def case_id(self) -> str:
@@ -139,7 +140,10 @@ class ComparisonSpec:
             if getattr(self, name) != defaults[name]
         ]
         suffix = f"[{','.join(changed)}]" if changed else ""
-        return f"{self.preset}{suffix}/{self.matrix_format}/{self.source}/{self.workload}"
+        backend = (
+            f"[ggann_backend={self.ggann_backend}]" if self.ggann_backend != "plotnine" else ""
+        )
+        return f"{self.preset}{suffix}/{self.matrix_format}/{self.source}/{self.workload}{backend}"
 
     def fixture_spec(self) -> CaseSpec:
         return CaseSpec(
@@ -372,17 +376,35 @@ def _rank_genes(adata: Any, n_genes: int) -> list[str]:
 
 def _ggann_preparation(adata: Any, genes: list[str], spec: ComparisonSpec) -> Any:
 
-    from ggann._aggregate import aggregate_expression, aggregate_means, tidy_expression
+    from ggann._aggregate import (
+        aggregate_expression,
+        aggregate_expression_native,
+        aggregate_means,
+        aggregate_means_native,
+        tidy_expression,
+    )
     from ggann._resolve import obsm, plain_name, resolve_frame
+    from ggann.plots import _native_embedding_frame
 
     kwargs = _source_kwargs(spec.source)
     workload = spec.workload
     if workload.startswith("embedding_"):
         color = _embedding_color(workload, genes)
-        coordinates = [obsm("umap", 0), obsm("umap", 1)]
-        frame = resolve_frame(adata, [*coordinates, color], **kwargs)
-        color_name = plain_name(adata, color)
-        coordinate_names = [plain_name(adata, coordinate) for coordinate in coordinates]
+        if spec.ggann_backend == "matplotlib":
+            frame, x_name, y_name, color_name = _native_embedding_frame(
+                adata,
+                "X_umap",
+                color,
+                layer=kwargs.get("layer"),
+                use_raw=kwargs.get("use_raw"),
+            )
+            assert color_name is not None
+            coordinate_names = [x_name, y_name]
+        else:
+            coordinates = [obsm("umap", 0), obsm("umap", 1)]
+            frame = resolve_frame(adata, [*coordinates, color], **kwargs)
+            color_name = plain_name(adata, color)
+            coordinate_names = [plain_name(adata, coordinate) for coordinate in coordinates]
         frame = _frame_with_obs_name(frame)
         return frame.rename(
             columns={
@@ -395,12 +417,22 @@ def _ggann_preparation(adata: Any, genes: list[str], spec: ComparisonSpec) -> An
     if workload in _RANK_WORKLOADS:
         selected = _rank_genes(adata, _RANK_N_GENES)
     if workload in {"dotplot", "rank_genes_dotplot"}:
-        return aggregate_expression(adata, selected, "group", **kwargs)[
+        aggregate = (
+            aggregate_expression_native
+            if spec.ggann_backend == "matplotlib" and workload == "dotplot"
+            else aggregate_expression
+        )
+        return aggregate(adata, selected, "group", **kwargs)[
             ["group", "feature", "mean_expression", "fraction"]
         ]
     if workload in {"matrixplot", "rank_genes_matrixplot"}:
         standard_scale = "var" if workload == "rank_genes_matrixplot" else None
-        return aggregate_means(adata, selected, "group", standard_scale=standard_scale, **kwargs)[
+        aggregate = (
+            aggregate_means_native
+            if spec.ggann_backend == "matplotlib" and workload == "matrixplot"
+            else aggregate_means
+        )
+        return aggregate(adata, selected, "group", standard_scale=standard_scale, **kwargs)[
             ["group", "feature", "mean_expression"]
         ]
     if workload in {"violin", "stacked_violin", "tracksplot"}:
@@ -511,6 +543,37 @@ def _scanpy_native_preparation(adata: Any, genes: list[str], spec: ComparisonSpe
         fractions = (indexed > 0).groupby(level=0, observed=True).mean()
         return {"mean_expression": means, "fraction": fractions}
     raise ValueError(f"Unknown workload: {workload}")
+
+
+def _ggann_native_preparation(adata: Any, genes: list[str], spec: ComparisonSpec) -> Any:
+    """Return the compact payload consumed by the explicit Matplotlib backend."""
+    if spec.ggann_backend != "matplotlib" or spec.workload not in _PRIMARY_WORKLOADS:
+        return _ggann_preparation(adata, genes, spec)
+
+    from ggann._aggregate import grouped_expression_native
+    from ggann.plots import _native_embedding_frame
+
+    kwargs = _source_kwargs(spec.source)
+    if spec.workload.startswith("embedding_"):
+        frame, _, _, _ = _native_embedding_frame(
+            adata,
+            "X_umap",
+            _embedding_color(spec.workload, genes),
+            layer=kwargs.get("layer"),
+            use_raw=kwargs.get("use_raw"),
+        )
+        return frame
+    means, fractions = grouped_expression_native(
+        adata,
+        genes,
+        "group",
+        expression_cutoff=0.0 if spec.workload == "dotplot" else None,
+        **kwargs,
+    )
+    if spec.workload == "dotplot":
+        assert fractions is not None
+        return {"mean_expression": means, "fraction": fractions}
+    return means
 
 
 def _comparison_columns(workload: str) -> tuple[list[str], list[str], list[str]]:
@@ -626,12 +689,27 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
                 color=_embedding_color(workload, genes),
                 pointdensity=False,
                 downsample=None,
+                backend=spec.ggann_backend,
                 **kwargs,
             )
         if workload == "dotplot":
-            return ag.plot_dotplot(adata, genes, "group", categories_order=categories, **kwargs)
+            return ag.plot_dotplot(
+                adata,
+                genes,
+                "group",
+                categories_order=categories,
+                backend=spec.ggann_backend,
+                **kwargs,
+            )
         if workload == "matrixplot":
-            return ag.plot_matrixplot(adata, genes, "group", categories_order=categories, **kwargs)
+            return ag.plot_matrixplot(
+                adata,
+                genes,
+                "group",
+                categories_order=categories,
+                backend=spec.ggann_backend,
+                **kwargs,
+            )
         if workload == "violin":
             return ag.plot_violin(
                 adata,
@@ -994,7 +1072,7 @@ def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
 
         stages["preparation"] = _measure_pair(
             {
-                "ggann": lambda: _ggann_preparation(adata, genes, spec),
+                "ggann": lambda: _ggann_native_preparation(adata, genes, spec),
                 "scanpy": lambda: _scanpy_native_preparation(adata, genes, spec),
             },
             spec,
@@ -1086,7 +1164,7 @@ def _execute_isolated_memory_probe(
     before = _adata_digest(adata)
     if stage == "preparation":
         function = (
-            (lambda: _ggann_preparation(adata, genes, spec))
+            (lambda: _ggann_native_preparation(adata, genes, spec))
             if library == "ggann"
             else (lambda: _scanpy_native_preparation(adata, genes, spec))
         )
@@ -1445,6 +1523,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--sources", default="x", help="x, layer, raw, or all")
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--ggann-backend",
+        choices=("plotnine", "matplotlib"),
+        default="plotnine",
+        help="ggann rendering/preparation path; Scanpy is unchanged.",
+    )
     parser.add_argument("--seed", type=int, default=20_260_809)
     parser.add_argument("--rss-interval-ms", type=float, default=1.0)
     parser.add_argument("--timeout-seconds", type=float, default=1_800.0)
@@ -1575,6 +1659,7 @@ def main(argv: list[str] | None = None) -> int:
                             seed=args.seed,
                             repeats=args.repeats,
                             rss_interval_seconds=args.rss_interval_ms / 1_000,
+                            ggann_backend=args.ggann_backend,
                             **shape,
                         )
                     )
@@ -1635,6 +1720,7 @@ def main(argv: list[str] | None = None) -> int:
                 name: value for name, value in overrides.items() if value is not None
             },
             "repeats": args.repeats,
+            "ggann_backend": args.ggann_backend,
             "seed": args.seed,
             "rss_interval_ms": args.rss_interval_ms,
             "cold_imports": cold_imports,
