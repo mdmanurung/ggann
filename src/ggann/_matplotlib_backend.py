@@ -15,7 +15,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from mizani.palettes import area_pal, hue_pal
@@ -152,10 +152,18 @@ def categorical_palette(
     return tuple(categories), tuple(colors)
 
 
-def _embedding_colors(spec: _RenderSpec) -> tuple[np.ndarray, list[Line2D]]:
+def _embedding_colors(
+    spec: _RenderSpec,
+) -> tuple[np.ndarray, ListedColormap, BoundaryNorm, list[Line2D]]:
     values = spec.data[spec.value]
-    lookup = dict(zip(spec.categories, spec.palette))
-    colors = np.asarray([lookup.get(value, "#7F7F7F") for value in values], dtype=object)
+    categorical = pd.Categorical(values, categories=spec.categories)
+    codes = categorical.codes.astype(np.int16, copy=False)
+    palette = list(spec.palette)
+    if bool(np.any(codes < 0)):
+        codes = np.where(codes < 0, len(palette), codes).astype(np.int16, copy=False)
+        palette.append("#7F7F7F")
+    cmap = ListedColormap(palette, name="ggann_categories")
+    norm = BoundaryNorm(np.arange(len(palette) + 1) - 0.5, len(palette))
     handles = [
         Line2D(
             [],
@@ -182,7 +190,7 @@ def _embedding_colors(spec: _RenderSpec) -> tuple[np.ndarray, list[Line2D]]:
                 label="NA",
             )
         )
-    return colors, handles
+    return codes, cmap, norm, handles
 
 
 def _draw_embedding(spec: _RenderSpec) -> Figure:
@@ -193,8 +201,17 @@ def _draw_embedding(spec: _RenderSpec) -> Figure:
     if spec.value is None:
         axis.scatter(x, y, s=area, alpha=spec.alpha, linewidths=0, color="#333333")
     elif spec.categorical:
-        colors, handles = _embedding_colors(spec)
-        axis.scatter(x, y, s=area, alpha=spec.alpha, linewidths=0, c=colors)
+        codes, cmap, norm, handles = _embedding_colors(spec)
+        axis.scatter(
+            x,
+            y,
+            s=area,
+            alpha=spec.alpha,
+            linewidths=0,
+            c=codes,
+            cmap=cmap,
+            norm=norm,
+        )
         axis.legend(
             handles=handles,
             title=spec.value,
