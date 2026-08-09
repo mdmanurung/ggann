@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 import annplyr as _annplyr  # registers the AnnData ``.ap`` accessor
+import numpy as np
 import pandas as pd
 from anndata import AnnData
 from scipy import sparse
@@ -97,6 +98,18 @@ def _validate_genes(
     layer: str | None,
 ) -> list[str]:
     """Validate and deduplicate a projected feature selection."""
+    genes, _ = _validated_gene_positions(adata, genes, kind=kind, layer=layer)
+    return genes
+
+
+def _validated_gene_positions(
+    adata,
+    genes: Iterable[str],
+    *,
+    kind: str,
+    layer: str | None,
+) -> tuple[list[str], np.ndarray]:
+    """Validate genes and return their source positions without scanning values."""
     genes = ordered_unique(genes)
     names = source_var_names(adata, kind)
     if not names.is_unique:
@@ -104,11 +117,63 @@ def _validate_genes(
             f"Variable names in {source_label(kind, layer)} must be unique before plotting."
         )
 
-    missing = [gene for gene in genes if gene not in names]
+    positions = names.get_indexer(genes)
+    missing = [gene for gene, position in zip(genes, positions) if position < 0]
     if missing:
         quoted = ", ".join(repr(gene) for gene in missing)
         raise KeyError(f"Gene(s) not found in {source_label(kind, layer)}: {quoted}.")
-    return genes
+    return genes, positions.astype(np.intp, copy=False)
+
+
+def _project_matrix_columns(matrix, positions: np.ndarray):
+    """Project matrix columns positionally across memory and backed containers."""
+    if isinstance(matrix, pd.DataFrame):
+        return matrix.iloc[:, positions].to_numpy(copy=False)
+    if sparse.issparse(matrix):
+        return matrix[:, positions]
+
+    module = type(matrix).__module__
+    type_name = type(matrix).__name__.lower()
+    is_backed_sparse = "sparse_dataset" in module or type_name in {
+        "csrdataset",
+        "cscdataset",
+    }
+    if is_backed_sparse:
+        order = np.argsort(positions)
+        inverse = np.argsort(order)
+        projected = matrix[:, positions[order]]
+        if hasattr(projected, "to_memory"):
+            projected = projected.to_memory()
+        return projected[:, inverse]
+
+    if hasattr(matrix, "to_memory") or not isinstance(matrix, np.ndarray):
+        order = np.argsort(positions)
+        inverse = np.argsort(order)
+        projected = np.asarray(matrix[:, positions[order]])
+        return projected[:, inverse]
+    return matrix[:, positions]
+
+
+def expression_matrix(
+    adata,
+    genes: Iterable[str],
+    *,
+    kind: str,
+    layer: str | None,
+):
+    """Project expression positionally without constructing a pandas sparse frame.
+
+    This private path is reserved for the explicit Matplotlib plotting backend.
+    Grammar extraction remains delegated to annplyr's public tabular API.
+    """
+    genes, positions = _validated_gene_positions(
+        adata,
+        genes,
+        kind=kind,
+        layer=layer,
+    )
+    matrix, _ = source_matrix(adata, kind, layer)
+    return _project_matrix_columns(matrix, positions), genes
 
 
 def _expression_kwargs(kind: str, layer: str | None, request) -> dict:

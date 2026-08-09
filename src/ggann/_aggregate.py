@@ -20,7 +20,12 @@ import pandas as pd
 from scipy import sparse
 
 from ._expression import densify_frame as _densify
-from ._expression import expression_with_obs_frame, ordered_unique, resolve_source
+from ._expression import (
+    expression_matrix,
+    expression_with_obs_frame,
+    ordered_unique,
+    resolve_source,
+)
 
 __all__ = [
     "aggregate_expression",
@@ -52,6 +57,22 @@ def _projected_frames(adata, genes, by, *, kind, layer):
     return expression.reset_index(drop=True), groups.reset_index(drop=True), genes
 
 
+def _projected_matrix(adata, genes, by, *, kind, layer):
+    """Project expression and grouping positions for the explicit fast backend."""
+    missing = [name for name in by if name not in adata.obs.columns]
+    if missing:
+        quoted = ", ".join(repr(name) for name in missing)
+        raise KeyError(f"Observation column(s) not found: {quoted}.")
+    matrix, genes = expression_matrix(
+        adata,
+        genes,
+        kind=kind,
+        layer=layer,
+    )
+    groups = adata.obs.loc[:, list(by)].copy(deep=False)
+    return matrix, groups, genes
+
+
 def _matrix_from_frame(frame: pd.DataFrame):
     """Return a dense array or sparse CSR matrix without widening the projection."""
     sparse_columns = [isinstance(dtype, pd.SparseDtype) for dtype in frame.dtypes]
@@ -70,50 +91,108 @@ def _grouped_expression(
     kind,
     layer,
     expression_cutoff: float | None,
+    native: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """Compute group means and optional detection fractions in one vectorized pass."""
-    expression, groups, genes = _projected_frames(
-        adata,
-        genes,
-        by,
-        kind=kind,
-        layer=layer,
-    )
+    if native:
+        matrix, groups, genes = _projected_matrix(
+            adata,
+            genes,
+            by,
+            kind=kind,
+            layer=layer,
+        )
+    else:
+        expression, groups, genes = _projected_frames(
+            adata,
+            genes,
+            by,
+            kind=kind,
+            layer=layer,
+        )
+        matrix = _matrix_from_frame(expression)
 
     # Grouped summaries omit rows missing any grouping key, matching pandas and
     # the documented plotting contract. The projected expression row order is
     # identical, so positional filtering remains safe with duplicate obs names.
-    valid = groups[list(by)].notna().all(axis=1).to_numpy()
-    valid_groups = groups.loc[valid, list(by)].reset_index(drop=True)
-    keys = pd.MultiIndex.from_frame(valid_groups, names=list(by))
-    codes, _ = pd.factorize(keys, sort=False)
-    first = ~keys.duplicated()
-    group_frame = valid_groups.loc[first].reset_index(drop=True)
-    n_groups = len(group_frame)
+    categorical = groups[by[0]] if len(by) == 1 else None
+    if categorical is not None and isinstance(categorical.dtype, pd.CategoricalDtype):
+        source_codes = categorical.cat.codes.to_numpy()
+        valid = source_codes >= 0
+        source_codes = source_codes[valid]
+        observed_codes = pd.unique(source_codes)
+        remap = np.full(len(categorical.cat.categories), -1, dtype=np.intp)
+        remap[observed_codes] = np.arange(len(observed_codes), dtype=np.intp)
+        codes = remap[source_codes]
+        n_groups = len(observed_codes)
+        group_index = pd.CategoricalIndex(
+            pd.Categorical.from_codes(
+                observed_codes,
+                categories=categorical.cat.categories,
+                ordered=categorical.cat.ordered,
+            ),
+            name=by[0],
+        )
+    else:
+        valid = groups[list(by)].notna().all(axis=1).to_numpy()
+        valid_groups = groups.loc[valid, list(by)].reset_index(drop=True)
+        keys = pd.MultiIndex.from_frame(valid_groups, names=list(by))
+        codes, _ = pd.factorize(keys, sort=False)
+        first = ~keys.duplicated()
+        group_frame = valid_groups.loc[first].reset_index(drop=True)
+        n_groups = len(group_frame)
+        group_index = (
+            pd.Index(group_frame[by[0]], name=by[0])
+            if len(by) == 1
+            else pd.MultiIndex.from_frame(group_frame, names=list(by))
+        )
 
-    matrix = _matrix_from_frame(expression)
-    matrix = matrix[np.flatnonzero(valid)]
+    if not bool(valid.all()):
+        matrix = matrix[np.flatnonzero(valid)]
     counts = np.bincount(codes, minlength=n_groups).astype(float, copy=False)
-    indicator = sparse.csr_matrix(
-        (np.ones(len(codes), dtype=float), (codes, np.arange(len(codes)))),
-        shape=(n_groups, len(codes)),
-    )
 
-    def _dense_product(values) -> np.ndarray:
-        product = indicator @ values
-        if sparse.issparse(product):
-            product = product.toarray()
-        return np.asarray(product, dtype=float)
-
-    if n_groups:
-        if sparse.issparse(matrix):
-            missing = matrix.copy()
-            missing.data = np.isnan(missing.data).astype(np.float32, copy=False)
-            missing.eliminate_zeros()
-            valid_counts = counts[:, None] - _dense_product(missing)
-            clean = matrix.copy()
-            clean.data = np.where(np.isnan(clean.data), 0, clean.data)
+    if n_groups and sparse.issparse(matrix):
+        if not matrix.has_canonical_format:
+            matrix = matrix.copy()
+            matrix.sum_duplicates()
+        coordinates = matrix.tocoo(copy=False)
+        width = len(genes)
+        linear = codes[coordinates.row] * width + coordinates.col
+        values = coordinates.data
+        missing = (
+            np.isnan(values)
+            if np.issubdtype(values.dtype, np.inexact)
+            else np.zeros(len(values), dtype=bool)
+        )
+        clean_values = np.where(missing, 0, values)
+        sums = np.bincount(
+            linear,
+            weights=clean_values,
+            minlength=n_groups * width,
+        ).reshape(n_groups, width)
+        if missing.any():
+            missing_counts = np.bincount(
+                linear[missing],
+                minlength=n_groups * width,
+            ).reshape(n_groups, width)
+            valid_counts = counts[:, None] - missing_counts
         else:
+            valid_counts = counts[:, None]
+        means = np.full(sums.shape, np.nan, dtype=float)
+        np.divide(sums, valid_counts, out=means, where=valid_counts > 0)
+    elif n_groups:
+        indicator = sparse.csr_matrix(
+            (np.ones(len(codes), dtype=float), (codes, np.arange(len(codes)))),
+            shape=(n_groups, len(codes)),
+        )
+
+        def _dense_product(values) -> np.ndarray:
+            product = indicator @ values
+            if sparse.issparse(product):
+                product = product.toarray()
+            return np.asarray(product, dtype=float)
+
+        if not sparse.issparse(matrix):
             missing = np.isnan(matrix)
             valid_counts = _dense_product(~missing)
             clean = np.where(missing, 0, matrix)
@@ -122,35 +201,32 @@ def _grouped_expression(
         np.divide(sums, valid_counts, out=means, where=valid_counts > 0)
     else:
         means = np.empty((0, len(genes)), dtype=float)
-    group_index = (
-        pd.Index(group_frame[by[0]], name=by[0])
-        if len(by) == 1
-        else pd.MultiIndex.from_frame(group_frame, names=list(by))
-    )
     mean_df = pd.DataFrame(means, index=group_index, columns=genes)
 
     if expression_cutoff is None:
         return mean_df, None
 
-    if sparse.issparse(matrix):
-        compared = matrix.copy()
+    if not n_groups:
+        detected = np.empty((0, len(genes)), dtype=float)
+    elif sparse.issparse(matrix):
         if expression_cutoff >= 0:
-            compared.data = (compared.data > expression_cutoff).astype(np.float32, copy=False)
-            compared.eliminate_zeros()
-            detected = _dense_product(compared)
+            detected = np.bincount(
+                linear[values > expression_cutoff],
+                minlength=n_groups * len(genes),
+            ).reshape(n_groups, len(genes))
         else:
             # Implicit sparse zeros exceed a negative cutoff. Count only explicit
             # values that fail (including NaN), then subtract their group rate
             # from one.
-            compared.data = (np.isnan(compared.data) | (compared.data <= expression_cutoff)).astype(
-                np.float32, copy=False
-            )
-            compared.eliminate_zeros()
-            failed = _dense_product(compared)
+            failed_mask = missing | (values <= expression_cutoff)
+            failed = np.bincount(
+                linear[failed_mask],
+                minlength=n_groups * len(genes),
+            ).reshape(n_groups, len(genes))
             detected = counts[:, None] - failed
     else:
         detected = _dense_product(np.greater(matrix, expression_cutoff))
-    fractions = detected / counts[:, None] if n_groups else np.empty((0, len(genes)), dtype=float)
+    fractions = detected / counts[:, None] if n_groups else detected
     fraction_df = pd.DataFrame(fractions, index=group_index, columns=genes)
     return mean_df, fraction_df
 
@@ -190,7 +266,7 @@ def tidy_expression(adata, genes, group_by, *, layer=None, use_raw=None, extra_o
     return tidy
 
 
-def group_means(
+def _group_means_impl(
     adata,
     genes: Iterable[str],
     group_by: str,
@@ -198,6 +274,7 @@ def group_means(
     layer=None,
     use_raw=None,
     extra_by: Iterable[str] = (),
+    native: bool = False,
 ) -> pd.DataFrame:
     """Mean expression per group (index) per gene (columns), mean-only.
 
@@ -214,8 +291,33 @@ def group_means(
         kind=kind,
         layer=lyr,
         expression_cutoff=None,
+        native=native,
     )
     return mean_df
+
+
+def group_means(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    *,
+    layer=None,
+    use_raw=None,
+    extra_by: Iterable[str] = (),
+) -> pd.DataFrame:
+    """Mean expression per group (index) per gene (columns), mean-only.
+
+    Like :func:`aggregate_expression` but skips the fraction-expressing pass, for
+    callers (e.g. :func:`ggann.plot_correlation`) that only need the group means.
+    """
+    return _group_means_impl(
+        adata,
+        genes,
+        group_by,
+        layer=layer,
+        use_raw=use_raw,
+        extra_by=extra_by,
+    )
 
 
 def _standardize(mean_df: pd.DataFrame, standard_scale: str | None) -> pd.DataFrame:
@@ -241,6 +343,43 @@ def _standardize(mean_df: pd.DataFrame, standard_scale: str | None) -> pd.DataFr
     )
 
 
+def _aggregate_means_impl(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    *,
+    layer: str | None = None,
+    use_raw: bool | None = None,
+    standard_scale: StandardScale | None = None,
+    extra_by: Iterable[str] = (),
+    native: bool = False,
+) -> pd.DataFrame:
+    """Return long mean expression without computing detection fractions."""
+    genes = ordered_unique(genes)
+    by = list(dict.fromkeys([group_by, *extra_by]))
+    means = _group_means_impl(
+        adata,
+        genes,
+        group_by,
+        layer=layer,
+        use_raw=use_raw,
+        extra_by=extra_by,
+        native=native,
+    )
+    means = _standardize(means, standard_scale)
+    n_groups = len(means)
+    index_frame = means.index.to_frame(index=False)
+    long = pd.DataFrame(
+        {
+            **{name: np.tile(index_frame[name].to_numpy(), len(genes)) for name in by},
+            "feature": np.repeat(genes, n_groups),
+            "mean_expression": means.to_numpy().T.reshape(-1),
+        }
+    )
+    long["feature"] = pd.Categorical(long["feature"], categories=genes, ordered=True)
+    return long
+
+
 def aggregate_means(
     adata,
     genes: Iterable[str],
@@ -252,24 +391,71 @@ def aggregate_means(
     extra_by: Iterable[str] = (),
 ) -> pd.DataFrame:
     """Return long mean expression without computing detection fractions."""
-    genes = ordered_unique(genes)
-    by = list(dict.fromkeys([group_by, *extra_by]))
-    means = group_means(
+    return _aggregate_means_impl(
         adata,
         genes,
         group_by,
         layer=layer,
         use_raw=use_raw,
+        standard_scale=standard_scale,
         extra_by=extra_by,
     )
-    means = _standardize(means, standard_scale)
-    n_groups = len(means)
-    index_frame = means.index.to_frame(index=False)
+
+
+def aggregate_means_native(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    **kwargs,
+) -> pd.DataFrame:
+    """Private position-native mean aggregation for the Matplotlib backend."""
+    return _aggregate_means_impl(adata, genes, group_by, native=True, **kwargs)
+
+
+def _aggregate_expression_impl(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    *,
+    layer: str | None = None,
+    use_raw: bool | None = None,
+    expression_cutoff: float = 0.0,
+    standard_scale: StandardScale | None = None,
+    extra_by: Iterable[str] = (),
+    native: bool = False,
+) -> pd.DataFrame:
+    """Return a long DataFrame ``[group_by, *extra_by, feature, mean_expression, fraction]``.
+
+    ``feature`` is an ordered categorical following the order of ``genes`` so
+    downstream plots keep the requested gene order. ``extra_by`` adds grouping
+    columns (e.g. a ``split_by`` facet) so means/fractions are computed per
+    ``group_by`` × ``extra_by`` combination. ``standard_scale`` may be
+    ``'var'`` / ``'group'`` (scanpy conventions) or ``'zscore'`` (an ggann
+    extension); ``None`` leaves the raw group means untouched.
+    """
+    genes = ordered_unique(genes)
+    by = list(dict.fromkeys([group_by, *extra_by]))  # dedupe, keep order
+    kind, lyr = resolve_source(adata, layer, use_raw)
+    mean_df, frac_df = _grouped_expression(
+        adata,
+        genes,
+        by,
+        kind=kind,
+        layer=lyr,
+        expression_cutoff=expression_cutoff,
+        native=native,
+    )
+    assert frac_df is not None
+    mean_df = _standardize(mean_df, standard_scale)
+
+    n_groups = len(mean_df)
+    index_frame = mean_df.index.to_frame(index=False)
     long = pd.DataFrame(
         {
             **{name: np.tile(index_frame[name].to_numpy(), len(genes)) for name in by},
             "feature": np.repeat(genes, n_groups),
-            "mean_expression": means.to_numpy().T.reshape(-1),
+            "mean_expression": mean_df.to_numpy().T.reshape(-1),
+            "fraction": frac_df.to_numpy().T.reshape(-1),
         }
     )
     long["feature"] = pd.Categorical(long["feature"], categories=genes, ordered=True)
@@ -296,29 +482,46 @@ def aggregate_expression(
     ``'var'`` / ``'group'`` (scanpy conventions) or ``'zscore'`` (an ggann
     extension); ``None`` leaves the raw group means untouched.
     """
-    genes = ordered_unique(genes)
-    by = list(dict.fromkeys([group_by, *extra_by]))  # dedupe, keep order
-    kind, lyr = resolve_source(adata, layer, use_raw)
-    mean_df, frac_df = _grouped_expression(
+    return _aggregate_expression_impl(
         adata,
         genes,
-        by,
+        group_by,
+        layer=layer,
+        use_raw=use_raw,
+        expression_cutoff=expression_cutoff,
+        standard_scale=standard_scale,
+        extra_by=extra_by,
+    )
+
+
+def aggregate_expression_native(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    **kwargs,
+) -> pd.DataFrame:
+    """Private position-native dotplot aggregation for the Matplotlib backend."""
+    return _aggregate_expression_impl(adata, genes, group_by, native=True, **kwargs)
+
+
+def grouped_expression_native(
+    adata,
+    genes: Iterable[str],
+    group_by: str,
+    *,
+    layer: str | None = None,
+    use_raw: bool | None = None,
+    expression_cutoff: float | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """Private compact grouped statistics for matched preparation timings."""
+    genes = ordered_unique(genes)
+    kind, lyr = resolve_source(adata, layer, use_raw)
+    return _grouped_expression(
+        adata,
+        genes,
+        [group_by],
         kind=kind,
         layer=lyr,
         expression_cutoff=expression_cutoff,
+        native=True,
     )
-    assert frac_df is not None
-    mean_df = _standardize(mean_df, standard_scale)
-
-    n_groups = len(mean_df)
-    index_frame = mean_df.index.to_frame(index=False)
-    long = pd.DataFrame(
-        {
-            **{name: np.tile(index_frame[name].to_numpy(), len(genes)) for name in by},
-            "feature": np.repeat(genes, n_groups),
-            "mean_expression": mean_df.to_numpy().T.reshape(-1),
-            "fraction": frac_df.to_numpy().T.reshape(-1),
-        }
-    )
-    long["feature"] = pd.Categorical(long["feature"], categories=genes, ordered=True)
-    return long
