@@ -579,21 +579,16 @@ def _rank_genes(adata: Any, n_genes: int) -> list[str]:
 
 def _ggann_preparation(adata: Any, genes: list[str], spec: ComparisonSpec) -> Any:
 
-    from ggann._aggregate import (
-        aggregate_expression,
-        aggregate_expression_native,
-        aggregate_means,
-        aggregate_means_native,
-        tidy_expression,
-    )
+    from ggann._aggregate import aggregate_expression, aggregate_means, tidy_expression
     from ggann._resolve import obsm, plain_name, resolve_frame
-    from ggann.plots import _native_embedding_frame
 
     kwargs = _source_kwargs(spec.source)
     workload = spec.workload
     if workload.startswith("embedding_"):
         color = _embedding_color(workload, genes)
         if spec.ggann_backend == "matplotlib":
+            from ggann.plots import _native_embedding_frame
+
             frame, x_name, y_name, color_name = _native_embedding_frame(
                 adata,
                 "X_umap",
@@ -620,21 +615,21 @@ def _ggann_preparation(adata: Any, genes: list[str], spec: ComparisonSpec) -> An
     if workload in _RANK_WORKLOADS:
         selected = _rank_genes(adata, _RANK_N_GENES)
     if workload in {"dotplot", "rank_genes_dotplot"}:
-        aggregate = (
-            aggregate_expression_native
-            if spec.ggann_backend == "matplotlib" and workload == "dotplot"
-            else aggregate_expression
-        )
+        aggregate = aggregate_expression
+        if spec.ggann_backend == "matplotlib" and workload == "dotplot":
+            from ggann._aggregate import aggregate_expression_native
+
+            aggregate = aggregate_expression_native
         return aggregate(adata, selected, "group", **kwargs)[
             ["group", "feature", "mean_expression", "fraction"]
         ]
     if workload in {"matrixplot", "rank_genes_matrixplot"}:
         standard_scale = "var" if workload == "rank_genes_matrixplot" else None
-        aggregate = (
-            aggregate_means_native
-            if spec.ggann_backend == "matplotlib" and workload == "matrixplot"
-            else aggregate_means
-        )
+        aggregate = aggregate_means
+        if spec.ggann_backend == "matplotlib" and workload == "matrixplot":
+            from ggann._aggregate import aggregate_means_native
+
+            aggregate = aggregate_means_native
         return aggregate(adata, selected, "group", standard_scale=standard_scale, **kwargs)[
             ["group", "feature", "mean_expression"]
         ]
@@ -885,6 +880,9 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
     if library == "ggann":
         import ggann as ag
 
+        backend_kwargs = (
+            {} if spec.ggann_backend == "plotnine" else {"backend": spec.ggann_backend}
+        )
         if workload.startswith("embedding_"):
             return ag.plot_embedding(
                 adata,
@@ -892,7 +890,7 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
                 color=_embedding_color(workload, genes),
                 pointdensity=False,
                 downsample=None,
-                backend=spec.ggann_backend,
+                **backend_kwargs,
                 **kwargs,
             )
         if workload == "dotplot":
@@ -901,7 +899,7 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
                 genes,
                 "group",
                 categories_order=categories,
-                backend=spec.ggann_backend,
+                **backend_kwargs,
                 **kwargs,
             )
         if workload == "matrixplot":
@@ -910,7 +908,7 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
                 genes,
                 "group",
                 categories_order=categories,
-                backend=spec.ggann_backend,
+                **backend_kwargs,
                 **kwargs,
             )
         if workload == "violin":
