@@ -19,6 +19,7 @@ import pandas as pd
 from ._aggregate import _standardize, group_means
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source
+from .publication import _active_style
 
 __all__ = ["plot_clustermap"]
 
@@ -151,7 +152,7 @@ def plot_clustermap(
                 ann_df[col] = ann_df[col].astype("category")
         top_annotation = pch.HeatmapAnnotation(df=ann_df, axis=1, plot_legend=True)
 
-    return pch.ClusterMapPlotter(
+    result = pch.ClusterMapPlotter(
         data=matrix,
         top_annotation=top_annotation,
         z_score=z_score,
@@ -163,3 +164,8 @@ def plot_clustermap(
         plot=plot,
         **kwargs,
     )
+    if style := _active_style():
+        # Preserve the backend's documented return type while retaining the
+        # style used to construct/render it for ggann's export adapter.
+        result._ggann_publication_style = style
+    return result

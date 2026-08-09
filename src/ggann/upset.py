@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
+from .publication import _active_style
+
 __all__ = ["plot_upset"]
 
 
@@ -110,4 +112,6 @@ def plot_upset(
     )
     if render:
         upset.render()
+    if style := _active_style():
+        upset._ggann_publication_style = style
     return upset

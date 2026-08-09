@@ -22,7 +22,7 @@ import operator
 import re
 import warnings
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, cast
 
 import pandas as pd
 
@@ -594,7 +594,10 @@ def resolve_frame(
     out = pd.concat([frame.reset_index(drop=True) for frame in frames], axis=1)
     out.index = adata.obs_names.copy()
     ordered = [c for c in order if c in out.columns]
-    return out[ordered + [c for c in out.columns if c not in ordered]]
+    return cast(
+        pd.DataFrame,
+        out.loc[:, ordered + [c for c in out.columns if c not in ordered]],
+    )
 
 
 def _dispatch(name, kind, universe, bucket):

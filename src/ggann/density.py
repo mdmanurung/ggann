@@ -18,11 +18,11 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
-from plotnine import aes, geom_point, ggplot, labs, scale_color_cmap
+from plotnine import aes, geom_point, ggplot, labs
 
 from ._expression import ordered_unique
 from ._resolve import embedding_coords, plain_name, resolve_frame
-from .theme import theme_ggann
+from .plots import _continuous_scale, _embedding_style
 
 __all__ = ["plot_density"]
 
@@ -61,6 +61,9 @@ def plot_density(
     alpha: float = 0.9,
     cmap: str = "magma",
     ncol: int | None = None,
+    rasterized: bool = False,
+    show_axes: bool | None = None,
+    equal_aspect: bool | None = None,
 ):
     """Gene-weighted density over an embedding, one faceted panel per feature.
 
@@ -101,6 +104,13 @@ def plot_density(
         Matplotlib colormap name.
     ncol : int, optional
         Facet columns.
+    rasterized : bool, default=False
+        Rasterize only the density points in vector output.
+    show_axes : bool, optional
+        Explicitly show or hide embedding axes; ``None`` selects the active
+        legacy or publication default.
+    equal_aspect : bool, optional
+        Force equal x/y data units; ``None`` enables it in publication mode.
 
     Returns
     -------
@@ -191,9 +201,9 @@ def plot_density(
 
     return (
         ggplot(long, aes(xcol, ycol, color="density"))
-        + geom_point(size=size, alpha=alpha)
+        + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + scale_color_cmap(cmap_name=cmap)
+        + _continuous_scale("color", long["density"], cmap, signed=False)
         + labs(color="density\n(scaled)")
-        + theme_ggann()
+        + _embedding_style(show_axes, equal_aspect)
     )

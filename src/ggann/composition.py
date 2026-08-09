@@ -14,7 +14,7 @@ from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, la
 
 from ._grouping import _group_categories, _order_groups, _resolve_group_order
 from ._palette import scale_color_obs, scale_fill_obs
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = ["plot_proportions"]
 
@@ -131,7 +131,7 @@ def plot_proportions(
             + geom_point(size=2)
             + scale_color_obs(adata, group_by)
             + labs(x="", y=ylab, color=group_by)
-            + theme_ggann()
+            + _family_theme("standard")
             + pe.rotate_x_text(45)
         )
     if kind == "area":
@@ -142,7 +142,7 @@ def plot_proportions(
             + geom_area(position=position)
             + scale_fill_obs(adata, group_by)
             + labs(x="", y=ylab, fill=group_by)
-            + theme_ggann()
+            + _family_theme("standard")
             + pe.rotate_x_text(45)
         )
     # thin white borders separate the stacked segments cleanly (scplotter-style)
@@ -152,6 +152,6 @@ def plot_proportions(
         + geom_col(position=position, width=0.9, **col_kw)
         + scale_fill_obs(adata, group_by)
         + labs(x="", y=ylab, fill=group_by)
-        + theme_ggann()
+        + _family_theme("standard")
         + pe.rotate_x_text(45)
     )

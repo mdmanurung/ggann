@@ -8,7 +8,7 @@ bounded during the whole-matrix calculation.
 from __future__ import annotations
 
 import warnings
-from typing import Sequence
+from typing import Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ from plotnine import (
 from ._expression import densify_frame as _densify
 from ._expression import resolve_source, source_label, source_matrix
 from ._palette import scale_fill_obs
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = [
     "plot_qc_violin",
@@ -259,7 +259,7 @@ def plot_qc_violin(
         p
         + pe.facet_wrap("~metric", scales="free_y")
         + labs(x="", y="", fill=group_by or "")
-        + theme_ggann()
+        + _family_theme("distribution")
     )
     if group_by:
         # the fill legend already encodes group; many long cell-type names across
@@ -325,8 +325,9 @@ def plot_qc_scatter(
 
     mapping = _aes(x, y) if color is None else _aes(x, y, color=color)
     plot = gganndata(adata, mapping, layer=layer, use_raw=use_raw)
+    plot_data = cast(pd.DataFrame, plot.data)
     fields = [x, y, *([color] if color is not None else [])]
-    missing = [field for field in fields if plain_name(adata, field) not in plot.data.columns]
+    missing = [field for field in fields if plain_name(adata, field) not in plot_data.columns]
     if missing:
         raise KeyError(f"Could not resolve field(s) from observations or expression: {missing}.")
 
@@ -338,7 +339,7 @@ def plot_qc_scatter(
         )
         if is_categorical_obs:
             plot = plot + scale_color_obs(adata, color_name)
-        elif pd.api.types.is_numeric_dtype(plot.data[color_name]):
+        elif pd.api.types.is_numeric_dtype(plot_data[color_name]):
             # numeric (gene or continuous metric) -> expression colourmap, matching plot_embedding
             from .theme import scale_color_expression
 
@@ -458,7 +459,7 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
         + geom_boxplot(fill="#4c72b0", outlier_alpha=0.2)
         + pe.coord_flip()
         + labs(x="", y="% of total counts per cell")
-        + theme_ggann()
+        + _family_theme("distribution")
     )
 
 
@@ -514,7 +515,7 @@ def plot_variance_ratio(adata, n_pcs: int = 50, *, key: str = "pca", log: bool =
         + geom_line(color="#b0b0b0")
         + geom_point(color="#2166ac", size=1.8)
         + labs(x="principal component", y="variance ratio")
-        + theme_ggann()
+        + _family_theme("standard")
     )
     if log:
         plot = plot + scale_y_log10()

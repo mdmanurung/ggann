@@ -31,7 +31,7 @@ from .plots import (
     plot_dotplot,
     plot_matrixplot,
 )
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = [
     "plot_tracksplot",
@@ -212,7 +212,7 @@ def plot_tracksplot(
         + facet_grid("feature ~ .", scales="free_y")
         + scale_fill_obs(adata, group_by)
         + labs(x="cells (ordered by group)", y="", fill=group_by)
-        + theme_ggann()
+        + _family_theme("matrix")
         + theme(
             axis_text_x=element_blank(),
             axis_ticks_major_x=element_blank(),

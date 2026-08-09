@@ -16,12 +16,15 @@ import numpy as np
 import pandas as pd
 from matplotlib import colormaps
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap
+from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap, Normalize
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from mizani.breaks import breaks_extended
 from mizani.palettes import area_pal, hue_pal
 from plotnine import ggplot
+
+from ._annotation import _CellText, _relative_luminance
+from .publication import PublicationStyle, _style_rcparams
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,13 @@ class _RenderSpec:
     size_range: tuple[float, float] = (0.5, 8.0)
     value_label: str = ""
     fraction_label: str = "fraction\nexpressing"
+    publication_style: PublicationStyle | None = None
+    rasterized: bool = False
+    show_axes: bool | None = None
+    equal_aspect: bool | None = None
+    signed: bool = False
+    annotation_min_cell_pt: float | None = None
+    annotation_format: str = "{:.2g}"
 
 
 class MatplotlibGGPlot(ggplot):
@@ -117,7 +127,13 @@ class MatplotlibGGPlot(ggplot):
         spec = self._ggann_render_spec
         if spec is None:
             return super().draw(show=show)
-        figure = _draw_spec(spec)
+        if spec.publication_style is None:
+            figure = _draw_spec(spec)
+        else:
+            import matplotlib as mpl
+
+            with mpl.rc_context(_style_rcparams(spec.publication_style)):
+                figure = _draw_spec(spec)
         if show:
             figure.show()
         return figure
@@ -129,14 +145,16 @@ def _new_figure(
     right: float,
     bottom: float,
     top: float,
+    style: PublicationStyle | None = None,
 ) -> tuple[Figure, Any]:
-    figure = Figure(figsize=(6.4, 4.8))
+    figure_size = (style.width_mm / 25.4, style.height_mm / 25.4) if style else (6.4, 4.8)
+    figure = Figure(figsize=figure_size, dpi=style.dpi if style else None)
     FigureCanvasAgg(figure)
     axis = figure.add_axes((left, bottom, right - left, top - bottom))
     axis.grid(False)
     for spine in axis.spines.values():
         spine.set_color("black")
-        spine.set_linewidth(1.0)
+        spine.set_linewidth(style.line_width if style else 1.0)
     return figure, axis
 
 
@@ -168,7 +186,9 @@ def _embedding_colors(
     palette = list(spec.palette)
     if bool(np.any(codes < 0)):
         codes = np.where(codes < 0, len(palette), codes).astype(np.int16, copy=False)
-        palette.append("#7F7F7F")
+        palette.append(
+            spec.publication_style.missing_color if spec.publication_style else "#7F7F7F"
+        )
     cmap = ListedColormap(palette, name="ggann_categories")
     norm = BoundaryNorm(np.arange(len(palette) + 1) - 0.5, len(palette))
     handles = [
@@ -179,21 +199,25 @@ def _embedding_colors(
             linestyle="",
             markerfacecolor=color,
             markeredgecolor=color,
-            markersize=6,
+            markersize=4.5 if spec.publication_style else 6,
             label=str(category),
         )
         for category, color in zip(spec.categories, spec.palette)
     ]
-    if values.isna().any():
+    if bool(np.asarray(values.isna()).any()):
         handles.append(
             Line2D(
                 [],
                 [],
                 marker="o",
                 linestyle="",
-                markerfacecolor="#7F7F7F",
-                markeredgecolor="#7F7F7F",
-                markersize=6,
+                markerfacecolor=(
+                    spec.publication_style.missing_color if spec.publication_style else "#7F7F7F"
+                ),
+                markeredgecolor=(
+                    spec.publication_style.missing_color if spec.publication_style else "#7F7F7F"
+                ),
+                markersize=4.5 if spec.publication_style else 6,
                 label="NA",
             )
         )
@@ -202,12 +226,26 @@ def _embedding_colors(
 
 def _draw_embedding(spec: _RenderSpec) -> Figure:
     right = 0.72 if spec.categorical else (0.84 if spec.value is not None else 0.95)
-    figure, axis = _new_figure(left=0.08, right=right, bottom=0.13, top=0.97)
+    figure, axis = _new_figure(
+        left=0.08,
+        right=right,
+        bottom=0.13,
+        top=0.97,
+        style=spec.publication_style,
+    )
     x = spec.data[spec.x].to_numpy(copy=False)
     y = spec.data[spec.y].to_numpy(copy=False)
     area = np.pi * (spec.point_size + 0.5) ** 2
     if spec.value is None:
-        axis.scatter(x, y, s=area, alpha=spec.alpha, linewidths=0, color="#333333")
+        axis.scatter(
+            x,
+            y,
+            s=area,
+            alpha=spec.alpha,
+            linewidths=0,
+            color="#333333",
+            rasterized=spec.rasterized,
+        )
     elif spec.categorical:
         codes, cmap, norm, handles = _embedding_colors(spec)
         axis.scatter(
@@ -219,6 +257,7 @@ def _draw_embedding(spec: _RenderSpec) -> Figure:
             c=codes,
             cmap=cmap,
             norm=norm,
+            rasterized=spec.rasterized,
         )
         axis.legend(
             handles=handles,
@@ -228,14 +267,22 @@ def _draw_embedding(spec: _RenderSpec) -> Figure:
             bbox_transform=figure.transFigure,
             borderaxespad=0,
             frameon=False,
-            fontsize=8,
-            title_fontsize=9,
+            fontsize=(spec.publication_style.legend_text_size if spec.publication_style else 8),
+            title_fontsize=(
+                spec.publication_style.legend_title_size if spec.publication_style else 9
+            ),
+            ncol=2 if spec.publication_style and len(handles) > 8 else 1,
         )
     else:
-        cmap = LinearSegmentedColormap.from_list(
-            "ggann_expression", [spec.low, spec.high]
-        ).with_extremes(bad="#7F7F7F")
         values = spec.data[spec.value].to_numpy(dtype=float, copy=False)
+        if spec.publication_style is None:
+            cmap = LinearSegmentedColormap.from_list(
+                "ggann_expression", [spec.low, spec.high]
+            ).with_extremes(bad="#7F7F7F")
+            norm = None
+        else:
+            cmap = _spec_cmap(spec)
+            norm = _spec_norm(spec, values)
         collection = axis.scatter(
             x,
             y,
@@ -244,14 +291,32 @@ def _draw_embedding(spec: _RenderSpec) -> Figure:
             linewidths=0,
             c=values,
             cmap=cmap,
+            norm=norm,
+            rasterized=spec.rasterized,
         )
         colorbar_axis = figure.add_axes((0.88, 0.32, 0.035, 0.48))
         colorbar = figure.colorbar(collection, cax=colorbar_axis)
-        _configure_colorbar(colorbar, spec.value, values)
-    axis.set_xlabel(spec.x)
-    axis.set_ylabel(spec.y)
-    axis.set_xticks([])
-    axis.set_yticks([])
+        _configure_colorbar(colorbar, spec.value, values, spec.publication_style)
+    show_axes = spec.show_axes
+    if show_axes is None:
+        show_axes = False if spec.publication_style else None
+    if show_axes is False:
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        axis.set_xticks([])
+        axis.set_yticks([])
+        for spine in axis.spines.values():
+            spine.set_visible(False)
+    else:
+        axis.set_xlabel(spec.x)
+        axis.set_ylabel(spec.y)
+        if show_axes is None:  # frozen legacy: labels, but no arbitrary embedding ticks
+            axis.set_xticks([])
+            axis.set_yticks([])
+    if spec.equal_aspect is True or (
+        spec.equal_aspect is None and spec.publication_style is not None
+    ):
+        axis.set_aspect("equal", adjustable="datalim")
     return figure
 
 
@@ -277,11 +342,7 @@ def _scale_breaks(values: np.ndarray) -> np.ndarray:
     low, high = float(finite.min()), float(finite.max())
     breaks = np.asarray(breaks_extended()((low, high)), dtype=float)
     tolerance = np.finfo(float).eps * max(1.0, abs(low), abs(high)) * 8
-    return breaks[
-        np.isfinite(breaks)
-        & (breaks >= low - tolerance)
-        & (breaks <= high + tolerance)
-    ]
+    return breaks[np.isfinite(breaks) & (breaks >= low - tolerance) & (breaks <= high + tolerance)]
 
 
 def _dot_sizes(
@@ -296,19 +357,91 @@ def _dot_sizes(
     return np.pi * (sizes + 0.5) ** 2
 
 
-def _configure_colorbar(colorbar, label: str, values: np.ndarray) -> None:
+def _configure_colorbar(
+    colorbar,
+    label: str,
+    values: np.ndarray,
+    style: PublicationStyle | None,
+) -> None:
     if colorbar.solids is not None:
         colorbar.solids.set_rasterized(False)
     ticks = _scale_breaks(values)
     if len(ticks):
         colorbar.set_ticks(ticks)
-    colorbar.ax.set_title(label, fontsize=9, loc="left", pad=6)
+    colorbar.ax.tick_params(labelsize=style.axis_text_size if style else 9)
+    colorbar.ax.set_title(
+        label,
+        fontsize=style.legend_title_size if style else 9,
+        loc="left",
+        pad=6,
+    )
 
 
-def _set_discrete_axes(axis, x_levels: list[Any], y_levels: list[Any]) -> None:
+def _spec_cmap(spec: _RenderSpec):
+    if spec.publication_style is not None and spec.signed:
+        cmap = LinearSegmentedColormap.from_list(
+            "ggann_diverging", spec.publication_style.diverging
+        )
+    else:
+        name = (
+            spec.publication_style.sequential_cmap
+            if spec.publication_style is not None and spec.cmap == "Reds"
+            else spec.cmap
+        )
+        cmap = colormaps[name]
+    return cmap.with_extremes(
+        bad=(spec.publication_style.missing_color if spec.publication_style else "#7F7F7F")
+    )
+
+
+def _spec_norm(spec: _RenderSpec, values: np.ndarray) -> Normalize | None:
+    """Use a symmetric zero-centred normalization for signed publication data."""
+    if spec.publication_style is None or not spec.signed:
+        return None
+    finite = values[np.isfinite(values)]
+    limit = float(np.abs(finite).max()) if len(finite) else 1.0
+    return Normalize(vmin=-(limit or 1.0), vmax=limit or 1.0)
+
+
+def _add_direct_annotations(axis, x, y, values, collection, spec: _RenderSpec) -> None:
+    threshold = spec.annotation_min_cell_pt
+    if threshold is None:
+        return
+    n_x = len(np.unique(x))
+    n_y = len(np.unique(y))
+    size = spec.publication_style.axis_text_size if spec.publication_style else 7
+    for x_value, y_value, value in zip(x, y, values):
+        if not np.isfinite(value):
+            continue
+        rgba = collection.cmap(collection.norm(value))
+        colour = "white" if _relative_luminance(rgba) < 0.179 else "black"
+        text = _CellText(
+            x=x_value,
+            y=y_value,
+            text=spec.annotation_format.format(value),
+            min_cell_pt=threshold,
+            n_x=n_x,
+            n_y=n_y,
+            color=colour,
+            size=size,
+            ha="center",
+            va="center",
+            zorder=collection.get_zorder() + 1,
+            clip_on=True,
+            transform=axis.transData,
+        )
+        axis._add_text(text)
+
+
+def _set_discrete_axes(
+    axis,
+    x_levels: list[Any],
+    y_levels: list[Any],
+    style: PublicationStyle | None,
+) -> None:
     axis.set_xticks(np.arange(len(x_levels)), [str(value) for value in x_levels], rotation=45)
     axis.set_yticks(np.arange(len(y_levels)), [str(value) for value in y_levels])
-    axis.tick_params(axis="both", labelsize=9)
+    axis.tick_params(axis="both", labelsize=style.axis_text_size if style else 9)
     axis.set_xlim(-0.5, len(x_levels) - 0.5)
     axis.set_ylim(-0.5, len(y_levels) - 0.5)
     axis.set_xlabel("")
@@ -328,6 +461,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         right=0.82,
         bottom=0.14,
         top=0.97,
+        style=spec.publication_style,
     )
     x_lookup = {value: index for index, value in enumerate(x_levels)}
     y_lookup = {value: index for index, value in enumerate(y_levels)}
@@ -335,23 +469,27 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     y = np.fromiter((y_lookup[value] for value in spec.data[spec.y]), dtype=float)
     fractions = spec.data[spec.fraction].to_numpy(dtype=float, copy=False)
     values = spec.data[spec.value].to_numpy(dtype=float, copy=False)
-    cmap = colormaps[spec.cmap].with_extremes(bad="#7F7F7F")
+    cmap = _spec_cmap(spec)
+    norm = _spec_norm(spec, values)
     collection = axis.scatter(
         x,
         y,
         s=_dot_sizes(fractions, spec.size_range),
         c=values,
         cmap=cmap,
+        norm=norm,
         linewidths=0,
+        rasterized=spec.rasterized,
     )
+    _add_direct_annotations(axis, x, y, values, collection, spec)
     colorbar_axis = figure.add_axes((0.85, 0.58, 0.035, 0.29))
     colorbar = figure.colorbar(collection, cax=colorbar_axis)
-    _configure_colorbar(colorbar, spec.value_label, values)
-    fraction_ticks = _scale_breaks(fractions)
+    _configure_colorbar(colorbar, spec.value_label, values, spec.publication_style)
+    fraction_ticks = np.linspace(0, 1, 5) if spec.publication_style else _scale_breaks(fractions)
     proxy_sizes = _dot_sizes(
         fraction_ticks,
         spec.size_range,
-        limits=_numeric_limits(fractions),
+        limits=(0, 1) if spec.publication_style else _numeric_limits(fractions),
     )
     handles = [
         Line2D(
@@ -373,10 +511,10 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         bbox_transform=figure.transFigure,
         borderaxespad=0,
         frameon=False,
-        fontsize=8,
-        title_fontsize=9,
+        fontsize=spec.publication_style.legend_text_size if spec.publication_style else 8,
+        title_fontsize=(spec.publication_style.legend_title_size if spec.publication_style else 9),
     )
-    _set_discrete_axes(axis, x_levels, y_levels)
+    _set_discrete_axes(axis, x_levels, y_levels, spec.publication_style)
     return figure
 
 
@@ -388,25 +526,37 @@ def _draw_matrixplot(spec: _RenderSpec) -> Figure:
         right=0.82,
         bottom=0.14,
         top=0.97,
+        style=spec.publication_style,
     )
     matrix = (
         spec.data.pivot(index=spec.y, columns=spec.x, values=spec.value)
         .reindex(index=y_levels, columns=x_levels)
         .to_numpy(dtype=float)
     )
-    cmap = colormaps[spec.cmap].with_extremes(bad="#7F7F7F")
+    cmap = _spec_cmap(spec)
+    norm = _spec_norm(spec, matrix.ravel())
     mesh = axis.pcolormesh(
         np.arange(len(x_levels) + 1) - 0.5,
         np.arange(len(y_levels) + 1) - 0.5,
         matrix,
         cmap=cmap,
+        norm=norm,
         shading="flat",
-        rasterized=False,
+        rasterized=spec.rasterized,
+    )
+    annotation_x, annotation_y = np.meshgrid(np.arange(len(x_levels)), np.arange(len(y_levels)))
+    _add_direct_annotations(
+        axis,
+        annotation_x.ravel(),
+        annotation_y.ravel(),
+        matrix.ravel(),
+        mesh,
+        spec,
     )
     colorbar_axis = figure.add_axes((0.85, 0.39, 0.035, 0.43))
     colorbar = figure.colorbar(mesh, cax=colorbar_axis)
-    _configure_colorbar(colorbar, spec.value_label, matrix.ravel())
-    _set_discrete_axes(axis, x_levels, y_levels)
+    _configure_colorbar(colorbar, spec.value_label, matrix.ravel(), spec.publication_style)
+    _set_discrete_axes(axis, x_levels, y_levels, spec.publication_style)
     return figure
 
 

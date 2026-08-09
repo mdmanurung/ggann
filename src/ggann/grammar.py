@@ -12,7 +12,7 @@ from __future__ import annotations
 from plotnine import aes, ggplot
 
 from ._resolve import ObsmRef, Ref, plain_name, resolve_frame
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = ["gganndata", "aes"]
 
@@ -117,5 +117,5 @@ def gganndata(
     )
     plot = ggplot(df, _plain_mapping(adata, mapping))
     if add_theme:
-        plot = plot + theme_ggann()
+        plot = plot + _family_theme("standard")
     return plot

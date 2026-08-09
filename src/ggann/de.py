@@ -3,17 +3,22 @@
 scanpy stores marker results in ``adata.uns['rank_genes_groups']`` and exposes a
 tidy view via ``sc.get.rank_genes_groups_df``. These helpers reuse that (never
 parsing the recarrays by hand), pick the top markers, and delegate to the
-existing ``plot_dotplot`` / ``plot_matrixplot`` -- or, for the volcano, to
-plotnine-extra's ``ggvolcano``.
+existing ``plot_dotplot`` / ``plot_matrixplot``. Volcano and MA plots are built
+from ordinary plotnine layers, so their prepared tables remain inspectable.
 """
 
 from __future__ import annotations
 
+from typing import cast
+
+import numpy as np
+import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
     geom_hline,
     geom_point,
+    geom_vline,
     ggplot,
     labs,
     scale_color_manual,
@@ -22,11 +27,10 @@ from plotnine import (
 
 from ._compat import renamed_keyword
 from .plots import plot_dotplot, plot_matrixplot
-from .theme import theme_ggann
+from .publication import _family_theme
 
 # Conventional volcano colours: down = blue, non-significant = grey, up = red.
-# Keys must match the categories ``plotnine_extra.ggvolcano`` maps to its colour
-# aesthetic; unused keys are ignored, so a one-sided result (only "up") is fine.
+# The ordered vocabulary remains stable even when a result is one-sided.
 _VOLCANO_COLORS = {"down": "#3B4CC0", "not significant": "#B8B8B8", "up": "#B40426"}
 
 __all__ = [
@@ -230,10 +234,10 @@ def plot_volcano(
 ):
     """Volcano plot (log2FC vs adjusted p-value) for one group's markers.
 
-    Reuses plotnine-extra's ``ggvolcano``; ``lfc``/``padj`` set the fold-change /
-    significance cutoffs and ``label_top`` labels the strongest genes. Requires a
-    ``rank_genes_groups`` computed with a method that reports p-values and
-    log-fold-changes (``wilcoxon`` / ``t-test``, not ``logreg``).
+    ``lfc`` and ``padj`` set the fold-change and significance cutoffs.
+    ``label_top`` labels the most significant genes that pass both cutoffs.
+    Requires a ``rank_genes_groups`` computed with a method that reports p-values
+    and log-fold-changes (``wilcoxon`` / ``t-test``, not ``logreg``).
 
     Parameters
     ----------
@@ -250,7 +254,8 @@ def plot_volcano(
     label_top : int
         Number of strongest genes to label.
     **kwargs
-        Passed to plotnine-extra's volcano helper.
+        Passed to the point layer. Defaults are ``size=1.2``, ``alpha=0.6``, and
+        ``stroke=0``.
 
     Returns
     -------
@@ -273,28 +278,81 @@ def plot_volcano(
     >>> p = plot_volcano(adata, group="T cells")
     """
     _require_de(adata, key)
-    df = rank_genes_df(adata, group=group, key=key)
+    df = cast(pd.DataFrame, rank_genes_df(adata, group=group, key=key))
     missing = {"logfoldchanges", "pvals_adj"} - set(df.columns)
     if missing:
         raise ValueError(
             f"rank_genes_groups result is missing {sorted(missing)} needed for a volcano; "
             "re-run sc.tl.rank_genes_groups(adata, ..., method='wilcoxon' or 't-test')."
         )
-    return (
-        pe.ggvolcano(
-            df,
-            x="logfoldchanges",
-            y="pvals_adj",
-            label="names",
-            p_cutoff=padj,
-            fc_cutoff=lfc,
-            label_top=label_top,
-            **kwargs,
-        )
-        + scale_color_manual(values=_VOLCANO_COLORS)
-        + labs(x="log2 fold change", y="-log10(adjusted p-value)")
-        + theme_ggann()
+    if isinstance(lfc, bool) or not np.isfinite(lfc) or lfc < 0:
+        raise ValueError("lfc must be a finite non-negative number.")
+    if isinstance(padj, bool) or not np.isfinite(padj) or not 0 < padj <= 1:
+        raise ValueError("padj must be greater than zero and at most one.")
+    if isinstance(label_top, bool) or not isinstance(label_top, int) or label_top < 0:
+        raise ValueError("label_top must be a non-negative integer.")
+    if label_top and "names" not in df:
+        raise ValueError("rank_genes_groups result is missing ['names'] needed for labels.")
+
+    pvalues = np.asarray(cast(pd.Series, df.loc[:, "pvals_adj"]), dtype=float)
+    positive = pvalues[np.isfinite(pvalues) & (pvalues > 0)]
+    floor = max(
+        np.finfo(float).tiny,
+        float(np.min(positive)) / 10 if len(positive) else np.finfo(float).tiny,
     )
+    fold_change = np.asarray(cast(pd.Series, df.loc[:, "logfoldchanges"]), dtype=float)
+    significant = (pvalues <= padj) & (np.abs(fold_change) >= lfc)
+    direction = np.select(
+        [significant & (fold_change < 0), significant & (fold_change > 0)],
+        ["down", "up"],
+        default="not significant",
+    )
+    prepared = df.assign(
+        _neg_log10_padj=-np.log10(np.clip(pvalues, floor, 1)),
+        _significance=pd.Categorical(
+            direction,
+            categories=list(_VOLCANO_COLORS),
+            ordered=True,
+        ),
+    )
+    point_kwargs = {"size": 1.2, "alpha": 0.6, "stroke": 0, **kwargs}
+    plot = (
+        ggplot(prepared, aes("logfoldchanges", "_neg_log10_padj", color="_significance"))
+        + geom_point(**point_kwargs)
+        + geom_hline(yintercept=-np.log10(padj), linetype="dashed", color="#4D4D4D")
+        + geom_vline(xintercept=(-lfc, lfc), linetype="dashed", color="#4D4D4D")
+        + scale_color_manual(
+            values=_VOLCANO_COLORS,
+            breaks=list(_VOLCANO_COLORS),
+            labels={
+                "down": "down",
+                "not significant": "not significant",
+                "up": "up",
+            },
+            drop=False,
+        )
+        + labs(
+            x="log2 fold change",
+            y="-log10(adjusted p-value)",
+            color=f"adjusted p ≤ {padj:g}\n|log2FC| ≥ {lfc:g}",
+        )
+        + _family_theme("standard")
+    )
+    if label_top:
+        top = (
+            prepared.loc[significant]
+            .assign(_abs_lfc=lambda frame: frame["logfoldchanges"].abs())
+            .sort_values(["pvals_adj", "_abs_lfc"], ascending=[True, False])
+            .head(label_top)
+        )
+        plot = plot + pe.geom_text_repel(
+            aes("logfoldchanges", "_neg_log10_padj", label="names"),
+            data=top,
+            inherit_aes=False,
+            size=7,
+            color="black",
+        )
+    return plot
 
 
 def plot_ma(
@@ -371,7 +429,7 @@ def plot_ma(
         + scale_x_log10()
         + scale_color_manual(values=_MA_COLORS, labels={True: "sig.", False: "n.s."})
         + labs(x="mean expression", y="log2 fold change", color=f"{pval} < {padj}")
-        + theme_ggann()
+        + _family_theme("standard")
     )
     if label_top:
         sig = df[df["significant"]]

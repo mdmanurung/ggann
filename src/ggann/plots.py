@@ -9,13 +9,14 @@ composable with ``+ scale_*`` / ``+ theme(...)`` / ``+ facet_*``.
 from __future__ import annotations
 
 import warnings
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, cast
 
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
+    coord_equal,
     element_blank,
     element_text,
     facet_grid,
@@ -27,7 +28,9 @@ from plotnine import (
     labs,
     scale_color_cmap,
     scale_color_gradient,
+    scale_color_gradient2,
     scale_fill_cmap,
+    scale_fill_gradient2,
     scale_size,
     theme,
 )
@@ -40,6 +43,7 @@ from ._aggregate import (
     aggregate_means_native,
     tidy_expression,
 )
+from ._annotation import annotation_threshold, geom_contrast_text
 from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
 from ._grouping import _downsample_cells, _group_categories, _order_groups
 from ._matplotlib_backend import categorical_palette, promote_matplotlib_plot
@@ -54,7 +58,7 @@ from ._resolve import (
     plain_name,
     resolve_frame,
 )
-from .theme import theme_ggann
+from .publication import _active_style, _family_theme
 
 __all__ = [
     "plot_embedding",
@@ -75,6 +79,37 @@ def _is_numeric(series: pd.Series) -> bool:
 def _validate_backend(backend: str) -> None:
     if backend not in {"plotnine", "matplotlib"}:
         raise ValueError("backend must be 'plotnine' or 'matplotlib'.")
+
+
+def _continuous_scale(
+    aesthetic: str,
+    values: pd.Series,
+    cmap: str,
+    *,
+    signed: bool,
+):
+    """Publication-aware continuous scale while freezing legacy defaults."""
+    style = _active_style()
+    scale_cmap = scale_color_cmap if aesthetic == "color" else scale_fill_cmap
+    scale_diverging = scale_color_gradient2 if aesthetic == "color" else scale_fill_gradient2
+    if style is not None and signed:
+        finite = values.to_numpy(dtype=float)
+        finite = finite[np.isfinite(finite)]
+        limit = float(np.abs(finite).max()) if len(finite) else 1.0
+        limit = limit or 1.0
+        return scale_diverging(
+            low=style.diverging[0],
+            mid=style.diverging[1],
+            high=style.diverging[2],
+            midpoint=0,
+            limits=(-limit, limit),
+            na_value=style.missing_color,
+        )
+    if style is not None:
+        if cmap == "Reds":
+            cmap = style.sequential_cmap
+        return scale_cmap(cmap_name=cmap, na_value=style.missing_color)
+    return scale_cmap(cmap_name=cmap)
 
 
 def _native_vector(matrix) -> np.ndarray:
@@ -176,6 +211,28 @@ def _embedding_axes():
     return theme(axis_text=element_blank(), axis_ticks=element_blank())
 
 
+def _embedding_style(show_axes: bool | None, equal_aspect: bool | None) -> list:
+    """Resolve legacy/publication embedding axes without changing prepared data."""
+    publication = _active_style() is not None
+    family = "standard" if show_axes is True else "embedding"
+    components = [_family_theme(family)]
+    if show_axes is None and not publication:
+        components.append(_embedding_axes())
+    elif show_axes is False:
+        components.append(
+            theme(
+                axis_title=element_blank(),
+                axis_text=element_blank(),
+                axis_ticks=element_blank(),
+                axis_line=element_blank(),
+                panel_border=element_blank(),
+            )
+        )
+    if equal_aspect is True or (equal_aspect is None and publication):
+        components.append(coord_equal())
+    return components
+
+
 def _centroid_labels(
     df: pd.DataFrame, cname: str, xcol: str, ycol: str, split_by: str | None = None
 ) -> pd.DataFrame:
@@ -208,6 +265,9 @@ def plot_embedding(
     downsample: int | None = None,
     random_state: int | None = 0,
     backend: str = "plotnine",
+    rasterized: bool = False,
+    show_axes: bool | None = None,
+    equal_aspect: bool | None = None,
 ):
     """Scatter over an embedding (UMAP/t-SNE/PCA), optionally coloured and split.
 
@@ -253,6 +313,16 @@ def plot_embedding(
     backend : {"plotnine", "matplotlib"}, default="plotnine"
         Rendering path. The explicit Matplotlib path accelerates an unsplit
         point scatter while returning a composable ggplot subclass.
+    rasterized : bool, default=False
+        Rasterize only the point layer. Text, axes, guides, and annotations
+        remain editable vectors in SVG and PDF output.
+    show_axes : bool, optional
+        Show embedding axes when true or hide them when false. The default
+        preserves legacy axes outside a publication context and uses the
+        publication embedding treatment inside one.
+    equal_aspect : bool, optional
+        Force equal x/y data units when true. The default enables equal aspect
+        only in publication mode.
 
     Returns
     -------
@@ -319,9 +389,20 @@ def plot_embedding(
         # plotnine's default 0.5-point same-colour outline duplicates colour
         # conversion and artist work. A zero-width outline with a 0.5 size
         # offset preserves the rendered diameter and represented observations.
-        return geom_point(size=size + 0.5, alpha=alpha, stroke=0)
+        return geom_point(
+            size=size + 0.5,
+            alpha=alpha,
+            stroke=0,
+            raster=rasterized,
+        )
 
-    def _finish(plot, *, value: str | None = None, categorical: bool = False):
+    def _finish(
+        plot,
+        *,
+        value: str | None = None,
+        categorical: bool = False,
+        signed: bool = False,
+    ):
         if backend == "plotnine":
             return plot
         categories: tuple = ()
@@ -343,6 +424,12 @@ def plot_embedding(
             alpha=alpha,
             low=low,
             high=high,
+            cmap="Reds",
+            publication_style=_active_style(),
+            rasterized=rasterized,
+            show_axes=show_axes,
+            equal_aspect=equal_aspect,
+            signed=signed,
         )
 
     if label and color is None:
@@ -363,15 +450,14 @@ def plot_embedding(
                 )
             return ggplot(df, aes(xcol, ycol)) + _with_facet(
                 [
-                    pe.geom_pointdensity(size=size, alpha=alpha),
+                    pe.geom_pointdensity(size=size, alpha=alpha, raster=rasterized),
                     labs(color="density"),
-                    theme_ggann(),
-                    _embedding_axes(),
+                    *_embedding_style(show_axes, equal_aspect),
                 ]
             )
         return _finish(
             ggplot(df, aes(xcol, ycol))
-            + _with_facet([_solid_point(), theme_ggann(), _embedding_axes()])
+            + _with_facet([_solid_point(), *_embedding_style(show_axes, equal_aspect)])
         )
 
     # `color` may be a bare name, a prefix string ("gene:CD3D@logcounts") or an accessor
@@ -389,25 +475,39 @@ def plot_embedding(
         # Draw low-expression cells first so high-expression cells are not occluded
         # (mirrors scanpy's sc.pl.embedding ordering).
         df = df.sort_values(cname)
+        style = _active_style()
+        finite = df[cname].to_numpy(dtype=float)
+        finite = finite[np.isfinite(finite)]
+        signed = bool(len(finite) and finite.min() < 0 < finite.max())
+        continuous_scale = (
+            _continuous_scale("color", df[cname], "Reds", signed=signed)
+            if style is not None
+            else scale_color_gradient(low=low, high=high)
+        )
         return _finish(
             ggplot(df, aes(xcol, ycol, color=cname))
             + _with_facet(
                 [
                     _solid_point(),
-                    scale_color_gradient(low=low, high=high),
-                    theme_ggann(),
-                    _embedding_axes(),
+                    continuous_scale,
+                    *_embedding_style(show_axes, equal_aspect),
                 ]
             ),
             value=cname,
+            signed=signed,
         )
     components = [
         _solid_point(),
         scale_color_obs(adata, cname),
         # enlarge the legend swatches so categories stay readable (scplotter does this)
-        guides(color=guide_legend(override_aes={"size": 4})),
-        theme_ggann(),
-        _embedding_axes(),
+        guides(
+            color=guide_legend(
+                override_aes={"size": 4},
+                ncol=(2 if _active_style() is not None and df[cname].nunique() > 8 else None),
+                byrow=_active_style() is not None,
+            )
+        ),
+        *_embedding_style(show_axes, equal_aspect),
     ]
     if label:
         cents = _centroid_labels(df, cname, xcol, ycol, split_by=split_by)
@@ -442,6 +542,9 @@ def plot_features(
     cmap: str = "magma",
     downsample: int | None = None,
     random_state: int | None = 0,
+    rasterized: bool = False,
+    show_axes: bool | None = None,
+    equal_aspect: bool | None = None,
 ):
     """Multi-gene embedding grid: one faceted panel per feature.
 
@@ -473,6 +576,13 @@ def plot_features(
         Maximum total observations to draw.
     random_state : int, optional
         Downsampling seed.
+    rasterized : bool, default=False
+        Rasterize only the embedding points in vector output.
+    show_axes : bool, optional
+        Explicitly show or hide embedding axes; ``None`` selects the active
+        legacy or publication default.
+    equal_aspect : bool, optional
+        Force equal x/y data units; ``None`` enables it in publication mode.
 
     Returns
     -------
@@ -519,11 +629,10 @@ def plot_features(
     long["feature"] = pd.Categorical(long["feature"], categories=feats, ordered=True)
     return (
         ggplot(long, aes(xcol, ycol, color="expression"))
-        + geom_point(size=size, alpha=alpha)
+        + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + scale_color_cmap(cmap_name=cmap)
-        + theme_ggann()
-        + _embedding_axes()
+        + _continuous_scale("color", long["expression"], cmap, signed=False)
+        + _embedding_style(show_axes, equal_aspect)
     )
 
 
@@ -535,7 +644,10 @@ def _cell_rank(tidy: pd.DataFrame, group_by: str) -> pd.DataFrame:
     ``markers.plot_tracksplot``.
     """
     positions = tidy.groupby("feature", observed=True, sort=False).cumcount()
-    cell = tidy[["obs_name", group_by]].drop_duplicates()
+    cell = cast(
+        pd.DataFrame,
+        tidy.loc[:, ["obs_name", group_by]].drop_duplicates(),
+    )
     n_cells = int(positions.max()) + 1 if len(positions) else 0
     if cell["obs_name"].is_unique and len(cell) == n_cells:
         cell = cell.sort_values(group_by)
@@ -571,6 +683,8 @@ def plot_dotplot(
     size_range: tuple[float, float] = (0.5, 8.0),
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
+    rasterized: bool = False,
+    annotate: bool | str = False,
 ):
     """Marker dotplot: dot *size* = fraction expressing, *colour* = mean expression.
 
@@ -602,6 +716,12 @@ def plot_dotplot(
     backend : {"plotnine", "matplotlib"}, default="plotnine"
         Rendering path. The explicit Matplotlib path supports the unsplit layout
         and returns a composable ggplot subclass.
+    rasterized : bool, default=False
+        Rasterize the dot artist while keeping labels and guides as vectors.
+    annotate : bool or {"auto", "force"}, default=False
+        Add mean-expression labels. ``"auto"`` draws a label only when the
+        rendered cell is at least 12 points wide and high; ``"force"`` always
+        draws labels. ``True`` is an alias for ``"force"``.
 
     Returns
     -------
@@ -649,14 +769,39 @@ def plot_dotplot(
         categories_order = _group_categories(adata, group_by)
     agg = _order_groups(agg, group_by, categories_order)
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
+    size_kwargs = {
+        "range": size_range,
+        "labels": lambda xs: [f"{x:.0%}" for x in xs],
+    }
+    if _active_style() is not None:
+        size_kwargs.update(limits=(0, 1), breaks=(0, 0.25, 0.5, 0.75, 1.0))
     components = [
-        geom_point(aes(size="fraction", color="mean_expression")),
-        scale_color_cmap(cmap_name=cmap),
-        scale_size(range=size_range, labels=lambda xs: [f"{x:.0%}" for x in xs]),
+        geom_point(
+            aes(size="fraction", color="mean_expression"),
+            raster=rasterized,
+        ),
+        _continuous_scale(
+            "color",
+            agg["mean_expression"],
+            cmap,
+            signed=standard_scale == "zscore",
+        ),
+        scale_size(**size_kwargs),
         labs(x="", y="", color=color_lab, size="fraction\nexpressing"),
-        theme_ggann(),
+        _family_theme("matrix"),
         pe.rotate_x_text(45),
     ]
+    threshold = annotation_threshold(annotate)
+    if threshold is not None:
+        style = _active_style()
+        components.append(
+            geom_contrast_text(
+                aes(label="mean_expression"),
+                min_cell_pt=threshold,
+                format_string="{:.2g}",
+                size=style.axis_text_size if style is not None else 7,
+            )
+        )
     if split_by:
         components.append(pe.facet_wrap(f"~{split_by}"))
     plot = ggplot(agg, aes("feature", group_by)) + components
@@ -673,6 +818,10 @@ def plot_dotplot(
         cmap=cmap,
         size_range=size_range,
         value_label=color_lab,
+        publication_style=_active_style(),
+        rasterized=rasterized,
+        signed=standard_scale == "zscore",
+        annotation_min_cell_pt=threshold,
     )
 
 
@@ -688,6 +837,8 @@ def plot_matrixplot(
     cmap: str = "viridis",
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
+    rasterized: bool = False,
+    annotate: bool | str = False,
 ):
     """Aggregated mean-expression heatmap (genes x groups) as a plotnine tile plot.
 
@@ -717,6 +868,11 @@ def plot_matrixplot(
     backend : {"plotnine", "matplotlib"}, default="plotnine"
         Rendering path. The explicit Matplotlib path supports the unsplit layout
         and returns a composable ggplot subclass.
+    rasterized : bool, default=False
+        Rasterize the tile layer while keeping labels and guides as vectors.
+    annotate : bool or {"auto", "force"}, default=False
+        Add mean-expression labels. ``"auto"`` requires each rendered cell to
+        be at least 12 points in both dimensions; ``"force"`` always draws.
 
     Returns
     -------
@@ -764,12 +920,28 @@ def plot_matrixplot(
     agg = _order_groups(agg, group_by, categories_order)
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
     components = [
-        geom_tile(),
-        scale_fill_cmap(cmap_name=cmap),
+        geom_tile(raster=rasterized),
+        _continuous_scale(
+            "fill",
+            agg["mean_expression"],
+            cmap,
+            signed=standard_scale == "zscore",
+        ),
         labs(x="", y="", fill=color_lab),
-        theme_ggann(),
+        _family_theme("matrix"),
         pe.rotate_x_text(45),
     ]
+    threshold = annotation_threshold(annotate)
+    if threshold is not None:
+        style = _active_style()
+        components.append(
+            geom_contrast_text(
+                aes(label="mean_expression"),
+                min_cell_pt=threshold,
+                format_string="{:.2g}",
+                size=style.axis_text_size if style is not None else 7,
+            )
+        )
     if split_by:
         components.append(pe.facet_wrap(f"~{split_by}"))
     plot = ggplot(agg, aes("feature", group_by, fill="mean_expression")) + components
@@ -784,6 +956,10 @@ def plot_matrixplot(
         value="mean_expression",
         cmap=cmap,
         value_label=color_lab,
+        publication_style=_active_style(),
+        rasterized=rasterized,
+        signed=standard_scale == "zscore",
+        annotation_min_cell_pt=threshold,
     )
 
 
@@ -797,6 +973,9 @@ def plot_embedding_density(
     cmap: str = "viridis",
     downsample: int | None = None,
     random_state: int | None = 0,
+    rasterized: bool = False,
+    show_axes: bool | None = None,
+    equal_aspect: bool | None = None,
 ):
     """Per-group cell density over an embedding.
 
@@ -828,6 +1007,13 @@ def plot_embedding_density(
         Maximum observations per group.
     random_state : int, optional
         Downsampling seed.
+    rasterized : bool, default=False
+        Rasterize only density points in vector output.
+    show_axes : bool, optional
+        Explicitly show or hide embedding axes; ``None`` selects the active
+        legacy or publication default.
+    equal_aspect : bool, optional
+        Force equal x/y data units; ``None`` enables it in publication mode.
 
     Returns
     -------
@@ -875,7 +1061,9 @@ def plot_embedding_density(
     if group_by is None:
         df = coords.copy()
         df["density"] = _density(df).to_numpy()
-        plot = ggplot(df, aes(xcol, ycol, color="density")) + geom_point(size=size)
+        plot = ggplot(df, aes(xcol, ycol, color="density")) + geom_point(
+            size=size, raster=rasterized
+        )
     else:
         gcol = resolve_frame(adata, [group_by])[[group_by]]
         df = coords.join(gcol)
@@ -887,10 +1075,14 @@ def plot_embedding_density(
         df = _order_groups(df, group_by, cats)
         plot = (
             ggplot(df, aes(xcol, ycol, color="density"))
-            + geom_point(size=size)
+            + geom_point(size=size, raster=rasterized)
             + pe.facet_wrap("~" + group_by, ncol=ncol)
         )
-    return plot + scale_color_cmap(cmap_name=cmap) + theme_ggann() + _embedding_axes()
+    return (
+        plot
+        + _continuous_scale("color", df["density"], cmap, signed=False)
+        + _embedding_style(show_axes, equal_aspect)
+    )
 
 
 def plot_heatmap(
@@ -905,6 +1097,8 @@ def plot_heatmap(
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
     random_state: int | None = 0,
+    rasterized: bool = False,
+    annotate: bool | str = False,
 ):
     """Per-**cell** expression heatmap, cells grouped along x (``sc.pl.heatmap``).
 
@@ -935,6 +1129,11 @@ def plot_heatmap(
         Maximum observations retained per group.
     random_state : int, optional
         Downsampling seed.
+    rasterized : bool, default=False
+        Rasterize the expression tiles while preserving vector text and axes.
+    annotate : bool or {"auto", "force"}, default=False
+        Add expression labels. ``"auto"`` draws only in cells at least 12
+        points wide and high; ``"force"`` always draws.
 
     Returns
     -------
@@ -989,16 +1188,32 @@ def plot_heatmap(
         tidy["feature"], categories=list(reversed(genes)), ordered=True
     )
 
-    return (
-        ggplot(tidy, aes("cell_rank", "feature", fill="value"))
-        + geom_tile()
-        + facet_grid(". ~ " + group_by, scales="free_x", space="free_x")
-        + scale_fill_cmap(cmap_name=cmap)
-        + labs(x="", y="", fill=fill_lab)
-        + theme_ggann()
-        + theme(
+    components = [
+        geom_tile(raster=rasterized),
+        facet_grid(". ~ " + group_by, scales="free_x", space="free_x"),
+        _continuous_scale(
+            "fill",
+            tidy["value"],
+            cmap,
+            signed=standard_scale == "zscore",
+        ),
+        labs(x="", y="", fill=fill_lab),
+        _family_theme("matrix"),
+        theme(
             axis_text_x=element_blank(),
             axis_ticks_major_x=element_blank(),
             strip_text_x=element_text(angle=90),
+        ),
+    ]
+    threshold = annotation_threshold(annotate)
+    if threshold is not None:
+        style = _active_style()
+        components.append(
+            geom_contrast_text(
+                aes(label="value"),
+                min_cell_pt=threshold,
+                format_string="{:.2g}",
+                size=style.axis_text_size if style is not None else 7,
+            )
         )
-    )
+    return ggplot(tidy, aes("cell_rank", "feature", fill="value")) + components

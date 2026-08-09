@@ -43,7 +43,7 @@ from .plots import (
     _feature_facet,
     _is_numeric,
 )
-from .theme import theme_ggann
+from .publication import _active_style, _family_theme
 
 __all__ = [
     "plot_violin",
@@ -96,10 +96,12 @@ def plot_box(
 ):
     """Per-group expression box plots, one facet per gene, with jittered cells overlaid.
 
-    Set ``jitter=False`` for a plain box plot, ``split_by`` for a gene x split facet
-    grid, or ``stats=True`` to overlay a group-comparison test via plotnine-extra's
-    ``stat_compare_means``. Pass ``downsample=N`` to cap cells per group before the
-    (jitter) draw for large data — see :func:`ggann.plot_violin`.
+    Set ``jitter=False`` for a plain box plot or ``split_by`` for a gene x split
+    facet grid. ``stats=True`` adds one two-sided, unpaired global comparison per
+    facet: Mann-Whitney U for two groups and Kruskal-Wallis for more than two.
+    The label is the three-significant-digit p-value; no multiplicity correction
+    is applied across facets. Pass ``downsample=N`` to cap cells per group before
+    the (jitter) draw for large data — see :func:`ggann.plot_violin`.
 
     Note: ``downsample`` subsets the cells the geoms see, so with ``stats=True``
     the p-value is computed on the subsample, and the boxplot's outliers reflect
@@ -171,11 +173,13 @@ def plot_box(
         + _feature_facet(split_by, ncol=ncol)
         + scale_fill_obs(adata, group_by)
         + labs(x="", y="expression", fill=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + pe.rotate_x_text(45)
     )
     if stats:
         plot = plot + pe.stat_compare_means()
+        if _active_style() is not None:
+            plot = plot + scale_y_continuous(expand=(0.05, 0, 0.18, 0))
     return plot
 
 
@@ -270,8 +274,10 @@ def plot_sina(
     # collapse a narrow-range gene's panel to one or two bins. Floor it by the
     # widest gene's range so a pathologically narrow gene can't drive the widest
     # panel to an unbounded bin count (which would be slow to build).
-    ranges = tidy.groupby("feature", observed=True)["value"].agg(lambda s: s.max() - s.min())
-    ranges = ranges[ranges > 0]
+    ranges = pd.Series(
+        tidy.groupby("feature", observed=True)["value"].agg(lambda s: s.max() - s.min())
+    )
+    ranges = ranges.loc[ranges.to_numpy() > 0]
     if len(ranges):
         binwidth = max(float(ranges.min()) / bins, float(ranges.max()) / 1000)
     else:
@@ -293,7 +299,7 @@ def plot_sina(
         + scale_color_obs(adata, group_by)
         + scale_fill_obs(adata, group_by)
         + labs(x="", y="expression", color=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + pe.rotate_x_text(45)
     )
     return plot
@@ -379,7 +385,7 @@ def plot_expression_bar(
         + _feature_facet(split_by, ncol=ncol)
         + scale_fill_obs(adata, group_by)
         + labs(x="", y=ylab, fill=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + pe.rotate_x_text(45)
     )
     if error != "none":
@@ -473,7 +479,7 @@ def plot_expression_line(
     if not _is_numeric(long[xname]):
         x_cats = _group_categories(adata, x)
         if x_cats is None:
-            x_cats = list(pd.unique(long[xname]))
+            x_cats = list(pd.unique(pd.Series(long[xname]).to_numpy()))
         long[xname] = pd.Categorical(long[xname], categories=x_cats, ordered=True)
     if gname is not None and categories_order is None:
         categories_order = _group_categories(adata, group_by)
@@ -498,7 +504,7 @@ def plot_expression_line(
         + geom_point(size=2)
         + pe.facet_wrap("~feature", ncol=ncol, scales="free_y")
         + labs(x=xname, y=ylab, color=gname)
-        + theme_ggann()
+        + _family_theme("distribution")
     )
     if color is not None:
         plot = plot + scale_color_obs(adata, gname)
@@ -530,9 +536,12 @@ def plot_violin(
     median and quartiles read off cleanly, the way scplotter's ``FeatureStatPlot``
     does. ``add_points=True`` overlays the individual cells as jitter (scplotter's
     ``add_point``). ``split_by`` adds a facet column (gene rows x split columns).
-    Set ``stats=True`` to overlay a group-comparison test via plotnine-extra's
-    ``stat_compare_means``. ``downsample`` caps cells per group before the (slow)
-    violin KDE -- a big speed-up on large data for a visually identical plot.
+    Set ``stats=True`` to add one two-sided, unpaired global comparison per
+    facet: Mann-Whitney U for two groups and Kruskal-Wallis for more than two.
+    The label is the three-significant-digit p-value; no multiplicity correction
+    is applied across facets. ``downsample`` caps cells per group before the
+    (slow) violin KDE -- a big speed-up on large data for a visually identical
+    plot.
 
     Note: ``downsample`` subsets the cells the geoms see, so any ``stats=True``
     p-value is then computed on the *subsample*, not the full data. Leave
@@ -602,11 +611,13 @@ def plot_violin(
         + _feature_facet(split_by, ncol=ncol)
         + scale_fill_obs(adata, group_by)
         + labs(x="", y="expression", fill=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + pe.rotate_x_text(45)
     )
     if stats:
         plot = plot + pe.stat_compare_means()
+        if _active_style() is not None:
+            plot = plot + scale_y_continuous(expand=(0.05, 0, 0.18, 0))
     return plot
 
 
@@ -678,7 +689,7 @@ def plot_stacked_violin(
         + facet_grid("feature ~ .", scales="free_y")
         + scale_fill_obs(adata, group_by)
         + labs(x="", y="", fill=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + theme(strip_text_y=element_text(angle=0))
         + pe.rotate_x_text(45)
     )
@@ -807,6 +818,6 @@ def plot_ridge(
         + scale_fill_obs(adata, group_by)
         + scale_y_continuous(breaks=list(pos.values()), labels=order)
         + labs(x="expression", y="", fill=group_by)
-        + theme_ggann()
+        + _family_theme("distribution")
         + theme(panel_grid=element_blank())
     )

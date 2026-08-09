@@ -21,7 +21,7 @@ from plotnine import (
     scale_y_continuous,
 )
 
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = ["plot_dendrogram"]
 
@@ -32,6 +32,8 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
         import scanpy as sc
 
         result = sc.tl.dendrogram(adata, groupby=group_by, key_added=key, inplace=False)
+        if result is None:
+            raise RuntimeError("scanpy did not return dendrogram coordinates.")
         return result["dendrogram_info"]
     return adata.uns[key]["dendrogram_info"]
 
@@ -96,7 +98,7 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
             + geom_line()
             + scale_x_continuous(breaks=leaf_pos, labels=list(ivl))
             + labs(x="", y="distance")
-            + theme_ggann()
+            + _family_theme("matrix")
             # rotate the leaf labels so long category names stay legible
             + pe.rotate_x_text(90)
         )
@@ -106,5 +108,5 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
         + geom_line()
         + scale_y_continuous(breaks=leaf_pos, labels=list(ivl))
         + labs(x="distance", y="")
-        + theme_ggann()
+        + _family_theme("matrix")
     )

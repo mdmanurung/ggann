@@ -25,11 +25,11 @@ def _resolve_group_order(
     if categories_order is not None:
         categories = list(dict.fromkeys(categories_order))
     else:
-        col = frame[group_by]
+        col = pd.Series(frame[group_by], index=frame.index)
         if isinstance(col.dtype, pd.CategoricalDtype):
             categories = list(col.cat.categories)
         else:
-            observed = list(pd.unique(col.dropna()))
+            observed = list(pd.unique(col.dropna().to_numpy()))
             try:
                 categories = sorted(observed)
             except TypeError:
