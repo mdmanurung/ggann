@@ -8,9 +8,9 @@ import importlib.metadata
 import json
 import math
 import os
-from pathlib import Path
 import platform
 import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -34,9 +34,7 @@ def _json_value(value):
         try:
             return {"callable_samples": _json_value(value(samples))}
         except (TypeError, ValueError):
-            return {
-                "callable": getattr(value, "__qualname__", type(value).__qualname__)
-            }
+            return {"callable": getattr(value, "__qualname__", type(value).__qualname__)}
     return str(value)
 
 
@@ -115,15 +113,11 @@ def snapshot(output: Path) -> None:
 
     output.mkdir(parents=True, exist_ok=True)
     adata = sc.datasets.pbmc68k_reduced()
-    genes = [
-        gene for gene in ("CD3D", "NKG7", "CST3", "GNLY") if gene in adata.raw.var_names
-    ]
+    genes = [gene for gene in ("CD3D", "NKG7", "CST3", "GNLY") if gene in adata.raw.var_names]
     group_by = "bulk_labels"
 
     plots = {
-        "embedding": ag.plot_embedding(
-            adata, "umap", color=genes[0], use_raw=True, downsample=300
-        ),
+        "embedding": ag.plot_embedding(adata, "umap", color=genes[0], use_raw=True, downsample=300),
         "dotplot": ag.plot_dotplot(adata, genes, group_by),
         "matrixplot": ag.plot_matrixplot(adata, genes, group_by),
         "heatmap": ag.plot_heatmap(
@@ -185,7 +179,15 @@ def _image(path: Path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGBA"), dtype=np.float32) / 255.0
 
 
-def compare(baseline: Path, candidate: Path, report: Path | None) -> bool:
+def compare(
+    baseline: Path,
+    candidate: Path,
+    report: Path | None,
+    *,
+    allowed_image_differences: set[str] | None = None,
+    image_mean_tolerance: float = 1e-4,
+    image_psnr_min: float = math.inf,
+) -> bool:
     before = json.loads((baseline / "manifest.json").read_text())
     after = json.loads((candidate / "manifest.json").read_text())
     failures: list[str] = []
@@ -224,9 +226,7 @@ def compare(baseline: Path, candidate: Path, report: Path | None) -> bool:
         right = pd.read_pickle(candidate / after["frames"][name]["file"])
         detail = "equal within rtol 1e-6, atol 1e-7"
         if name == "plot_matrixplot":
-            removable = [
-                column for column in left.columns if column not in right.columns
-            ]
+            removable = [column for column in left.columns if column not in right.columns]
             if removable == ["fraction"]:
                 left = left[right.columns]
                 detail = "equal; unused baseline fraction column removed"
@@ -249,18 +249,16 @@ def compare(baseline: Path, candidate: Path, report: Path | None) -> bool:
     mappings_equal = before["mappings"] == after["mappings"]
     if not mappings_equal:
         failures.append("plot mappings changed")
-    lines.append(
-        f"| plot mappings | {'pass' if mappings_equal else 'fail'} | exact comparison |"
-    )
+    lines.append(f"| plot mappings | {'pass' if mappings_equal else 'fail'} | exact comparison |")
 
     contracts_equal = before.get("plot_contracts") == after.get("plot_contracts")
     if not contracts_equal:
         failures.append("plot labels or scales changed")
     lines.append(
-        f"| plot labels and scales | {'pass' if contracts_equal else 'fail'} | "
-        "exact comparison |"
+        f"| plot labels and scales | {'pass' if contracts_equal else 'fail'} | exact comparison |"
     )
 
+    allowed_image_differences = allowed_image_differences or set()
     for name, filename in before["images"].items():
         left = _image(baseline / filename)
         right = _image(candidate / after["images"][name])
@@ -271,13 +269,23 @@ def compare(baseline: Path, candidate: Path, report: Path | None) -> bool:
         difference = np.abs(left - right)
         maximum = float(difference.max(initial=0.0))
         mean = float(difference.mean())
-        equal = maximum <= (2 / 255) and mean <= 1e-4
-        if not equal:
-            failures.append(f"image {name}: max={maximum:.6g}, mean={mean:.6g}")
-        lines.append(
-            f"| `{name}` image | {'pass' if equal else 'fail'} | "
-            f"max {maximum:.3g}; mean {mean:.3g} |"
+        rmse = float(np.sqrt(np.mean(np.square(left - right))))
+        psnr = math.inf if rmse == 0 else 20 * math.log10(1 / rmse)
+        exact_enough = maximum <= (2 / 255) and mean <= 1e-4
+        explicitly_tolerated = (
+            name in allowed_image_differences
+            and mean <= image_mean_tolerance
+            and psnr >= image_psnr_min
         )
+        equal = exact_enough or explicitly_tolerated
+        if not equal:
+            failures.append(f"image {name}: max={maximum:.6g}, mean={mean:.6g}, psnr={psnr:.3f} dB")
+        detail = f"max {maximum:.3g}; mean {mean:.3g}; PSNR {psnr:.2f} dB"
+        if explicitly_tolerated and not exact_enough:
+            detail += (
+                f"; explicit mean <= {image_mean_tolerance:.3g}, PSNR >= {image_psnr_min:.2f} dB"
+            )
+        lines.append(f"| `{name}` image | {'pass' if equal else 'fail'} | {detail} |")
 
     text = "\n".join(lines) + "\n"
     print(text, end="")
@@ -298,6 +306,15 @@ def _parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("baseline", type=Path)
     compare_parser.add_argument("candidate", type=Path)
     compare_parser.add_argument("--report", type=Path)
+    compare_parser.add_argument(
+        "--allow-image-difference",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="Allow NAME to use the explicit mean/PSNR tolerances; repeat as needed.",
+    )
+    compare_parser.add_argument("--image-mean-tolerance", type=float, default=1e-4)
+    compare_parser.add_argument("--image-psnr-min", type=float, default=math.inf)
     return parser
 
 
@@ -306,7 +323,18 @@ def main() -> int:
     if args.command == "snapshot":
         snapshot(args.output)
         return 0
-    return 0 if compare(args.baseline, args.candidate, args.report) else 1
+    return (
+        0
+        if compare(
+            args.baseline,
+            args.candidate,
+            args.report,
+            allowed_image_differences=set(args.allow_image_difference),
+            image_mean_tolerance=args.image_mean_tolerance,
+            image_psnr_min=args.image_psnr_min,
+        )
+        else 1
+    )
 
 
 if __name__ == "__main__":

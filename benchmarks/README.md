@@ -4,9 +4,112 @@ The benchmark runner measures AnnData extraction, aggregation, plot preparation,
 and optional rendering. It generates seeded synthetic data and runs every case in
 a fresh child process.
 
+## Compare with Scanpy
+
+`compare_scanpy.py` runs matched ggann and Scanpy plots on the same seeded,
+fingerprinted AnnData fixture. It validates the prepared values before admitting
+any speed ratio and checks that plotting did not change the input fingerprint.
+The primary smoke comparison is:
+
+```bash
+NUMBA_CACHE_DIR=/tmp/ggann-numba-cache \
+MPLCONFIGDIR=/tmp/ggann-mpl-cache \
+PYTHONPATH=src python benchmarks/compare_scanpy.py \
+  --preset smoke \
+  --formats csr \
+  --workloads primary \
+  --sources x \
+  --repeats 3 \
+  --output benchmarks/results/scanpy-smoke.json \
+  --report benchmarks/results/scanpy-smoke.md
+```
+
+`primary` covers categorical embedding, dotplot, and matrixplot. `all` adds
+continuous and gene-coloured embeddings, violin, stacked violin, tracksplot,
+highest-expressed genes, and the fair ranked-gene dotplot/matrixplot pairs. Use
+`--list-workloads` to print the individual names. Expression sources can be
+`x`, `layer`, `raw`, or `all`; named-layer cases use the deterministic `counts`
+fixture layer. Scanpy's highest-expression helper has no `use_raw` argument, so
+that unmatched raw case is explicitly skipped and recorded rather than adapted
+to a different AnnData object.
+
+Every case records raw cold-call and repeated samples for four stages:
+
+- `preparation`: native extraction/statistical preparation, checked numerically;
+- `construction`: the public plotting call with display disabled;
+- `render`: matched-size/DPI PNG save from a materialized figure;
+- `end_to_end`: public plotting call through PNG save.
+
+Only `preparation` and `end_to_end` rows with `comparability=pass` may support a
+cross-library speed claim. Construction is diagnostic because Scanpy eagerly
+creates matplotlib artists for several functions while ggann returns a deferred
+plotnine object. Rendering uses the same 6 by 4.5 inch, 80 DPI, Agg-backed PNG
+target. Raw samples include sampled peak and retained RSS; short-lived
+allocations below the sampling interval can still be missed.
+
+The release-sized gate command is intentionally opt-in:
+
+```bash
+NUMBA_CACHE_DIR=/tmp/ggann-numba-cache \
+MPLCONFIGDIR=/tmp/ggann-mpl-cache \
+PYTHONPATH=src python benchmarks/compare_scanpy.py \
+  --preset extended \
+  --formats csr \
+  --workloads primary \
+  --sources x \
+  --repeats 7 \
+  --include-cold-start \
+  --isolated-memory-stages preparation,end_to_end \
+  --output benchmarks/results/scanpy-extended-csr.json \
+  --report benchmarks/results/scanpy-extended-csr.md
+```
+
+The isolated-memory option creates one fresh child per library and selected
+stage. Imports and fixture construction precede the RSS baseline, and the
+measured call is the child's first preparation or plotting call. This avoids
+allocator reuse from earlier stages obscuring peak RSS.
+
+The JSON evaluates the cross-library preparation, end-to-end geometric-mean,
+per-case slowdown, and peak-memory gates only when every extended sparse primary
+case is present and comparable. The separate before/after ggann regression
+runner below remains authoritative for the 5% self-regression gate; neither
+runner alone is a complete performance-release verdict.
+
+The repository retains the accepted raw primary samples in
+`benchmarks/results/scanpy-extended-csr.json` and the exact frozen candidate in
+`scanpy-extended-csr-before.json`. Regenerate the documentation table rather
+than copying medians by hand:
+
+```bash
+python benchmarks/render_scanpy_vignette.py \
+  benchmarks/results/scanpy-extended-csr.json \
+  docs/_includes/scanpy-extended-csr.md
+```
+
 `cold` is the first workload call after imports and fixture construction. Repeated
 timings reuse the same immutable AnnData object. They therefore measure repeated
 package use without including data generation or import time.
+
+## Profile concrete hotspots
+
+`profile_hotspots.py` uses the same deterministic fixture but serves diagnosis,
+not cross-library claims. It records unprofiled warm samples, concrete cProfile
+functions, tracemalloc peaks and top lines, sampled RSS, DataFrame sizes, sparse
+column counts, and every public annplyr extraction call. Raw pstats files are
+written separately so they can be opened with `python -m pstats` or a profile
+viewer:
+
+```bash
+PYTHONPATH=src python benchmarks/profile_hotspots.py \
+  --preset extended --format csr --repeats 3 \
+  --git-revision "$(git rev-parse HEAD)" \
+  --output benchmarks/results/profile-hotspots-after.json \
+  --profile-dir /tmp/ggann-profile-pstats
+```
+
+The versioned before/after JSON documents retain samples and top-function data.
+cProfile and tracemalloc timings are instrumented separately and must not be
+reported as ordinary benchmark timings.
 
 ## Run
 

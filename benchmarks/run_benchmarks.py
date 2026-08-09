@@ -26,13 +26,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
-
 for _name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_name, "1")
 os.environ.setdefault("MPLBACKEND", "Agg")
-os.environ.setdefault(
-    "MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "ggann-benchmark-mpl")
-)
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "ggann-benchmark-mpl"))
 
 
 _RESULT_PREFIX = "GGANN_BENCH_RESULT="
@@ -213,9 +210,7 @@ def _frame_description(frame: Any, *, fingerprint: bool) -> dict[str, Any]:
             digest.update(hashed.to_numpy().tobytes())
             description["fingerprint"] = digest.hexdigest()
         except (TypeError, ValueError):
-            description["fingerprint"] = hashlib.sha256(
-                repr(frame).encode()
-            ).hexdigest()
+            description["fingerprint"] = hashlib.sha256(repr(frame).encode()).hexdigest()
     return description
 
 
@@ -276,9 +271,7 @@ def _stage_sizes(
     prepared_fields = ("kind", "shape", "bytes", "columns", "dtypes")
     stages = {
         "prepared_data": {
-            name: output_description[name]
-            for name in prepared_fields
-            if name in output_description
+            name: output_description[name] for name in prepared_fields if name in output_description
         }
     }
     if workload in _CORE_WORKLOADS:
@@ -291,9 +284,7 @@ def _stage_sizes(
     return stages
 
 
-def _measure_call(
-    function: Callable[[], Any], rss_interval_seconds: float
-) -> dict[str, Any]:
+def _measure_call(function: Callable[[], Any], rss_interval_seconds: float) -> dict[str, Any]:
     gc.collect()
     baseline_rss = _rss_bytes()
     with _RSSSampler(rss_interval_seconds) as sampler:
@@ -386,20 +377,20 @@ def _make_fixture(spec: CaseSpec) -> tuple[Any, list[str], dict[str, int]]:
     )
     adata.raw = raw
     adata.obsm["X_umap"] = rng.normal(size=(spec.n_obs, 2)).astype(np.float32)
-    adata.obsm["X_pca"] = rng.normal(size=(spec.n_obs, spec.embedding_dims)).astype(
-        np.float32
-    )
+    adata.obsm["X_pca"] = rng.normal(size=(spec.n_obs, spec.embedding_dims)).astype(np.float32)
 
     selected_indices = np.linspace(
         0, spec.n_vars - 1, num=min(spec.n_genes, spec.n_vars), dtype=int
     )
-    selected_genes = [
-        str(var_names[index]) for index in dict.fromkeys(selected_indices)
-    ]
+    selected_genes = [str(var_names[index]) for index in dict.fromkeys(selected_indices)]
 
     input_bytes = {
         "x": _matrix_bytes(adata.X),
-        "layers": sum(_matrix_bytes(matrix) for matrix in adata.layers.values()),
+        # AnnData 0.13 exposes ``None`` here as an alias for ``.X``. Exclude it:
+        # ``x`` is recorded separately and only named layers belong in this total.
+        "layers": sum(
+            _matrix_bytes(matrix) for key, matrix in adata.layers.items() if key is not None
+        ),
         "raw": _matrix_bytes(adata.raw.X),
         "obsm": sum(_matrix_bytes(matrix) for matrix in adata.obsm.values()),
         "obs": int(adata.obs.memory_usage(index=True, deep=True).sum()),
@@ -514,15 +505,11 @@ def _workload_function(
     if name == "plot_dotplot_prepare":
         from ggann import plot_dotplot
 
-        return lambda: plot_dotplot(
-            adata, genes, "group", use_raw=False, split_by="split"
-        )
+        return lambda: plot_dotplot(adata, genes, "group", use_raw=False, split_by="split")
     if name == "plot_highest_expr_prepare":
         from ggann import plot_highest_expr_genes
 
-        return lambda: plot_highest_expr_genes(
-            adata, n=min(20, adata.n_vars), use_raw=False
-        )
+        return lambda: plot_highest_expr_genes(adata, n=min(20, adata.n_vars), use_raw=False)
     if name == "render_embedding":
         from ggann import plot_embedding
 
@@ -679,9 +666,7 @@ def _shape_variants(
     overrides: dict[str, list[int] | None],
 ) -> list[dict[str, Any]]:
     """Return shapes varying at most one dimension within a benchmark run."""
-    provided = {
-        name: values for name, values in overrides.items() if values is not None
-    }
+    provided = {name: values for name, values in overrides.items() if values is not None}
     varying = [name for name, values in provided.items() if len(values) > 1]
     if len(varying) > 1:
         raise ValueError(
@@ -699,13 +684,11 @@ def _shape_variants(
             shape[name] = scale_value if name == scale_field else values[0]
         if shape["n_genes"] > shape["n_vars"]:
             raise ValueError(
-                f"n_genes ({shape['n_genes']}) cannot exceed n_vars "
-                f"({shape['n_vars']})."
+                f"n_genes ({shape['n_genes']}) cannot exceed n_vars ({shape['n_vars']})."
             )
         if shape["n_groups"] > shape["n_obs"]:
             raise ValueError(
-                f"n_groups ({shape['n_groups']}) cannot exceed n_obs "
-                f"({shape['n_obs']})."
+                f"n_groups ({shape['n_groups']}) cannot exceed n_obs ({shape['n_obs']})."
             )
         shapes.append(shape)
     return shapes
@@ -743,9 +726,7 @@ def _selected_workloads(value: str, include_rendering: bool) -> list[str]:
 
 def _git_metadata() -> dict[str, Any]:
     def git(*arguments: str) -> str | None:
-        completed = subprocess.run(
-            ["git", *arguments], check=False, capture_output=True, text=True
-        )
+        completed = subprocess.run(["git", *arguments], check=False, capture_output=True, text=True)
         return completed.stdout.strip() if completed.returncode == 0 else None
 
     status = git("status", "--porcelain")
@@ -910,9 +891,7 @@ def main(argv: list[str] | None = None) -> int:
             "created_at": datetime.now(UTC).isoformat(),
             "python": sys.version,
             "platform": platform.platform(),
-            "rss_backend": "proc_statm"
-            if Path("/proc/self/statm").exists()
-            else "resource_peak",
+            "rss_backend": "proc_statm" if Path("/proc/self/statm").exists() else "resource_peak",
             "packages": package_versions,
             "ggann_source": ggann_source,
             "thread_settings": {
@@ -928,9 +907,7 @@ def main(argv: list[str] | None = None) -> int:
             "formats": formats,
             "workloads": workloads,
             "shape_overrides": {
-                name: values
-                for name, values in shape_overrides.items()
-                if values is not None
+                name: values for name, values in shape_overrides.items() if values is not None
             },
             "repeats": args.repeats,
             "seed": args.seed,

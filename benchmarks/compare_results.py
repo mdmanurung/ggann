@@ -6,16 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 
 def _load(path: Path) -> dict[str, Any]:
     document = json.loads(path.read_text())
-    if document.get("schema_version") != 1 or not isinstance(
-        document.get("results"), list
-    ):
+    if document.get("schema_version") != 1 or not isinstance(document.get("results"), list):
         raise ValueError(f"{path} is not a ggann benchmark schema-version 1 document")
     return document
 
@@ -24,9 +22,7 @@ def _index(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {result["case_id"]: result for result in document["results"]}
 
 
-def _comparability_issues(
-    baseline: dict[str, Any], candidate: dict[str, Any]
-) -> list[str]:
+def _comparability_issues(baseline: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
     """Return reasons two benchmark documents are not directly comparable."""
     issues: list[str] = []
     before_metadata = baseline.get("metadata", {})
@@ -58,14 +54,8 @@ def _comparability_issues(
     after_threads = after_metadata.get("thread_settings")
     # Schema-version 1 documents created before thread provenance was added do
     # not contain this field. Preserve comparisons between those documents.
-    if (
-        before_threads is not None
-        and after_threads is not None
-        and before_threads != after_threads
-    ):
-        issues.append(
-            f"metadata.thread_settings: {before_threads!r} != {after_threads!r}"
-        )
+    if before_threads is not None and after_threads is not None and before_threads != after_threads:
+        issues.append(f"metadata.thread_settings: {before_threads!r} != {after_threads!r}")
 
     before_by_id = _index(baseline)
     after_by_id = _index(candidate)
@@ -122,9 +112,7 @@ def _escape(value: str) -> str:
     return value.replace("|", "\\|")
 
 
-def _table(
-    baseline: dict[str, Any], candidate: dict[str, Any]
-) -> tuple[str, list[dict[str, Any]]]:
+def _table(baseline: dict[str, Any], candidate: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     before_by_id = _index(baseline)
     after_by_id = _index(candidate)
     shared = sorted(before_by_id.keys() & after_by_id.keys())
@@ -201,9 +189,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path)
     parser.add_argument("candidate", type=Path)
-    parser.add_argument(
-        "--output", type=Path, help="Also write the Markdown table here."
-    )
+    parser.add_argument("--output", type=Path, help="Also write the Markdown table here.")
     parser.add_argument(
         "--fail-regression-pct",
         type=float,
@@ -232,8 +218,7 @@ def main() -> int:
     issues = _comparability_issues(baseline, candidate)
     if issues and not args.allow_incomparable:
         print(
-            "Benchmark inputs are not comparable:\n"
-            + "\n".join(f"- {issue}" for issue in issues),
+            "Benchmark inputs are not comparable:\n" + "\n".join(f"- {issue}" for issue in issues),
             file=sys.stderr,
         )
         print(

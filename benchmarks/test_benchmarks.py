@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import unittest
 from copy import deepcopy
 from dataclasses import replace
-import unittest
 
 import pandas as pd
 from plotnine import aes, geom_point, ggplot, labs, scale_color_continuous
