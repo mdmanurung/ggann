@@ -20,6 +20,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Temporary release-candidate bootstrap. Remove once both dependencies
+      # are available at the versions declared in pyproject.toml.
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/annplyr
+          ref: cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617
+          path: vendor/annplyr
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/plotnine-extra
+          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          path: vendor/plotnine-extra
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -27,6 +39,7 @@ jobs:
       - name: Install ggann with docs extras
         run: |
           python -m pip install --upgrade pip
+          pip install ./vendor/annplyr ./vendor/plotnine-extra
           pip install -e ".[docs]"
       - name: Build docs
         env:

@@ -12,41 +12,77 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Mikhael Manurung", email = "mikhael.manurung@gmail.com" }]
 keywords = ["single-cell", "anndata", "scanpy", "plotnine", "ggplot2", "visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 
 dependencies = [
-    "anndata>=0.9",
-    "scanpy>=1.9",
-    "numpy>=1.23",
-    "pandas>=2.0",
+    "anndata>=0.12,<1",
+    "scanpy>=1.11,<2",
+    "numpy>=1.26,<3",
+    "pandas>=2.2,<4",
+    "scipy>=1.12,<2",
     "plotnine>=0.15.3,<0.17",
-    "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8",
-    "annplyr @ git+https://github.com/mdmanurung/annplyr@c0f0735859a059c3570dfea2ac6f1df322ac582e",
+    "plotnine-extra>=0.3.1,<0.4",
+    "annplyr>=0.3,<0.4",
 ]
 
 [project.optional-dependencies]
-heatmap = ["PyComplexHeatmap>=1.7"]
-density = ["pynebulosa>=0.1.1"]
-upset = ["marsilea>=0.4"]
-pseudobulk = ["decoupler>=2.0"]
-test = ["pytest>=7", "PyComplexHeatmap>=1.7", "pynebulosa>=0.1.1", "marsilea>=0.4", "decoupler>=2.0"]
-dev = ["pytest>=7", "PyComplexHeatmap>=1.7", "pynebulosa>=0.1.1", "marsilea>=0.4", "decoupler>=2.0", "ruff"]
+heatmap = ["PyComplexHeatmap>=1.7,<2"]
+density = ["pynebulosa>=0.1.1,<1"]
+upset = ["marsilea>=0.4,<1"]
+pseudobulk = ["decoupler>=2,<3"]
+test = [
+    "pytest>=8,<9",
+    "pytest-cov>=6,<8",
+    "PyComplexHeatmap>=1.7,<2",
+    "pynebulosa>=0.1.1,<1",
+    "marsilea>=0.4,<1",
+    "decoupler>=2,<3",
+]
 docs = [
-    "sphinx>=8.1",
-    "sphinx-book-theme>=1",
-    "sphinx-autodoc-typehints",
-    "sphinx-copybutton",
-    "sphinx-design",
-    "sphinxext-opengraph",
-    "myst-nb>=1.1",
+    "sphinx>=8.1,<9",
+    "sphinx-book-theme>=1,<2",
+    "sphinx-autodoc-typehints>=3,<4",
+    "sphinx-copybutton>=0.5,<1",
+    "sphinx-design>=0.6,<1",
+    "sphinxext-opengraph>=0.9,<1",
+    "myst-nb>=1.1,<2",
     "ipython",
+]
+benchmark = ["psutil>=6,<8"]
+release = ["build>=1.2,<2", "twine>=6,<7"]
+dev = [
+    "ggann[test,docs,benchmark,release]",
+    "ruff>=0.12,<1",
 ]
 
 [project.urls]
 Homepage = "https://github.com/mdmanurung/ggann"
+Documentation = "https://mdmanurung.github.io/ggann/"
+Source = "https://github.com/mdmanurung/ggann"
+Issues = "https://github.com/mdmanurung/ggann/issues"
+Changelog = "https://github.com/mdmanurung/ggann/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "benchmarks"]
+addopts = ["--strict-config", "--strict-markers"]
 filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "RUF100"]

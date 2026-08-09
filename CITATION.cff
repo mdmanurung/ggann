@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use ggann, please cite this software."
+title: "ggann: a grammar of graphics for AnnData"
+type: software
+authors:
+  - family-names: Manurung
+    given-names: Mikhael
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/mdmanurung/ggann"
+url: "https://mdmanurung.github.io/ggann/"
+keywords:
+  - single-cell
+  - AnnData
+  - Scanpy
+  - plotnine
+  - visualization
