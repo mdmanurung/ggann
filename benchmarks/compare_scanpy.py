@@ -161,9 +161,7 @@ class ComparisonSpec:
         if self.variant != "base":
             qualifiers.append(f"variant={self.variant}")
         qualifier = f"[{','.join(qualifiers)}]" if qualifiers else ""
-        return (
-            f"{prefix}/{self.matrix_format}/{self.source}/{self.workload}{qualifier}"
-        )
+        return f"{prefix}/{self.matrix_format}/{self.source}/{self.workload}{qualifier}"
 
     def fixture_spec(self) -> CaseSpec:
         if self.dataset != "synthetic":
@@ -359,9 +357,7 @@ def _load_fixture(spec: ComparisonSpec) -> tuple[Any, list[str], dict[str, int]]
     adata, genes, input_bytes = _pbmc68k_reduced_fixture()
     storage = adata.X.format if sparse.issparse(adata.X) else "dense"
     if spec.matrix_format != storage:
-        raise ValueError(
-            f"pbmc68k_reduced uses {storage} .X storage, not {spec.matrix_format}"
-        )
+        raise ValueError(f"pbmc68k_reduced uses {storage} .X storage, not {spec.matrix_format}")
     expected = {
         "n_obs": adata.n_obs,
         "n_vars": adata.n_vars,
@@ -880,9 +876,7 @@ def _construct(library: str, adata: Any, genes: list[str], spec: ComparisonSpec)
     if library == "ggann":
         import ggann as ag
 
-        backend_kwargs = (
-            {} if spec.ggann_backend == "plotnine" else {"backend": spec.ggann_backend}
-        )
+        backend_kwargs = {} if spec.ggann_backend == "plotnine" else {"backend": spec.ggann_backend}
         if workload.startswith("embedding_"):
             return ag.plot_embedding(
                 adata,

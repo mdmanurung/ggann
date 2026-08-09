@@ -19,12 +19,13 @@ def _document() -> dict:
         "input_immutable": True,
         "comparability": {"status": "pass"},
         "stages": {
-            stage: {
-                "libraries": {
-                    "ggann": {"repeated": {"median_duration_seconds": value}}
-                }
-            }
-            for stage, value in (("preparation", 0.01), ("end_to_end", 0.5))
+            stage: {"libraries": {"ggann": {"repeated": {"median_duration_seconds": value}}}}
+            for stage, value in (
+                ("preparation", 0.01),
+                ("construction", 0.02),
+                ("render", 0.45),
+                ("end_to_end", 0.5),
+            )
         },
         "isolated_memory": {
             "end_to_end": {
@@ -94,6 +95,20 @@ def test_comparator_fails_metric_above_five_percent():
 
     assert result["status"] == "fail"
     assert any(not check["pass"] for check in result["checks"])
+
+
+def test_comparator_fails_render_regression_above_five_percent():
+    baseline = _document()
+    candidate = deepcopy(baseline)
+    candidate["results"][0]["stages"]["render"]["libraries"]["ggann"]["repeated"][
+        "median_duration_seconds"
+    ] = 0.48
+
+    result = compare_documents(baseline, candidate)
+
+    assert result["status"] == "fail"
+    failed = [check for check in result["checks"] if not check["pass"]]
+    assert [check["metric"] for check in failed] == ["render_median_seconds"]
 
 
 def test_comparator_rejects_environment_mismatch():

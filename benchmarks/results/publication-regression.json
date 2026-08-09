@@ -1,0 +1,187 @@
+{
+  "status": "pass",
+  "max_regression_pct": 5.0,
+  "issues": [],
+  "checks": [
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "preparation_median_seconds",
+      "kind": "timing",
+      "baseline": 0.039829685,
+      "candidate": 0.039944518,
+      "candidate_over_baseline": 1.002883100883173,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "construction_median_seconds",
+      "kind": "timing",
+      "baseline": 0.043780933,
+      "candidate": 0.043854142,
+      "candidate_over_baseline": 1.0016721662829797,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "render_median_seconds",
+      "kind": "timing",
+      "baseline": 0.516347364,
+      "candidate": 0.516490478,
+      "candidate_over_baseline": 1.000277166128808,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "end_to_end_median_seconds",
+      "kind": "timing",
+      "baseline": 0.770674506,
+      "candidate": 0.767435535,
+      "candidate_over_baseline": 0.9957972257097083,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "end_to_end_peak_rss_delta_bytes",
+      "kind": "memory",
+      "baseline": 14819328.0,
+      "candidate": 13807616.0,
+      "candidate_over_baseline": 0.931730237700387,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "workload": "dotplot",
+      "metric": "end_to_end_retained_after_gc_bytes",
+      "kind": "memory",
+      "baseline": 14819328.0,
+      "candidate": 13807616.0,
+      "candidate_over_baseline": 0.931730237700387,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "preparation_median_seconds",
+      "kind": "timing",
+      "baseline": 0.013793559,
+      "candidate": 0.013278955,
+      "candidate_over_baseline": 0.9626924421753661,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "construction_median_seconds",
+      "kind": "timing",
+      "baseline": 0.015052683,
+      "candidate": 0.014357185,
+      "candidate_over_baseline": 0.9537957452501988,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "render_median_seconds",
+      "kind": "timing",
+      "baseline": 0.400124441,
+      "candidate": 0.399288483,
+      "candidate_over_baseline": 0.9979107549693522,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "end_to_end_median_seconds",
+      "kind": "timing",
+      "baseline": 0.769493168,
+      "candidate": 0.764310206,
+      "candidate_over_baseline": 0.9932644470210553,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "end_to_end_peak_rss_delta_bytes",
+      "kind": "memory",
+      "baseline": 26697728.0,
+      "candidate": 26750976.0,
+      "candidate_over_baseline": 1.0019944768333844,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "workload": "embedding_categorical",
+      "metric": "end_to_end_retained_after_gc_bytes",
+      "kind": "memory",
+      "baseline": 25776128.0,
+      "candidate": 24743936.0,
+      "candidate_over_baseline": 0.9599555061179088,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "preparation_median_seconds",
+      "kind": "timing",
+      "baseline": 0.040154111,
+      "candidate": 0.039858106,
+      "candidate_over_baseline": 0.9926282765916545,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "construction_median_seconds",
+      "kind": "timing",
+      "baseline": 0.044549934,
+      "candidate": 0.044968589,
+      "candidate_over_baseline": 1.0093974325528743,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "render_median_seconds",
+      "kind": "timing",
+      "baseline": 0.464765918,
+      "candidate": 0.461646417,
+      "candidate_over_baseline": 0.9932880168721837,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "end_to_end_median_seconds",
+      "kind": "timing",
+      "baseline": 0.698835335,
+      "candidate": 0.699023175,
+      "candidate_over_baseline": 1.0002687900719847,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "end_to_end_peak_rss_delta_bytes",
+      "kind": "memory",
+      "baseline": 15196160.0,
+      "candidate": 14188544.0,
+      "candidate_over_baseline": 0.9336927223719677,
+      "pass": true
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "workload": "matrixplot",
+      "metric": "end_to_end_retained_after_gc_bytes",
+      "kind": "memory",
+      "baseline": 15196160.0,
+      "candidate": 14188544.0,
+      "candidate_over_baseline": 0.9336927223719677,
+      "pass": true
+    }
+  ]
+}

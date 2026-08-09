@@ -54,9 +54,7 @@ def _case_map(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {result["case_id"]: result for result in document.get("results", [])}
 
 
-def _comparability_issues(
-    baseline: dict[str, Any], candidate: dict[str, Any]
-) -> list[str]:
+def _comparability_issues(baseline: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
     issues = []
     for field in ("schema_version", "benchmark_kind"):
         if baseline.get(field) != candidate.get(field):
@@ -100,16 +98,12 @@ def _ratio(candidate: float, baseline: float) -> float:
 
 def _timing_metric(result: dict[str, Any], stage: str) -> float:
     return float(
-        result["stages"][stage]["libraries"]["ggann"]["repeated"][
-            "median_duration_seconds"
-        ]
+        result["stages"][stage]["libraries"]["ggann"]["repeated"]["median_duration_seconds"]
     )
 
 
 def _memory_metric(result: dict[str, Any], metric: str) -> float:
-    return float(
-        result["isolated_memory"]["end_to_end"]["ggann"]["summary"][metric]["median"]
-    )
+    return float(result["isolated_memory"]["end_to_end"]["ggann"]["summary"][metric]["median"])
 
 
 def compare_documents(
@@ -134,7 +128,7 @@ def compare_documents(
     checks = []
     for case_id in sorted(before_cases):
         workload = before_cases[case_id]["parameters"]["workload"]
-        for stage in ("preparation", "end_to_end"):
+        for stage in ("preparation", "construction", "render", "end_to_end"):
             before = _timing_metric(before_cases[case_id], stage)
             after = _timing_metric(after_cases[case_id], stage)
             ratio = _ratio(after, before)
