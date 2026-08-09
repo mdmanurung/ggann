@@ -104,22 +104,70 @@ def _provenance() -> dict[str, Any]:
     }
 
 
-def snapshot(output: Path) -> None:
+def _artist_contract(figure) -> dict[str, Any]:
+    from matplotlib.collections import PathCollection, PolyCollection, QuadMesh
+    from matplotlib.text import Text
+
+    plot_axes = [axis for axis in figure.axes if not hasattr(axis, "_colorbar")]
+    collections = [artist for axis in plot_axes for artist in axis.collections]
+    paths = [artist for artist in collections if isinstance(artist, PathCollection)]
+    meshes = [artist for artist in collections if isinstance(artist, QuadMesh)]
+    polygons = [
+        artist
+        for artist in collections
+        if isinstance(artist, PolyCollection) and not isinstance(artist, QuadMesh)
+    ]
+    return {
+        "plot_axes": len(plot_axes),
+        "guide_axes": len(figure.axes) - len(plot_axes),
+        "collections": len(collections),
+        "collection_classes": [type(artist).__name__ for artist in collections],
+        "path_collections": len(paths),
+        "quad_meshes": len(meshes),
+        "represented_points": sum(len(artist.get_offsets()) for artist in paths),
+        "represented_tiles": sum(int(artist.get_array().size) for artist in meshes)
+        + sum(len(artist.get_paths()) for artist in polygons),
+        "rasterized_collections": sum(bool(artist.get_rasterized()) for artist in collections),
+        "visible_text": sorted(
+            {
+                artist.get_text()
+                for artist in figure.findobj(match=Text)
+                if artist.get_visible() and artist.get_text()
+            }
+        ),
+    }
+
+
+def snapshot(output: Path, *, backend: str = "plotnine") -> None:
     import scanpy as sc
 
     import ggann as ag
     from ggann._aggregate import aggregate_expression
     from ggann._resolve import resolve_frame
 
+    try:
+        from benchmarks.compare_scanpy import _adata_digest
+    except ModuleNotFoundError:
+        from compare_scanpy import _adata_digest
+
     output.mkdir(parents=True, exist_ok=True)
     adata = sc.datasets.pbmc68k_reduced()
+    input_fingerprint_before = _adata_digest(adata)
     genes = [gene for gene in ("CD3D", "NKG7", "CST3", "GNLY") if gene in adata.raw.var_names]
     group_by = "bulk_labels"
+    backend_kwargs = {} if backend == "plotnine" else {"backend": backend}
 
     plots = {
-        "embedding": ag.plot_embedding(adata, "umap", color=genes[0], use_raw=True, downsample=300),
-        "dotplot": ag.plot_dotplot(adata, genes, group_by),
-        "matrixplot": ag.plot_matrixplot(adata, genes, group_by),
+        "embedding": ag.plot_embedding(
+            adata,
+            "umap",
+            color=genes[0],
+            use_raw=True,
+            downsample=300,
+            **backend_kwargs,
+        ),
+        "dotplot": ag.plot_dotplot(adata, genes, group_by, **backend_kwargs),
+        "matrixplot": ag.plot_matrixplot(adata, genes, group_by, **backend_kwargs),
         "heatmap": ag.plot_heatmap(
             adata,
             genes,
@@ -137,10 +185,11 @@ def snapshot(output: Path) -> None:
     }
 
     manifest: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "provenance": _provenance(),
         "dataset": "scanpy.datasets.pbmc68k_reduced",
         "shape": list(adata.shape),
+        "input_fingerprint_before": input_fingerprint_before,
         "genes": genes,
         "group_by": group_by,
         "parameters": {
@@ -150,11 +199,14 @@ def snapshot(output: Path) -> None:
             "render_width": 6,
             "render_height": 4.5,
             "render_dpi": 80,
+            "backend": backend,
         },
         "frames": {},
         "mappings": {name: _mapping(plot) for name, plot in plots.items()},
         "plot_contracts": {name: _plot_contract(plot) for name, plot in plots.items()},
         "images": {},
+        "artists": {},
+        "vectors": {},
     }
     for name, frame in frames.items():
         filename = f"{name}.pkl"
@@ -167,8 +219,24 @@ def snapshot(output: Path) -> None:
 
     for name, plot in plots.items():
         filename = f"{name}.png"
-        plot.save(output / filename, width=6, height=4.5, dpi=80, verbose=False)
+        figure = plot.draw(show=False)
+        figure.set_size_inches(6, 4.5, forward=True)
+        figure.savefig(output / filename, format="png", dpi=80)
         manifest["images"][name] = filename
+        manifest["artists"][name] = _artist_contract(figure)
+        if name in {"embedding", "dotplot", "matrixplot"}:
+            vector_name = f"{name}.svg"
+            figure.savefig(output / vector_name, format="svg")
+            vector_text = (output / vector_name).read_text()
+            manifest["vectors"][name] = {
+                "file": vector_name,
+                "contains_embedded_image": "<image" in vector_text,
+                "bytes": (output / vector_name).stat().st_size,
+            }
+
+    input_fingerprint_after = _adata_digest(adata)
+    manifest["input_fingerprint_after"] = input_fingerprint_after
+    manifest["input_immutable"] = input_fingerprint_before == input_fingerprint_after
 
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
@@ -187,6 +255,7 @@ def compare(
     allowed_image_differences: set[str] | None = None,
     image_mean_tolerance: float = 1e-4,
     image_psnr_min: float = math.inf,
+    allow_backend_difference: bool = False,
 ) -> bool:
     before = json.loads((baseline / "manifest.json").read_text())
     after = json.loads((candidate / "manifest.json").read_text())
@@ -205,11 +274,24 @@ def compare(
         "shape",
         "genes",
         "group_by",
-        "parameters",
+        "input_fingerprint_before",
+        "input_fingerprint_after",
+        "input_immutable",
     ):
         if before.get(name) != after.get(name):
             failures.append(f"manifest {name} differs")
             comparable = False
+    if not before.get("input_immutable") or not after.get("input_immutable"):
+        failures.append("AnnData fingerprint changed during snapshot")
+        comparable = False
+    before_parameters = dict(before.get("parameters", {}))
+    after_parameters = dict(after.get("parameters", {}))
+    if allow_backend_difference:
+        before_parameters.pop("backend", None)
+        after_parameters.pop("backend", None)
+    if before_parameters != after_parameters:
+        failures.append("manifest parameters differs")
+        comparable = False
     before_provenance = before.get("provenance", {})
     after_provenance = after.get("provenance", {})
     for name in ("python", "platform", "packages", "thread_settings"):
@@ -258,6 +340,49 @@ def compare(
         f"| plot labels and scales | {'pass' if contracts_equal else 'fail'} | exact comparison |"
     )
 
+    for name in before["images"]:
+        before_artists = before.get("artists", {}).get(name)
+        after_artists = after.get("artists", {}).get(name)
+        if before_artists is None or after_artists is None:
+            failures.append(f"artists {name}: contract missing")
+            lines.append(f"| `{name}` artists | fail | artist contract missing |")
+            continue
+        semantic_fields = (
+            "collections",
+            "represented_points",
+            "represented_tiles",
+            "rasterized_collections",
+            "visible_text",
+        )
+        fields = semantic_fields if allow_backend_difference else tuple(before_artists)
+        equal = all(before_artists.get(field) == after_artists.get(field) for field in fields)
+        if not equal:
+            failures.append(f"artists {name}: semantic contract changed")
+        lines.append(
+            f"| `{name}` artists | {'pass' if equal else 'fail'} | "
+            f"{after_artists['represented_points']} points; "
+            f"{after_artists['represented_tiles']} tiles; "
+            f"{after_artists['rasterized_collections']} rasterized collections; "
+            "guide and axis text exact |"
+        )
+
+    for name in ("embedding", "dotplot", "matrixplot"):
+        before_vector = before.get("vectors", {}).get(name)
+        after_vector = after.get("vectors", {}).get(name)
+        equal = (
+            before_vector is not None
+            and after_vector is not None
+            and not before_vector.get("contains_embedded_image", True)
+            and not after_vector.get("contains_embedded_image", True)
+            and (candidate / after_vector["file"]).is_file()
+        )
+        if not equal:
+            failures.append(f"vector {name}: embedded raster or artifact missing")
+        lines.append(
+            f"| `{name}` SVG | {'pass' if equal else 'fail'} | "
+            "vector collections; no embedded image |"
+        )
+
     allowed_image_differences = allowed_image_differences or set()
     for name, filename in before["images"].items():
         left = _image(baseline / filename)
@@ -302,6 +427,11 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     snapshot_parser = subparsers.add_parser("snapshot")
     snapshot_parser.add_argument("--output", type=Path, required=True)
+    snapshot_parser.add_argument(
+        "--backend",
+        choices=("plotnine", "matplotlib"),
+        default="plotnine",
+    )
     compare_parser = subparsers.add_parser("compare")
     compare_parser.add_argument("baseline", type=Path)
     compare_parser.add_argument("candidate", type=Path)
@@ -315,13 +445,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     compare_parser.add_argument("--image-mean-tolerance", type=float, default=1e-4)
     compare_parser.add_argument("--image-psnr-min", type=float, default=math.inf)
+    compare_parser.add_argument("--allow-backend-difference", action="store_true")
     return parser
 
 
 def main() -> int:
     args = _parser().parse_args()
     if args.command == "snapshot":
-        snapshot(args.output)
+        snapshot(args.output, backend=args.backend)
         return 0
     return (
         0
@@ -332,6 +463,7 @@ def main() -> int:
             allowed_image_differences=set(args.allow_image_difference),
             image_mean_tolerance=args.image_mean_tolerance,
             image_psnr_min=args.image_psnr_min,
+            allow_backend_difference=args.allow_backend_difference,
         )
         else 1
     )

@@ -7,9 +7,11 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pandas as pd
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from plotnine import aes, geom_point, ggplot, labs, scale_color_continuous
 
-from benchmarks.check_invariance import _plot_contract, _provenance
+from benchmarks.check_invariance import _artist_contract, _plot_contract, _provenance
 from benchmarks.compare_results import _comparability_issues
 from benchmarks.run_benchmarks import (
     CaseSpec,
@@ -128,6 +130,23 @@ class ArtifactContractTests(unittest.TestCase):
         self.assertEqual(contract["labels"]["x"], "horizontal")
         self.assertEqual(contract["labels"]["color"], "signal")
         self.assertEqual(contract["scales"][0]["aesthetics"], ["color"])
+
+    def test_artist_contract_counts_plot_payload_but_not_colorbar_artists(self) -> None:
+        figure = Figure()
+        FigureCanvasAgg(figure)
+        axis = figure.add_subplot(111)
+        points = axis.scatter([0, 1, 2], [2, 1, 0], c=[0, 1, 2])
+        figure.colorbar(points, ax=axis)
+        figure.canvas.draw()
+
+        contract = _artist_contract(figure)
+
+        self.assertEqual(contract["plot_axes"], 1)
+        self.assertEqual(contract["guide_axes"], 1)
+        self.assertEqual(contract["collections"], 1)
+        self.assertEqual(contract["represented_points"], 3)
+        self.assertEqual(contract["represented_tiles"], 0)
+        self.assertEqual(contract["rasterized_collections"], 0)
 
 
 class ScalingTests(unittest.TestCase):
