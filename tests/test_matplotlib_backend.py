@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 from anndata import AnnData, read_h5ad
 from matplotlib.collections import PathCollection, QuadMesh
+from matplotlib.colors import to_rgba
 from pandas.testing import assert_frame_equal
 from PIL import Image
 from plotnine import ggplot, theme
@@ -151,8 +152,28 @@ def test_fast_backend_continuous_color_and_input_immutability(adata):
     )
     figure = plot.draw(show=False)
     assert len(figure.axes) == 2
+    assert figure.axes[0].get_xlabel() == "UMAP_1"
+    assert figure.axes[0].get_ylabel() == "UMAP_2"
+    assert np.allclose(figure.axes[0].collections[0].cmap.get_bad(), to_rgba("#7F7F7F"))
     assert pd.api.types.is_numeric_dtype(plot.data["n_genes"])
     assert _adata_digest(adata) == before
+
+
+def test_dotplot_direct_guide_uses_plotnine_continuous_breaks():
+    with pytest.warns(UserWarning, match="Observation names are not unique"):
+        adata = _source_adata("dense")
+    plot = ag.plot_dotplot(
+        adata,
+        ["g3", "g1", "g2"],
+        "group",
+        backend="matplotlib",
+    )
+    figure = plot.draw(show=False)
+    legend = figure.axes[0].get_legend()
+
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == ["40%", "50%", "60%"]
+    assert [float(value) for value in figure.axes[1].get_yticks()] == [0.5, 1.0, 1.5, 2.0]
 
 
 @pytest.mark.parametrize(

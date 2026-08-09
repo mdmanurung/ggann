@@ -14,10 +14,12 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from matplotlib import colormaps
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from mizani.breaks import breaks_extended
 from mizani.palettes import area_pal, hue_pal
 from plotnine import ggplot
 
@@ -121,11 +123,16 @@ class MatplotlibGGPlot(ggplot):
         return figure
 
 
-def _new_figure(*, right: float) -> tuple[Figure, Any]:
+def _new_figure(
+    *,
+    left: float,
+    right: float,
+    bottom: float,
+    top: float,
+) -> tuple[Figure, Any]:
     figure = Figure(figsize=(6.4, 4.8))
     FigureCanvasAgg(figure)
-    axis = figure.add_subplot(111)
-    figure.subplots_adjust(left=0.13, right=right, bottom=0.22, top=0.95)
+    axis = figure.add_axes((left, bottom, right - left, top - bottom))
     axis.grid(False)
     for spine in axis.spines.values():
         spine.set_color("black")
@@ -194,7 +201,8 @@ def _embedding_colors(
 
 
 def _draw_embedding(spec: _RenderSpec) -> Figure:
-    figure, axis = _new_figure(right=0.78)
+    right = 0.72 if spec.categorical else (0.84 if spec.value is not None else 0.95)
+    figure, axis = _new_figure(left=0.08, right=right, bottom=0.13, top=0.97)
     x = spec.data[spec.x].to_numpy(copy=False)
     y = spec.data[spec.y].to_numpy(copy=False)
     area = np.pi * (spec.point_size + 0.5) ** 2
@@ -216,29 +224,32 @@ def _draw_embedding(spec: _RenderSpec) -> Figure:
             handles=handles,
             title=spec.value,
             loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
+            bbox_to_anchor=(0.75, 0.52),
+            bbox_transform=figure.transFigure,
             borderaxespad=0,
             frameon=False,
             fontsize=8,
             title_fontsize=9,
         )
     else:
-        cmap = LinearSegmentedColormap.from_list("ggann_expression", [spec.low, spec.high])
+        cmap = LinearSegmentedColormap.from_list(
+            "ggann_expression", [spec.low, spec.high]
+        ).with_extremes(bad="#7F7F7F")
+        values = spec.data[spec.value].to_numpy(dtype=float, copy=False)
         collection = axis.scatter(
             x,
             y,
             s=area,
             alpha=spec.alpha,
             linewidths=0,
-            c=spec.data[spec.value].to_numpy(dtype=float, copy=False),
+            c=values,
             cmap=cmap,
         )
-        colorbar = figure.colorbar(collection, ax=axis, fraction=0.05, pad=0.04)
-        if colorbar.solids is not None:
-            colorbar.solids.set_rasterized(False)
-        colorbar.set_label(spec.value)
-    axis.set_xlabel("")
-    axis.set_ylabel("")
+        colorbar_axis = figure.add_axes((0.88, 0.32, 0.035, 0.48))
+        colorbar = figure.colorbar(collection, cax=colorbar_axis)
+        _configure_colorbar(colorbar, spec.value, values)
+    axis.set_xlabel(spec.x)
+    axis.set_ylabel(spec.y)
     axis.set_xticks([])
     axis.set_yticks([])
     return figure
@@ -258,11 +269,40 @@ def _numeric_limits(values: np.ndarray) -> tuple[float, float]:
     return (low, high) if high > low else (low - 0.5, high + 0.5)
 
 
-def _dot_sizes(values: np.ndarray, size_range: tuple[float, float]) -> np.ndarray:
-    low, high = _numeric_limits(values)
+def _scale_breaks(values: np.ndarray) -> np.ndarray:
+    """Return the same extended continuous breaks used by plotnine scales."""
+    finite = values[np.isfinite(values)]
+    if not len(finite):
+        return np.empty(0, dtype=float)
+    low, high = float(finite.min()), float(finite.max())
+    breaks = np.asarray(breaks_extended()((low, high)), dtype=float)
+    tolerance = np.finfo(float).eps * max(1.0, abs(low), abs(high)) * 8
+    return breaks[
+        np.isfinite(breaks)
+        & (breaks >= low - tolerance)
+        & (breaks <= high + tolerance)
+    ]
+
+
+def _dot_sizes(
+    values: np.ndarray,
+    size_range: tuple[float, float],
+    *,
+    limits: tuple[float, float] | None = None,
+) -> np.ndarray:
+    low, high = _numeric_limits(values) if limits is None else limits
     scaled = np.zeros_like(values, dtype=float) if high == low else (values - low) / (high - low)
     sizes = area_pal(size_range)(np.clip(scaled, 0, 1))
     return np.pi * (sizes + 0.5) ** 2
+
+
+def _configure_colorbar(colorbar, label: str, values: np.ndarray) -> None:
+    if colorbar.solids is not None:
+        colorbar.solids.set_rasterized(False)
+    ticks = _scale_breaks(values)
+    if len(ticks):
+        colorbar.set_ticks(ticks)
+    colorbar.ax.set_title(label, fontsize=9, loc="left", pad=6)
 
 
 def _set_discrete_axes(axis, x_levels: list[Any], y_levels: list[Any]) -> None:
@@ -275,30 +315,44 @@ def _set_discrete_axes(axis, x_levels: list[Any], y_levels: list[Any]) -> None:
     axis.set_ylabel("")
 
 
+def _discrete_left_margin(levels: list[Any]) -> float:
+    longest = max((len(str(value)) for value in levels), default=0)
+    return min(0.55, max(0.16, 0.05 + 0.0105 * longest))
+
+
 def _draw_dotplot(spec: _RenderSpec) -> Figure:
-    figure, axis = _new_figure(right=0.76)
     x_levels = _axis_categories(spec.data[spec.x])
     y_levels = _axis_categories(spec.data[spec.y])
+    figure, axis = _new_figure(
+        left=_discrete_left_margin(y_levels),
+        right=0.82,
+        bottom=0.14,
+        top=0.97,
+    )
     x_lookup = {value: index for index, value in enumerate(x_levels)}
     y_lookup = {value: index for index, value in enumerate(y_levels)}
     x = np.fromiter((x_lookup[value] for value in spec.data[spec.x]), dtype=float)
     y = np.fromiter((y_lookup[value] for value in spec.data[spec.y]), dtype=float)
     fractions = spec.data[spec.fraction].to_numpy(dtype=float, copy=False)
     values = spec.data[spec.value].to_numpy(dtype=float, copy=False)
+    cmap = colormaps[spec.cmap].with_extremes(bad="#7F7F7F")
     collection = axis.scatter(
         x,
         y,
         s=_dot_sizes(fractions, spec.size_range),
         c=values,
-        cmap=spec.cmap,
+        cmap=cmap,
         linewidths=0,
     )
-    colorbar = figure.colorbar(collection, ax=axis, fraction=0.05, pad=0.04)
-    if colorbar.solids is not None:
-        colorbar.solids.set_rasterized(False)
-    colorbar.set_label(spec.value_label)
-    fraction_ticks = np.unique(np.quantile(fractions[np.isfinite(fractions)], [0, 0.5, 1]))
-    proxy_sizes = _dot_sizes(fraction_ticks, spec.size_range)
+    colorbar_axis = figure.add_axes((0.85, 0.58, 0.035, 0.29))
+    colorbar = figure.colorbar(collection, cax=colorbar_axis)
+    _configure_colorbar(colorbar, spec.value_label, values)
+    fraction_ticks = _scale_breaks(fractions)
+    proxy_sizes = _dot_sizes(
+        fraction_ticks,
+        spec.size_range,
+        limits=_numeric_limits(fractions),
+    )
     handles = [
         Line2D(
             [],
@@ -314,8 +368,9 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     axis.legend(
         handles=handles,
         title=spec.fraction_label,
-        loc="lower left",
-        bbox_to_anchor=(1.24, 0),
+        loc="upper left",
+        bbox_to_anchor=(0.84, 0.45),
+        bbox_transform=figure.transFigure,
         borderaxespad=0,
         frameon=False,
         fontsize=8,
@@ -326,26 +381,31 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
 
 
 def _draw_matrixplot(spec: _RenderSpec) -> Figure:
-    figure, axis = _new_figure(right=0.82)
     x_levels = _axis_categories(spec.data[spec.x])
     y_levels = _axis_categories(spec.data[spec.y])
+    figure, axis = _new_figure(
+        left=_discrete_left_margin(y_levels),
+        right=0.82,
+        bottom=0.14,
+        top=0.97,
+    )
     matrix = (
         spec.data.pivot(index=spec.y, columns=spec.x, values=spec.value)
         .reindex(index=y_levels, columns=x_levels)
         .to_numpy(dtype=float)
     )
+    cmap = colormaps[spec.cmap].with_extremes(bad="#7F7F7F")
     mesh = axis.pcolormesh(
         np.arange(len(x_levels) + 1) - 0.5,
         np.arange(len(y_levels) + 1) - 0.5,
         matrix,
-        cmap=spec.cmap,
+        cmap=cmap,
         shading="flat",
         rasterized=False,
     )
-    colorbar = figure.colorbar(mesh, ax=axis, fraction=0.05, pad=0.04)
-    if colorbar.solids is not None:
-        colorbar.solids.set_rasterized(False)
-    colorbar.set_label(spec.value_label)
+    colorbar_axis = figure.add_axes((0.85, 0.39, 0.035, 0.43))
+    colorbar = figure.colorbar(mesh, cax=colorbar_axis)
+    _configure_colorbar(colorbar, spec.value_label, matrix.ravel())
     _set_discrete_axes(axis, x_levels, y_levels)
     return figure
 
