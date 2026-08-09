@@ -71,6 +71,14 @@ from .plots import (
     plot_matrixplot,
 )
 from .pseudobulk import pseudobulk
+from .publication import (
+    PublicationStyle,
+    publication_palette,
+    publication_style,
+    save_publication,
+    style_context,
+    theme_publication,
+)
 from .qc import (
     plot_highest_expr_genes,
     plot_qc_scatter,
@@ -136,6 +144,12 @@ __all__ = [
     "plot_correlation",
     "plot_upset",
     "theme_ggann",
+    "PublicationStyle",
+    "publication_style",
+    "theme_publication",
+    "style_context",
+    "publication_palette",
+    "save_publication",
     "set_theme",
     "reset_theme",
     "sizes",

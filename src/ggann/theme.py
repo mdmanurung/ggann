@@ -239,6 +239,15 @@ def scale_color_expression(cmap: str = "Reds", **kwargs):
     --------
     >>> p = p + scale_color_expression("magma")
     """
+    # Import lazily because publication styling itself builds on ``theme_ggann``.
+    # A user scale added after this one still wins through plotnine's grammar.
+    from .publication import _active_style
+
+    style = _active_style()
+    if style is not None:
+        if cmap == "Reds":
+            cmap = style.sequential_cmap
+        kwargs.setdefault("na_value", style.missing_color)
     return pe.scale_color_cmap(cmap_name=cmap, **kwargs)
 
 
@@ -274,6 +283,13 @@ def scale_fill_expression(cmap: str = "viridis", **kwargs):
     --------
     >>> p = p + scale_fill_expression("viridis")
     """
+    from .publication import _active_style
+
+    style = _active_style()
+    if style is not None:
+        if cmap == "viridis":
+            cmap = style.sequential_cmap
+        kwargs.setdefault("na_value", style.missing_color)
     return pe.scale_fill_cmap(cmap_name=cmap, **kwargs)
 
 
