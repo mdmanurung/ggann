@@ -150,8 +150,11 @@ def test_plot_features_dedup_duplicates(adata):
 
 def test_split_by_equals_color(adata, group_key, tmp_path):
     # split_by and color naming the same obs column must not crash on the join
-    _renders(ag.plot_embedding(adata, "umap", color=group_key, split_by=group_key),
-             tmp_path, "splitcolor")
+    _renders(
+        ag.plot_embedding(adata, "umap", color=group_key, split_by=group_key),
+        tmp_path,
+        "splitcolor",
+    )
 
 
 def test_volcano_requires_pvalues(adata):

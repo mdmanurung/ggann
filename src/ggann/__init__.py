@@ -76,7 +76,6 @@ from .qc import (
     plot_qc_violin,
     plot_variance_ratio,
 )
-from .upset import plot_upset
 from .theme import (
     reset_theme,
     scale_color_celltype,
@@ -89,6 +88,7 @@ from .theme import (
     sizes,
     theme_ggann,
 )
+from .upset import plot_upset
 
 try:
     __version__ = version("ggann")

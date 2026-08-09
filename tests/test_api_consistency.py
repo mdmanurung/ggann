@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
-import warnings
 
 import pytest
 
@@ -22,9 +22,7 @@ def de_adata(adata):
 def test_rank_genes_helpers_accept_canonical_group_by(de_adata):
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
-        plot = ag.plot_rank_genes_matrixplot(
-            de_adata, n_genes=2, group_by="bulk_labels"
-        )
+        plot = ag.plot_rank_genes_matrixplot(de_adata, n_genes=2, group_by="bulk_labels")
     assert "bulk_labels" in plot.data.columns
 
 

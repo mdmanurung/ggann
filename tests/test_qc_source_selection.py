@@ -1,9 +1,9 @@
 """Regression tests for QC expression-source selection."""
 
-from anndata import AnnData
 import numpy as np
 import pandas as pd
 import pytest
+from anndata import AnnData
 
 import ggann as ag
 

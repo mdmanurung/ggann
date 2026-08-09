@@ -53,8 +53,12 @@ def counts_adata(adata):
 
 def test_pseudobulk_returns_anndata(counts_adata):
     pb = ag.pseudobulk(
-        counts_adata, sample_col="donor", group_by="bulk_labels", layer="counts",
-        min_cells=1, skip_checks=True,
+        counts_adata,
+        sample_col="donor",
+        group_by="bulk_labels",
+        layer="counts",
+        min_cells=1,
+        skip_checks=True,
     )
     from anndata import AnnData
 
@@ -66,11 +70,16 @@ def test_pseudobulk_returns_anndata(counts_adata):
 def test_grammar_and_helpers_work_on_pseudobulk(counts_adata):
     # the whole point: the pseudobulk AnnData plugs straight back into ggann
     pb = ag.pseudobulk(
-        counts_adata, sample_col="donor", group_by="bulk_labels", layer="counts",
-        min_cells=1, skip_checks=True,
+        counts_adata,
+        sample_col="donor",
+        group_by="bulk_labels",
+        layer="counts",
+        min_cells=1,
+        skip_checks=True,
     )
-    from ggann import aes, gene, gganndata
     from plotnine import geom_boxplot
+
+    from ggann import aes, gene, gganndata
 
     _build(gganndata(pb, aes("bulk_labels", gene("CD3D"), fill="donor")) + geom_boxplot())
     _build(ag.plot_dotplot(pb, ["CD3D", "NKG7", "CST3"], "bulk_labels", use_raw=False))

@@ -51,9 +51,7 @@ def test_proportions_bad_kind(adata, group_key):
         ag.plot_proportions(adata, group_key, kind="pie")
 
 
-@pytest.mark.parametrize(
-    "group_by, split_by", [("missing", None), ("group", "missing")]
-)
+@pytest.mark.parametrize("group_by, split_by", [("missing", None), ("group", "missing")])
 def test_proportions_rejects_missing_grouping_columns(group_by, split_by):
     adata = AnnData(
         np.ones((2, 1)),
@@ -70,12 +68,8 @@ def test_proportions_drops_unused_categorical_levels():
         np.ones((4, 1)),
         obs=pd.DataFrame(
             {
-                "group": pd.Categorical(
-                    ["a", "a", "b", "b"], categories=["a", "b", "empty"]
-                ),
-                "split": pd.Categorical(
-                    ["x", "y", "x", "y"], categories=["x", "y", "empty"]
-                ),
+                "group": pd.Categorical(["a", "a", "b", "b"], categories=["a", "b", "empty"]),
+                "split": pd.Categorical(["x", "y", "x", "y"], categories=["x", "y", "empty"]),
             },
             index=[f"cell_{index}" for index in range(4)],
         ),

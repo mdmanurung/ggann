@@ -39,9 +39,7 @@ def _resolve_group_order(
     category_set = set(categories)
     missing = [value for value in present if value not in category_set]
     if missing:
-        raise ValueError(
-            f"categories_order is missing groups present in the data: {missing}"
-        )
+        raise ValueError(f"categories_order is missing groups present in the data: {missing}")
     return categories
 
 
@@ -52,9 +50,7 @@ def _order_groups(
 ) -> pd.DataFrame:
     """Apply a validated, unordered categorical axis to ``frame`` in place."""
     categories = _resolve_group_order(frame, group_by, categories_order)
-    frame[group_by] = pd.Categorical(
-        frame[group_by], categories=categories, ordered=False
-    )
+    frame[group_by] = pd.Categorical(frame[group_by], categories=categories, ordered=False)
     frame[group_by] = frame[group_by].cat.remove_unused_categories()
     return frame
 

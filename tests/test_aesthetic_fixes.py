@@ -24,9 +24,7 @@ def test_highest_expr_on_raw_is_clean(adata):
     import warnings
 
     with warnings.catch_warnings():
-        warnings.simplefilter(
-            "error"
-        )  # .raw (log-norm) must NOT trigger the scaled warning
+        warnings.simplefilter("error")  # .raw (log-norm) must NOT trigger the scaled warning
         _build(ag.plot_highest_expr_genes(adata, n=10, use_raw=True))
 
 
