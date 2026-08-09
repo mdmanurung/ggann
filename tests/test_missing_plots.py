@@ -77,11 +77,11 @@ def test_heatmap_builds_and_scales(adata, markers, group_key):
 
 
 def test_dendrogram_builds_and_autocomputes(adata, group_key):
-    ad = adata.copy()  # auto-compute writes to uns; isolate the shared fixture
+    ad = adata.copy()
     ad.uns.pop(f"dendrogram_{group_key}", None)
     plot = ag.plot_dendrogram(ad, group_key)
     assert isinstance(plot, p9.ggplot)
-    assert f"dendrogram_{group_key}" in ad.uns  # computed on demand
+    assert f"dendrogram_{group_key}" not in ad.uns
     plot._build()
     ag.plot_dendrogram(ad, group_key, orientation="left")._build()
 
@@ -95,7 +95,7 @@ def test_dendrogram_custom_key_autocomputes_into_that_key(adata, group_key):
     ad = adata.copy()
     ad.uns.pop(f"dendrogram_{group_key}", None)
     plot = ag.plot_dendrogram(ad, group_key, key="my_dendro")
-    assert "my_dendro" in ad.uns  # written where it is then read (was a KeyError)
+    assert "my_dendro" not in ad.uns
     plot._build()
 
 

@@ -19,16 +19,18 @@ from plotnine import (
     aes,
     coord_equal,
     element_blank,
-    geom_text,
     geom_tile,
     ggplot,
     labs,
     scale_fill_cmap,
+    scale_fill_gradient2,
     theme,
 )
 
 from ._aggregate import group_means
-from .theme import theme_ggann
+from ._annotation import annotation_threshold, geom_contrast_text
+from ._expression import ordered_unique
+from .publication import _active_style, _family_theme
 
 __all__ = ["plot_correlation"]
 
@@ -63,7 +65,7 @@ def _cluster_order(corr: pd.DataFrame) -> list[str]:
     np.fill_diagonal(dist, 0.0)
     dist = (dist + dist.T) / 2.0  # enforce symmetry for squareform
     order = leaves_list(linkage(squareform(dist, checks=False), method="average"))
-    return [corr.columns[i] for i in order]
+    return [str(corr.columns[int(i)]) for i in order]
 
 
 def _fill_scale(values: pd.Series, cmap: str | None):
@@ -77,10 +79,28 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     finite = finite[np.isfinite(finite)]
     lo = float(finite.min()) if finite.size else -1.0
     if cmap is not None:
-        return scale_fill_cmap(cmap_name=cmap, limits=(lo, 1.0))
+        style = _active_style()
+        kwargs = {"na_value": style.missing_color} if style is not None else {}
+        return scale_fill_cmap(cmap_name=cmap, limits=(lo, 1.0), **kwargs)
+    style = _active_style()
     if lo < 0.0:  # mixed sign -> diverging, white centred on zero
         m = float(np.abs(finite).max()) if finite.size else 1.0
+        if style is not None:
+            return scale_fill_gradient2(
+                low=style.diverging[0],
+                mid=style.diverging[1],
+                high=style.diverging[2],
+                midpoint=0,
+                limits=(-m, m),
+                na_value=style.missing_color,
+            )
         return scale_fill_cmap(cmap_name="RdBu_r", limits=(-m, m))
+    if style is not None:
+        return scale_fill_cmap(
+            cmap_name=style.sequential_cmap,
+            limits=(lo, 1.0),
+            na_value=style.missing_color,
+        )
     return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
 
 
@@ -93,8 +113,9 @@ def plot_correlation(
     use_raw: bool | None = None,
     method: str = "pearson",
     cluster: bool = True,
-    annotate: bool = False,
+    annotate: bool | str = False,
     cmap: str | None = None,
+    rasterized: bool = False,
 ):
     """Correlation heatmap between the mean-expression profiles of each group.
 
@@ -102,13 +123,57 @@ def plot_correlation(
     ``method`` is any :meth:`pandas.DataFrame.corr` method (``"pearson"`` /
     ``"spearman"`` / ``"kendall"``). With ``cluster=True`` the axes are reordered by
     hierarchical clustering; ``annotate=True`` prints each correlation in its cell.
-    ``cmap=None`` picks an honest scale automatically (sequential when every
-    correlation is positive, diverging centred on zero when signs mix); pass a name
-    to force one.
+    ``cmap=None`` uses a sequential scale when all correlations are positive and a
+    zero-centred diverging scale when signs differ. Pass a colormap name to set it
+    explicitly.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    group_by : str
+        Observation column defining mean profiles.
+    genes : sequence of str, optional
+        Genes included in profile correlations.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    method : {"pearson", "spearman", "kendall"}
+        Pandas correlation method.
+    cluster : bool
+        Hierarchically order groups.
+    annotate : bool or {"auto", "force"}
+        Print correlation coefficients. ``"auto"`` labels only cells at least
+        12 points wide and high; ``"force"`` always labels. ``True`` is an
+        alias for ``"force"``.
+    cmap : str, optional
+        Explicit Matplotlib colormap.
+    rasterized : bool, default=False
+        Rasterize the heatmap tiles while retaining vector labels and guides.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable correlation heatmap.
+
+    Raises
+    ------
+    KeyError
+        If genes, grouping metadata, or a layer are missing.
+    ValueError
+        If fewer than two genes resolve or method/source selection is invalid.
+
+    Notes
+    -----
+    Requested genes are projected and sparse-aggregated before the small group
+    correlation matrix is materialized. ``adata`` is unchanged.
+
+    Examples
+    --------
+    >>> p = plot_correlation(adata, group_by="cell_type", genes=["CD3D", "NKG7"])
     """
     if genes is None:
         genes = _default_genes(adata)
-    genes = list(genes)
+    genes = ordered_unique(genes)
     if len(genes) < 2:
         raise ValueError("plot_correlation needs at least two genes to correlate profiles.")
 
@@ -128,14 +193,21 @@ def plot_correlation(
 
     plot = (
         ggplot(long, aes("col", "row", fill="corr"))
-        + geom_tile()
+        + geom_tile(raster=rasterized)
         + _fill_scale(long["corr"], cmap)
         + coord_equal()
         + labs(x="", y="", fill=f"{method}\ncorrelation")
-        + theme_ggann()
+        + _family_theme("matrix")
         + theme(axis_ticks=element_blank())
         + pe.rotate_x_text(45)
     )
-    if annotate:
-        plot = plot + geom_text(aes(label="corr"), format_string="{:.2f}", size=7)
+    threshold = annotation_threshold(annotate)
+    if threshold is not None:
+        style = _active_style()
+        plot = plot + geom_contrast_text(
+            aes(label="corr"),
+            format_string="{:.2f}",
+            min_cell_pt=threshold,
+            size=style.axis_text_size if style is not None else 7,
+        )
     return plot

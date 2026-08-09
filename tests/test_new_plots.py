@@ -66,9 +66,7 @@ def test_plot_correlation(adata, group_key):
 
 
 def test_plot_correlation_annotated_genes(adata, markers, group_key):
-    _is_ggplot(
-        ag.plot_correlation(adata, group_key, genes=markers, cluster=False, annotate=True)
-    )
+    _is_ggplot(ag.plot_correlation(adata, group_key, genes=markers, cluster=False, annotate=True))
 
 
 def test_plot_embedding_labelled(adata, group_key):

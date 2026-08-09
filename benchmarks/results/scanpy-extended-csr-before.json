@@ -1,0 +1,4319 @@
+{
+  "schema_version": 1,
+  "benchmark_kind": "ggann_scanpy_matched",
+  "metadata": {
+    "label": "ggann-vs-scanpy",
+    "created_at": "2026-08-09T01:18:18.244463+00:00",
+    "python": "3.12.13 (main, Jul 15 2026, 15:52:03) [GCC 8.5.0 20210514 (Red Hat 8.5.0-28)]",
+    "platform": "Linux-4.18.0-553.137.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "cpu_model": "Intel(R) Xeon(R) CPU E5-2690 v3 @ 2.60GHz",
+    "logical_cpus": 24,
+    "packages": {
+      "ggann": "0.1.0",
+      "scanpy": "1.12.3",
+      "annplyr": "0.3.0",
+      "anndata": "0.13.2",
+      "numpy": "2.4.6",
+      "pandas": "3.0.5",
+      "scipy": "1.18.0",
+      "plotnine": "0.15.7",
+      "plotnine-extra": "0.3.1",
+      "matplotlib": "3.11.1",
+      "seaborn": "0.13.2",
+      "pillow": "12.3.0"
+    },
+    "ggann_source": {
+      "package_file": "/tmp/ggann-profile-before-eICs5m/src/ggann/__init__.py",
+      "package_root": "/tmp/ggann-profile-before-eICs5m/src/ggann",
+      "python_files": 22,
+      "python_tree_sha256": "b8c9eb82988546b73b23c3bd5649c1756537eb07c766ebd79a87051227a737b7"
+    },
+    "git": {
+      "revision": "d397b2ab2d580e8733962aca8ccf77cf56d7e01c",
+      "dirty": true
+    },
+    "thread_settings": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "figure": {
+      "width_inches": 6.0,
+      "height_inches": 4.5,
+      "dpi": 80,
+      "format": "png",
+      "backend": "Agg"
+    },
+    "preset": "extended",
+    "formats": [
+      "csr"
+    ],
+    "workloads": [
+      "embedding_categorical",
+      "dotplot",
+      "matrixplot"
+    ],
+    "sources": [
+      "x"
+    ],
+    "shape_overrides": {},
+    "repeats": 7,
+    "seed": 20260809,
+    "rss_interval_ms": 1.0,
+    "cold_imports": {
+      "ggann": {
+        "wall_seconds": 3.5651171882636845,
+        "exit_code": 0,
+        "stderr": null,
+        "scope": "fresh Python process plus package import; fixture and plotting excluded"
+      },
+      "scanpy": {
+        "wall_seconds": 2.943226929754019,
+        "exit_code": 0,
+        "stderr": null,
+        "scope": "fresh Python process plus package import; fixture and plotting excluded"
+      }
+    },
+    "isolated_memory_stages": [
+      "preparation",
+      "end_to_end"
+    ],
+    "skipped_cases": [],
+    "claim_policy": "Only preparation and end_to_end stages with comparability=pass may support speed claims. Construction and render-only stages are diagnostic."
+  },
+  "results": [
+    {
+      "case_id": "extended/csr/x/embedding_categorical",
+      "parameters": {
+        "preset": "extended",
+        "matrix_format": "csr",
+        "workload": "embedding_categorical",
+        "source": "x",
+        "n_obs": 20000,
+        "n_vars": 10000,
+        "n_genes": 32,
+        "n_groups": 32,
+        "density": 0.001,
+        "embedding_dims": 50,
+        "render_cells": 5000,
+        "seed": 20260809,
+        "repeats": 7,
+        "rss_interval_seconds": 0.001
+      },
+      "selected_genes": [
+        "gene_0",
+        "gene_322",
+        "gene_645",
+        "gene_967",
+        "gene_1290",
+        "gene_1612",
+        "gene_1935",
+        "gene_2257",
+        "gene_2580",
+        "gene_2902",
+        "gene_3225",
+        "gene_3548",
+        "gene_3870",
+        "gene_4193",
+        "gene_4515",
+        "gene_4838",
+        "gene_5160",
+        "gene_5483",
+        "gene_5805",
+        "gene_6128",
+        "gene_6450",
+        "gene_6773",
+        "gene_7096",
+        "gene_7418",
+        "gene_7741",
+        "gene_8063",
+        "gene_8386",
+        "gene_8708",
+        "gene_9031",
+        "gene_9353",
+        "gene_9676",
+        "gene_9999"
+      ],
+      "input_bytes": {
+        "x": 1680004,
+        "layers": 3360008,
+        "raw": 1680004,
+        "obsm": 4160000,
+        "obs": 470482,
+        "var": 168890,
+        "total": 11519388
+      },
+      "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_immutable": true,
+      "comparability": {
+        "status": "pass",
+        "issues": [],
+        "ggann_shape": [
+          20000,
+          4
+        ],
+        "scanpy_shape": [
+          20000,
+          4
+        ],
+        "max_abs_diff": 0.0,
+        "rtol": 1e-06,
+        "atol": 1e-07
+      },
+      "stage_boundaries": {
+        "preparation": "Library-native extraction and statistical preparation only; no artists. The payload is validated numerically before ratios are admitted.",
+        "construction": "One public plotting call with display disabled. Scanpy creates matplotlib artists eagerly for embedding, violin, tracksplot, and highest-expression plots, while ggann returns a deferred plotnine object. Record this stage for diagnostics, not cross-library speed claims.",
+        "render": "PNG save from an already materialized matplotlib Figure at matched size and DPI. Plot-object construction and artist materialization are excluded.",
+        "end_to_end": "Public plotting call, artist materialization, and PNG save at matched size and DPI. This is the authoritative plotting-speed comparison."
+      },
+      "stages": {
+        "preparation": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.01845449,
+                "baseline_rss_bytes": 364638208,
+                "peak_rss_bytes": 365981696,
+                "peak_rss_delta_bytes": 1343488,
+                "retained_with_output_bytes": 471040,
+                "retained_after_gc_bytes": 471040,
+                "output": {
+                  "kind": "pandas.DataFrame",
+                  "shape": [
+                    20000,
+                    4
+                  ],
+                  "bytes": 530596
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.017315118,
+                    "baseline_rss_bytes": 365109248,
+                    "peak_rss_bytes": 366149632,
+                    "peak_rss_delta_bytes": 1040384,
+                    "retained_with_output_bytes": 835584,
+                    "retained_after_gc_bytes": 835584,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016606592,
+                    "baseline_rss_bytes": 365944832,
+                    "peak_rss_bytes": 365989888,
+                    "peak_rss_delta_bytes": 45056,
+                    "retained_with_output_bytes": 45056,
+                    "retained_after_gc_bytes": 45056,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.018005306,
+                    "baseline_rss_bytes": 365989888,
+                    "peak_rss_bytes": 366075904,
+                    "peak_rss_delta_bytes": 86016,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016284335,
+                    "baseline_rss_bytes": 365989888,
+                    "peak_rss_bytes": 366194688,
+                    "peak_rss_delta_bytes": 204800,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.01626309,
+                    "baseline_rss_bytes": 365989888,
+                    "peak_rss_bytes": 365989888,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016300295,
+                    "baseline_rss_bytes": 365764608,
+                    "peak_rss_bytes": 366030848,
+                    "peak_rss_delta_bytes": 266240,
+                    "retained_with_output_bytes": 32768,
+                    "retained_after_gc_bytes": 32768,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016727436,
+                    "baseline_rss_bytes": 365797376,
+                    "peak_rss_bytes": 366067712,
+                    "peak_rss_delta_bytes": 270336,
+                    "retained_with_output_bytes": 270336,
+                    "retained_after_gc_bytes": 196608,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.016606592,
+                "min_duration_seconds": 0.01626309,
+                "max_duration_seconds": 0.018005306,
+                "max_peak_rss_delta_bytes": 1040384,
+                "max_retained_after_gc_bytes": 835584
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.004422763,
+                "baseline_rss_bytes": 365109248,
+                "peak_rss_bytes": 365109248,
+                "peak_rss_delta_bytes": 0,
+                "retained_with_output_bytes": 0,
+                "retained_after_gc_bytes": 0,
+                "output": {
+                  "kind": "pandas.DataFrame",
+                  "shape": [
+                    20000,
+                    4
+                  ],
+                  "bytes": 530596
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.00426195,
+                    "baseline_rss_bytes": 365944832,
+                    "peak_rss_bytes": 365944832,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004239566,
+                    "baseline_rss_bytes": 365944832,
+                    "peak_rss_bytes": 365944832,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004257384,
+                    "baseline_rss_bytes": 365989888,
+                    "peak_rss_bytes": 365989888,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004227413,
+                    "baseline_rss_bytes": 365989888,
+                    "peak_rss_bytes": 365989888,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004257274,
+                    "baseline_rss_bytes": 365764608,
+                    "peak_rss_bytes": 365764608,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004246873,
+                    "baseline_rss_bytes": 365764608,
+                    "peak_rss_bytes": 365764608,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.004309265,
+                    "baseline_rss_bytes": 365993984,
+                    "peak_rss_bytes": 365993984,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        20000,
+                        4
+                      ],
+                      "bytes": 530596
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.004257274,
+                "min_duration_seconds": 0.004227413,
+                "max_duration_seconds": 0.004309265,
+                "max_peak_rss_delta_bytes": 0,
+                "max_retained_after_gc_bytes": 0
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.25636048624546204,
+          "claim_status": "comparable"
+        },
+        "construction": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.024212926,
+                "baseline_rss_bytes": 365993984,
+                "peak_rss_bytes": 366219264,
+                "peak_rss_delta_bytes": 225280,
+                "retained_with_output_bytes": 0,
+                "retained_after_gc_bytes": 0,
+                "output": {
+                  "kind": "plotnine.ggplot.ggplot",
+                  "plot_data_shape": [
+                    20000,
+                    3
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.02289139,
+                    "baseline_rss_bytes": 369008640,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 724992,
+                    "retained_with_output_bytes": 724992,
+                    "retained_after_gc_bytes": 724992,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023228774,
+                    "baseline_rss_bytes": 369733632,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.022776184,
+                    "baseline_rss_bytes": 369733632,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023262927,
+                    "baseline_rss_bytes": 369827840,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023106335,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023021915,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.02335149,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        20000,
+                        3
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.023106335,
+                "min_duration_seconds": 0.022776184,
+                "max_duration_seconds": 0.02335149,
+                "max_peak_rss_delta_bytes": 724992,
+                "max_retained_after_gc_bytes": 724992
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.103253275,
+                "baseline_rss_bytes": 365993984,
+                "peak_rss_bytes": 369008640,
+                "peak_rss_delta_bytes": 3014656,
+                "retained_with_output_bytes": 3014656,
+                "retained_after_gc_bytes": 3014656,
+                "output": {
+                  "kind": "matplotlib.figure.Figure"
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.092602501,
+                    "baseline_rss_bytes": 369733632,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.094771012,
+                    "baseline_rss_bytes": 369733632,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.094069849,
+                    "baseline_rss_bytes": 369733632,
+                    "peak_rss_bytes": 369733632,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.102546853,
+                    "baseline_rss_bytes": 369807360,
+                    "peak_rss_bytes": 369827840,
+                    "peak_rss_delta_bytes": 20480,
+                    "retained_with_output_bytes": 20480,
+                    "retained_after_gc_bytes": 20480,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.094612128,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.093156087,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.095169904,
+                    "baseline_rss_bytes": 369831936,
+                    "peak_rss_bytes": 369831936,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "matplotlib.figure.Figure"
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.094612128,
+                "min_duration_seconds": 0.092602501,
+                "max_duration_seconds": 0.102546853,
+                "max_peak_rss_delta_bytes": 20480,
+                "max_retained_after_gc_bytes": 20480
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 4.094640192830235,
+          "claim_status": "diagnostic_only"
+        },
+        "render": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.578945961,
+                "baseline_rss_bytes": 382562304,
+                "peak_rss_bytes": 387055616,
+                "peak_rss_delta_bytes": 4493312,
+                "retained_with_output_bytes": 4493312,
+                "retained_after_gc_bytes": 4493312,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.540470006,
+                    "baseline_rss_bytes": 387158016,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 1327104,
+                    "retained_with_output_bytes": 1327104,
+                    "retained_after_gc_bytes": 1327104,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.542104695,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.540988657,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.548946388,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388550656,
+                    "peak_rss_delta_bytes": 65536,
+                    "retained_with_output_bytes": 61440,
+                    "retained_after_gc_bytes": 61440,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.53452727,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.537007707,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.534753687,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.540470006,
+                "min_duration_seconds": 0.53452727,
+                "max_duration_seconds": 0.548946388,
+                "max_peak_rss_delta_bytes": 1327104,
+                "max_retained_after_gc_bytes": 1327104
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.321277649,
+                "baseline_rss_bytes": 387055616,
+                "peak_rss_bytes": 387158016,
+                "peak_rss_delta_bytes": 102400,
+                "retained_with_output_bytes": 102400,
+                "retained_after_gc_bytes": 102400,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.300259909,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.299202503,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.300908035,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.301804274,
+                    "baseline_rss_bytes": 388485120,
+                    "peak_rss_bytes": 388485120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.298193165,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.299737916,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.296508918,
+                    "baseline_rss_bytes": 388546560,
+                    "peak_rss_bytes": 388546560,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.299737916,
+                "min_duration_seconds": 0.296508918,
+                "max_duration_seconds": 0.301804274,
+                "max_peak_rss_delta_bytes": 0,
+                "max_retained_after_gc_bytes": 0
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.5545875121144096,
+          "claim_status": "diagnostic_only"
+        },
+        "end_to_end": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.935700043,
+                "baseline_rss_bytes": 388546560,
+                "peak_rss_bytes": 401719296,
+                "peak_rss_delta_bytes": 13172736,
+                "retained_with_output_bytes": 13172736,
+                "retained_after_gc_bytes": 12304384,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.932300983,
+                    "baseline_rss_bytes": 400850944,
+                    "peak_rss_bytes": 401915904,
+                    "peak_rss_delta_bytes": 1064960,
+                    "retained_with_output_bytes": 1064960,
+                    "retained_after_gc_bytes": 1064960,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.944215256,
+                    "baseline_rss_bytes": 401915904,
+                    "peak_rss_bytes": 402415616,
+                    "peak_rss_delta_bytes": 499712,
+                    "retained_with_output_bytes": 499712,
+                    "retained_after_gc_bytes": 499712,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.940685272,
+                    "baseline_rss_bytes": 402415616,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 270336,
+                    "retained_with_output_bytes": 270336,
+                    "retained_after_gc_bytes": 270336,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.940208032,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.93523383,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.939546003,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402800640,
+                    "peak_rss_delta_bytes": 114688,
+                    "retained_with_output_bytes": 110592,
+                    "retained_after_gc_bytes": 110592,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.949425537,
+                    "baseline_rss_bytes": 402796544,
+                    "peak_rss_bytes": 402796544,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.940208032,
+                "min_duration_seconds": 0.932300983,
+                "max_duration_seconds": 0.949425537,
+                "max_peak_rss_delta_bytes": 1064960,
+                "max_retained_after_gc_bytes": 1064960
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.410496393,
+                "baseline_rss_bytes": 400850944,
+                "peak_rss_bytes": 400850944,
+                "peak_rss_delta_bytes": 0,
+                "retained_with_output_bytes": 0,
+                "retained_after_gc_bytes": 0,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.411469457,
+                    "baseline_rss_bytes": 401915904,
+                    "peak_rss_bytes": 401915904,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.416380437,
+                    "baseline_rss_bytes": 401915904,
+                    "peak_rss_bytes": 401915904,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.447023498,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.426731028,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.415382573,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.411918557,
+                    "baseline_rss_bytes": 402685952,
+                    "peak_rss_bytes": 402685952,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.409094028,
+                    "baseline_rss_bytes": 402796544,
+                    "peak_rss_bytes": 402796544,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.415382573,
+                "min_duration_seconds": 0.409094028,
+                "max_duration_seconds": 0.447023498,
+                "max_peak_rss_delta_bytes": 0,
+                "max_retained_after_gc_bytes": 0
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.4417985795296843,
+          "claim_status": "comparable"
+        }
+      },
+      "isolated_memory": {
+        "preparation": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.03426024,
+              "baseline_rss_bytes": 273866752,
+              "peak_rss_bytes": 277135360,
+              "peak_rss_delta_bytes": 3268608,
+              "retained_with_output_bytes": 3268608,
+              "retained_after_gc_bytes": 3268608,
+              "output": {
+                "kind": "pandas.DataFrame",
+                "shape": [
+                  20000,
+                  4
+                ],
+                "bytes": 530596
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.006678276,
+              "baseline_rss_bytes": 346075136,
+              "peak_rss_bytes": 346226688,
+              "peak_rss_delta_bytes": 151552,
+              "retained_with_output_bytes": 151552,
+              "retained_after_gc_bytes": 151552,
+              "output": {
+                "kind": "pandas.DataFrame",
+                "shape": [
+                  20000,
+                  4
+                ],
+                "bytes": 530596
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        },
+        "end_to_end": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 1.15446423,
+              "baseline_rss_bytes": 270909440,
+              "peak_rss_bytes": 300998656,
+              "peak_rss_delta_bytes": 30089216,
+              "retained_with_output_bytes": 30089216,
+              "retained_after_gc_bytes": 30089216,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 0.447593695,
+              "baseline_rss_bytes": 348344320,
+              "peak_rss_bytes": 354267136,
+              "peak_rss_delta_bytes": 5922816,
+              "retained_with_output_bytes": 5922816,
+              "retained_after_gc_bytes": 5922816,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "extended/csr/x/dotplot",
+      "parameters": {
+        "preset": "extended",
+        "matrix_format": "csr",
+        "workload": "dotplot",
+        "source": "x",
+        "n_obs": 20000,
+        "n_vars": 10000,
+        "n_genes": 32,
+        "n_groups": 32,
+        "density": 0.001,
+        "embedding_dims": 50,
+        "render_cells": 5000,
+        "seed": 20260809,
+        "repeats": 7,
+        "rss_interval_seconds": 0.001
+      },
+      "selected_genes": [
+        "gene_0",
+        "gene_322",
+        "gene_645",
+        "gene_967",
+        "gene_1290",
+        "gene_1612",
+        "gene_1935",
+        "gene_2257",
+        "gene_2580",
+        "gene_2902",
+        "gene_3225",
+        "gene_3548",
+        "gene_3870",
+        "gene_4193",
+        "gene_4515",
+        "gene_4838",
+        "gene_5160",
+        "gene_5483",
+        "gene_5805",
+        "gene_6128",
+        "gene_6450",
+        "gene_6773",
+        "gene_7096",
+        "gene_7418",
+        "gene_7741",
+        "gene_8063",
+        "gene_8386",
+        "gene_8708",
+        "gene_9031",
+        "gene_9353",
+        "gene_9676",
+        "gene_9999"
+      ],
+      "input_bytes": {
+        "x": 1680004,
+        "layers": 3360008,
+        "raw": 1680004,
+        "obsm": 4160000,
+        "obs": 470482,
+        "var": 168890,
+        "total": 11519388
+      },
+      "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_immutable": true,
+      "comparability": {
+        "status": "pass",
+        "issues": [],
+        "ggann_shape": [
+          1024,
+          4
+        ],
+        "scanpy_shape": [
+          1024,
+          4
+        ],
+        "max_abs_diff": 7.361173632453033e-10,
+        "rtol": 1e-06,
+        "atol": 1e-07
+      },
+      "stage_boundaries": {
+        "preparation": "Library-native extraction and statistical preparation only; no artists. The payload is validated numerically before ratios are admitted.",
+        "construction": "One public plotting call with display disabled. Scanpy creates matplotlib artists eagerly for embedding, violin, tracksplot, and highest-expression plots, while ggann returns a deferred plotnine object. Record this stage for diagnostics, not cross-library speed claims.",
+        "render": "PNG save from an already materialized matplotlib Figure at matched size and DPI. Plot-object construction and artist materialization are excluded.",
+        "end_to_end": "Public plotting call, artist materialization, and PNG save at matched size and DPI. This is the authoritative plotting-speed comparison."
+      },
+      "stages": {
+        "preparation": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.052103149,
+                "baseline_rss_bytes": 366874624,
+                "peak_rss_bytes": 369549312,
+                "peak_rss_delta_bytes": 2674688,
+                "retained_with_output_bytes": 2674688,
+                "retained_after_gc_bytes": 2674688,
+                "output": {
+                  "kind": "pandas.DataFrame",
+                  "shape": [
+                    1024,
+                    4
+                  ],
+                  "bytes": 35214
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.050195937,
+                    "baseline_rss_bytes": 369795072,
+                    "peak_rss_bytes": 370053120,
+                    "peak_rss_delta_bytes": 258048,
+                    "retained_with_output_bytes": 258048,
+                    "retained_after_gc_bytes": 258048,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.061269915,
+                    "baseline_rss_bytes": 370053120,
+                    "peak_rss_bytes": 370208768,
+                    "peak_rss_delta_bytes": 155648,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.050619743,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.052328699,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.050260304,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.050721266,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.052644981,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        4
+                      ],
+                      "bytes": 35214
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.050721266,
+                "min_duration_seconds": 0.050195937,
+                "max_duration_seconds": 0.061269915,
+                "max_peak_rss_delta_bytes": 258048,
+                "max_retained_after_gc_bytes": 258048
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.017027164,
+                "baseline_rss_bytes": 369549312,
+                "peak_rss_bytes": 369795072,
+                "peak_rss_delta_bytes": 245760,
+                "retained_with_output_bytes": 245760,
+                "retained_after_gc_bytes": 245760,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "fraction",
+                    "mean_expression"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.016281667,
+                    "baseline_rss_bytes": 370053120,
+                    "peak_rss_bytes": 370053120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.015866746,
+                    "baseline_rss_bytes": 370053120,
+                    "peak_rss_bytes": 370053120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.019120872,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.017820767,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.017098764,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016393262,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016809807,
+                    "baseline_rss_bytes": 368107520,
+                    "peak_rss_bytes": 368107520,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "fraction",
+                        "mean_expression"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.016809807,
+                "min_duration_seconds": 0.015866746,
+                "max_duration_seconds": 0.019120872,
+                "max_peak_rss_delta_bytes": 0,
+                "max_retained_after_gc_bytes": 0
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.33141536727415283,
+          "claim_status": "comparable"
+        },
+        "construction": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.079292474,
+                "baseline_rss_bytes": 368107520,
+                "peak_rss_bytes": 368316416,
+                "peak_rss_delta_bytes": 208896,
+                "retained_with_output_bytes": 208896,
+                "retained_after_gc_bytes": 208896,
+                "output": {
+                  "kind": "plotnine.ggplot.ggplot",
+                  "plot_data_shape": [
+                    1024,
+                    4
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.064922727,
+                    "baseline_rss_bytes": 368705536,
+                    "peak_rss_bytes": 370020352,
+                    "peak_rss_delta_bytes": 1314816,
+                    "retained_with_output_bytes": 1314816,
+                    "retained_after_gc_bytes": 1314816,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.062977393,
+                    "baseline_rss_bytes": 370503680,
+                    "peak_rss_bytes": 370503680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.06156572,
+                    "baseline_rss_bytes": 370503680,
+                    "peak_rss_bytes": 370503680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 126976,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.062316908,
+                    "baseline_rss_bytes": 370634752,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 24576,
+                    "retained_with_output_bytes": 24576,
+                    "retained_after_gc_bytes": 24576,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.061191033,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.061702825,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.061563808,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        4
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.061702825,
+                "min_duration_seconds": 0.061191033,
+                "max_duration_seconds": 0.064922727,
+                "max_peak_rss_delta_bytes": 1314816,
+                "max_retained_after_gc_bytes": 1314816
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.023789246,
+                "baseline_rss_bytes": 368316416,
+                "peak_rss_bytes": 368705536,
+                "peak_rss_delta_bytes": 389120,
+                "retained_with_output_bytes": 389120,
+                "retained_after_gc_bytes": 389120,
+                "output": {
+                  "kind": "scanpy.plotting._dotplot.DotPlot"
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.02390769,
+                    "baseline_rss_bytes": 370020352,
+                    "peak_rss_bytes": 370503680,
+                    "peak_rss_delta_bytes": 483328,
+                    "retained_with_output_bytes": 483328,
+                    "retained_after_gc_bytes": 483328,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023175713,
+                    "baseline_rss_bytes": 370503680,
+                    "peak_rss_bytes": 370503680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.026034627,
+                    "baseline_rss_bytes": 370630656,
+                    "peak_rss_bytes": 370630656,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.025040596,
+                    "baseline_rss_bytes": 370630656,
+                    "peak_rss_bytes": 370634752,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023356362,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.02260044,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.023677579,
+                    "baseline_rss_bytes": 370659328,
+                    "peak_rss_bytes": 370659328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._dotplot.DotPlot"
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.023677579,
+                "min_duration_seconds": 0.02260044,
+                "max_duration_seconds": 0.026034627,
+                "max_peak_rss_delta_bytes": 483328,
+                "max_retained_after_gc_bytes": 483328
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.38373573657283927,
+          "claim_status": "diagnostic_only"
+        },
+        "render": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.483971265,
+                "baseline_rss_bytes": 373460992,
+                "peak_rss_bytes": 375795712,
+                "peak_rss_delta_bytes": 2334720,
+                "retained_with_output_bytes": 2334720,
+                "retained_after_gc_bytes": 2334720,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.461945955,
+                    "baseline_rss_bytes": 375808000,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 327680,
+                    "retained_with_output_bytes": 327680,
+                    "retained_after_gc_bytes": 327680,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.461251426,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.461922778,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.464972037,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 57344,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.473810113,
+                    "baseline_rss_bytes": 376193024,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.471126171,
+                    "baseline_rss_bytes": 376197120,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.466305617,
+                    "baseline_rss_bytes": 376197120,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.464972037,
+                "min_duration_seconds": 0.461251426,
+                "max_duration_seconds": 0.473810113,
+                "max_peak_rss_delta_bytes": 327680,
+                "max_retained_after_gc_bytes": 327680
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.259479678,
+                "baseline_rss_bytes": 375795712,
+                "peak_rss_bytes": 375808000,
+                "peak_rss_delta_bytes": 12288,
+                "retained_with_output_bytes": 12288,
+                "retained_after_gc_bytes": 12288,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.217744948,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.216375796,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.221531264,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.217049437,
+                    "baseline_rss_bytes": 376135680,
+                    "peak_rss_bytes": 376135680,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.224669319,
+                    "baseline_rss_bytes": 376197120,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.231239451,
+                    "baseline_rss_bytes": 376197120,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.212040329,
+                    "baseline_rss_bytes": 376197120,
+                    "peak_rss_bytes": 376197120,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.217744948,
+                "min_duration_seconds": 0.212040329,
+                "max_duration_seconds": 0.231239451,
+                "max_peak_rss_delta_bytes": 0,
+                "max_retained_after_gc_bytes": 0
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.4682968666350144,
+          "claim_status": "diagnostic_only"
+        },
+        "end_to_end": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.731645635,
+                "baseline_rss_bytes": 376197120,
+                "peak_rss_bytes": 378327040,
+                "peak_rss_delta_bytes": 2129920,
+                "retained_with_output_bytes": 2129920,
+                "retained_after_gc_bytes": 2129920,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.745641961,
+                    "baseline_rss_bytes": 384294912,
+                    "peak_rss_bytes": 384495616,
+                    "peak_rss_delta_bytes": 200704,
+                    "retained_with_output_bytes": 200704,
+                    "retained_after_gc_bytes": 200704,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.76572905,
+                    "baseline_rss_bytes": 384495616,
+                    "peak_rss_bytes": 384495616,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.751745685,
+                    "baseline_rss_bytes": 384495616,
+                    "peak_rss_bytes": 384495616,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.78405056,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.745379076,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.74339779,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.7375083,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.745641961,
+                "min_duration_seconds": 0.7375083,
+                "max_duration_seconds": 0.78405056,
+                "max_peak_rss_delta_bytes": 200704,
+                "max_retained_after_gc_bytes": 200704
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.370431737,
+                "baseline_rss_bytes": 378327040,
+                "peak_rss_bytes": 384294912,
+                "peak_rss_delta_bytes": 5967872,
+                "retained_with_output_bytes": 5967872,
+                "retained_after_gc_bytes": 5967872,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.371860028,
+                    "baseline_rss_bytes": 384495616,
+                    "peak_rss_bytes": 384495616,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.376064797,
+                    "baseline_rss_bytes": 384495616,
+                    "peak_rss_bytes": 384495616,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.385440504,
+                    "baseline_rss_bytes": 384495616,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 241664,
+                    "retained_with_output_bytes": 241664,
+                    "retained_after_gc_bytes": 241664,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.379399941,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.36964879,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.37031557,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.366306034,
+                    "baseline_rss_bytes": 384737280,
+                    "peak_rss_bytes": 384737280,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.371860028,
+                "min_duration_seconds": 0.366306034,
+                "max_duration_seconds": 0.385440504,
+                "max_peak_rss_delta_bytes": 241664,
+                "max_retained_after_gc_bytes": 241664
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.4987112413862663,
+          "claim_status": "comparable"
+        }
+      },
+      "isolated_memory": {
+        "preparation": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.071533187,
+              "baseline_rss_bytes": 269991936,
+              "peak_rss_bytes": 273547264,
+              "peak_rss_delta_bytes": 3555328,
+              "retained_with_output_bytes": 3555328,
+              "retained_after_gc_bytes": 3555328,
+              "output": {
+                "kind": "pandas.DataFrame",
+                "shape": [
+                  1024,
+                  4
+                ],
+                "bytes": 35214
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.021833763,
+              "baseline_rss_bytes": 347058176,
+              "peak_rss_bytes": 355975168,
+              "peak_rss_delta_bytes": 8916992,
+              "retained_with_output_bytes": 8916992,
+              "retained_after_gc_bytes": 8916992,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "fraction",
+                  "mean_expression"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        },
+        "end_to_end": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 0.980006451,
+              "baseline_rss_bytes": 272560128,
+              "peak_rss_bytes": 290283520,
+              "peak_rss_delta_bytes": 17723392,
+              "retained_with_output_bytes": 17723392,
+              "retained_after_gc_bytes": 17723392,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 0.39310666,
+              "baseline_rss_bytes": 348205056,
+              "peak_rss_bytes": 362541056,
+              "peak_rss_delta_bytes": 14336000,
+              "retained_with_output_bytes": 14336000,
+              "retained_after_gc_bytes": 14336000,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "extended/csr/x/matrixplot",
+      "parameters": {
+        "preset": "extended",
+        "matrix_format": "csr",
+        "workload": "matrixplot",
+        "source": "x",
+        "n_obs": 20000,
+        "n_vars": 10000,
+        "n_genes": 32,
+        "n_groups": 32,
+        "density": 0.001,
+        "embedding_dims": 50,
+        "render_cells": 5000,
+        "seed": 20260809,
+        "repeats": 7,
+        "rss_interval_seconds": 0.001
+      },
+      "selected_genes": [
+        "gene_0",
+        "gene_322",
+        "gene_645",
+        "gene_967",
+        "gene_1290",
+        "gene_1612",
+        "gene_1935",
+        "gene_2257",
+        "gene_2580",
+        "gene_2902",
+        "gene_3225",
+        "gene_3548",
+        "gene_3870",
+        "gene_4193",
+        "gene_4515",
+        "gene_4838",
+        "gene_5160",
+        "gene_5483",
+        "gene_5805",
+        "gene_6128",
+        "gene_6450",
+        "gene_6773",
+        "gene_7096",
+        "gene_7418",
+        "gene_7741",
+        "gene_8063",
+        "gene_8386",
+        "gene_8708",
+        "gene_9031",
+        "gene_9353",
+        "gene_9676",
+        "gene_9999"
+      ],
+      "input_bytes": {
+        "x": 1680004,
+        "layers": 3360008,
+        "raw": 1680004,
+        "obsm": 4160000,
+        "obs": 470482,
+        "var": 168890,
+        "total": 11519388
+      },
+      "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+      "input_immutable": true,
+      "comparability": {
+        "status": "pass",
+        "issues": [],
+        "ggann_shape": [
+          1024,
+          3
+        ],
+        "scanpy_shape": [
+          1024,
+          3
+        ],
+        "max_abs_diff": 7.361173632453033e-10,
+        "rtol": 1e-06,
+        "atol": 1e-07
+      },
+      "stage_boundaries": {
+        "preparation": "Library-native extraction and statistical preparation only; no artists. The payload is validated numerically before ratios are admitted.",
+        "construction": "One public plotting call with display disabled. Scanpy creates matplotlib artists eagerly for embedding, violin, tracksplot, and highest-expression plots, while ggann returns a deferred plotnine object. Record this stage for diagnostics, not cross-library speed claims.",
+        "render": "PNG save from an already materialized matplotlib Figure at matched size and DPI. Plot-object construction and artist materialization are excluded.",
+        "end_to_end": "Public plotting call, artist materialization, and PNG save at matched size and DPI. This is the authoritative plotting-speed comparison."
+      },
+      "stages": {
+        "preparation": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.062256534,
+                "baseline_rss_bytes": 361316352,
+                "peak_rss_bytes": 364474368,
+                "peak_rss_delta_bytes": 3158016,
+                "retained_with_output_bytes": 3158016,
+                "retained_after_gc_bytes": 3158016,
+                "output": {
+                  "kind": "pandas.DataFrame",
+                  "shape": [
+                    1024,
+                    3
+                  ],
+                  "bytes": 13556
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.06054051,
+                    "baseline_rss_bytes": 364728320,
+                    "peak_rss_bytes": 365051904,
+                    "peak_rss_delta_bytes": 323584,
+                    "retained_with_output_bytes": 323584,
+                    "retained_after_gc_bytes": 323584,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.060958378,
+                    "baseline_rss_bytes": 365260800,
+                    "peak_rss_bytes": 365260800,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.059074503,
+                    "baseline_rss_bytes": 365260800,
+                    "peak_rss_bytes": 365260800,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.059100794,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.05969193,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.058770495,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.058277099,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        1024,
+                        3
+                      ],
+                      "bytes": 13556
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.059100794,
+                "min_duration_seconds": 0.058277099,
+                "max_duration_seconds": 0.060958378,
+                "max_peak_rss_delta_bytes": 323584,
+                "max_retained_after_gc_bytes": 323584
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.012057878,
+                "baseline_rss_bytes": 364474368,
+                "peak_rss_bytes": 364728320,
+                "peak_rss_delta_bytes": 253952,
+                "retained_with_output_bytes": 253952,
+                "retained_after_gc_bytes": 253952,
+                "output": {
+                  "kind": "pandas.DataFrame",
+                  "shape": [
+                    32,
+                    32
+                  ],
+                  "bytes": 5702
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.01206214,
+                    "baseline_rss_bytes": 365051904,
+                    "peak_rss_bytes": 365051904,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.011167937,
+                    "baseline_rss_bytes": 365051904,
+                    "peak_rss_bytes": 365051904,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.012283992,
+                    "baseline_rss_bytes": 365260800,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.011538156,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.0118315,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.012036864,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.011177642,
+                    "baseline_rss_bytes": 365264896,
+                    "peak_rss_bytes": 365264896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "pandas.DataFrame",
+                      "shape": [
+                        32,
+                        32
+                      ],
+                      "bytes": 5702
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.0118315,
+                "min_duration_seconds": 0.011167937,
+                "max_duration_seconds": 0.012283992,
+                "max_peak_rss_delta_bytes": 4096,
+                "max_retained_after_gc_bytes": 4096
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.20019189589906355,
+          "claim_status": "comparable"
+        },
+        "construction": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.085309072,
+                "baseline_rss_bytes": 365264896,
+                "peak_rss_bytes": 365363200,
+                "peak_rss_delta_bytes": 98304,
+                "retained_with_output_bytes": 98304,
+                "retained_after_gc_bytes": 110592,
+                "output": {
+                  "kind": "plotnine.ggplot.ggplot",
+                  "plot_data_shape": [
+                    1024,
+                    3
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.071000604,
+                    "baseline_rss_bytes": 366080000,
+                    "peak_rss_bytes": 366288896,
+                    "peak_rss_delta_bytes": 208896,
+                    "retained_with_output_bytes": 208896,
+                    "retained_after_gc_bytes": 208896,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.069404556,
+                    "baseline_rss_bytes": 366288896,
+                    "peak_rss_bytes": 366288896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.06891695,
+                    "baseline_rss_bytes": 366288896,
+                    "peak_rss_bytes": 366288896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.076288585,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.071700219,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.069848772,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.068974089,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "plotnine.ggplot.ggplot",
+                      "plot_data_shape": [
+                        1024,
+                        3
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.069848772,
+                "min_duration_seconds": 0.06891695,
+                "max_duration_seconds": 0.076288585,
+                "max_peak_rss_delta_bytes": 208896,
+                "max_retained_after_gc_bytes": 208896
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.017333542,
+                "baseline_rss_bytes": 365375488,
+                "peak_rss_bytes": 366080000,
+                "peak_rss_delta_bytes": 704512,
+                "retained_with_output_bytes": 704512,
+                "retained_after_gc_bytes": 704512,
+                "output": {
+                  "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.014327365,
+                    "baseline_rss_bytes": 366288896,
+                    "peak_rss_bytes": 366288896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.015605188,
+                    "baseline_rss_bytes": 366288896,
+                    "peak_rss_bytes": 366288896,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.015570337,
+                    "baseline_rss_bytes": 366288896,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 2387968,
+                    "retained_with_output_bytes": 2387968,
+                    "retained_after_gc_bytes": 2387968,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.013908115,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.013859532,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.014248558,
+                    "baseline_rss_bytes": 368676864,
+                    "peak_rss_bytes": 368676864,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.016187505,
+                    "baseline_rss_bytes": 368795648,
+                    "peak_rss_bytes": 368795648,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "scanpy.plotting._matrixplot.MatrixPlot"
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.014327365,
+                "min_duration_seconds": 0.013859532,
+                "max_duration_seconds": 0.016187505,
+                "max_peak_rss_delta_bytes": 2387968,
+                "max_retained_after_gc_bytes": 2387968
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.20511978363771377,
+          "claim_status": "diagnostic_only"
+        },
+        "render": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.402770529,
+                "baseline_rss_bytes": 372670464,
+                "peak_rss_bytes": 374964224,
+                "peak_rss_delta_bytes": 2293760,
+                "retained_with_output_bytes": 2293760,
+                "retained_after_gc_bytes": 2293760,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.39722064,
+                    "baseline_rss_bytes": 375169024,
+                    "peak_rss_bytes": 375316480,
+                    "peak_rss_delta_bytes": 147456,
+                    "retained_with_output_bytes": 147456,
+                    "retained_after_gc_bytes": 147456,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.39958997,
+                    "baseline_rss_bytes": 375316480,
+                    "peak_rss_bytes": 375857152,
+                    "peak_rss_delta_bytes": 540672,
+                    "retained_with_output_bytes": 540672,
+                    "retained_after_gc_bytes": 540672,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.397690633,
+                    "baseline_rss_bytes": 375857152,
+                    "peak_rss_bytes": 375857152,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.40291093,
+                    "baseline_rss_bytes": 375992320,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.40164167,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.40614139,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 376000512,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.40433002,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.40164167,
+                "min_duration_seconds": 0.39722064,
+                "max_duration_seconds": 0.40614139,
+                "max_peak_rss_delta_bytes": 540672,
+                "max_retained_after_gc_bytes": 540672
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.244073775,
+                "baseline_rss_bytes": 374964224,
+                "peak_rss_bytes": 375169024,
+                "peak_rss_delta_bytes": 204800,
+                "retained_with_output_bytes": 204800,
+                "retained_after_gc_bytes": 204800,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.20208842,
+                    "baseline_rss_bytes": 375316480,
+                    "peak_rss_bytes": 375316480,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.204525785,
+                    "baseline_rss_bytes": 375316480,
+                    "peak_rss_bytes": 375316480,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.212458642,
+                    "baseline_rss_bytes": 375857152,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 139264,
+                    "retained_with_output_bytes": 135168,
+                    "retained_after_gc_bytes": 135168,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.206132809,
+                    "baseline_rss_bytes": 375992320,
+                    "peak_rss_bytes": 375992320,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.206124076,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.2018994,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.206013004,
+                    "baseline_rss_bytes": 375996416,
+                    "peak_rss_bytes": 375996416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.206013004,
+                "min_duration_seconds": 0.2018994,
+                "max_duration_seconds": 0.212458642,
+                "max_peak_rss_delta_bytes": 139264,
+                "max_retained_after_gc_bytes": 135168
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.5129273663263078,
+          "claim_status": "diagnostic_only"
+        },
+        "end_to_end": {
+          "libraries": {
+            "ggann": {
+              "cold": {
+                "duration_seconds": 0.679791884,
+                "baseline_rss_bytes": 375996416,
+                "peak_rss_bytes": 378712064,
+                "peak_rss_delta_bytes": 2715648,
+                "retained_with_output_bytes": 1269760,
+                "retained_after_gc_bytes": 1269760,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.682590097,
+                    "baseline_rss_bytes": 381923328,
+                    "peak_rss_bytes": 381923328,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.671609981,
+                    "baseline_rss_bytes": 382083072,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.665202266,
+                    "baseline_rss_bytes": 382083072,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.658084948,
+                    "baseline_rss_bytes": 382132224,
+                    "peak_rss_bytes": 382132224,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.670767044,
+                    "baseline_rss_bytes": 382132224,
+                    "peak_rss_bytes": 382132224,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.660264101,
+                    "baseline_rss_bytes": 382136320,
+                    "peak_rss_bytes": 382136320,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.666643835,
+                    "baseline_rss_bytes": 382136320,
+                    "peak_rss_bytes": 382140416,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.666643835,
+                "min_duration_seconds": 0.658084948,
+                "max_duration_seconds": 0.682590097,
+                "max_peak_rss_delta_bytes": 4096,
+                "max_retained_after_gc_bytes": 4096
+              }
+            },
+            "scanpy": {
+              "cold": {
+                "duration_seconds": 0.342189973,
+                "baseline_rss_bytes": 377266176,
+                "peak_rss_bytes": 381923328,
+                "peak_rss_delta_bytes": 4657152,
+                "retained_with_output_bytes": 4657152,
+                "retained_after_gc_bytes": 4657152,
+                "output": {
+                  "kind": "builtins.dict",
+                  "keys": [
+                    "axes",
+                    "png_bytes"
+                  ]
+                }
+              },
+              "repeated": {
+                "samples": [
+                  {
+                    "duration_seconds": 0.344721657,
+                    "baseline_rss_bytes": 381923328,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 159744,
+                    "retained_with_output_bytes": 159744,
+                    "retained_after_gc_bytes": 159744,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.340344975,
+                    "baseline_rss_bytes": 382083072,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.339908575,
+                    "baseline_rss_bytes": 382083072,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.331701636,
+                    "baseline_rss_bytes": 382083072,
+                    "peak_rss_bytes": 382083072,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 49152,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.341133858,
+                    "baseline_rss_bytes": 382132224,
+                    "peak_rss_bytes": 382136320,
+                    "peak_rss_delta_bytes": 4096,
+                    "retained_with_output_bytes": 4096,
+                    "retained_after_gc_bytes": 4096,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.342423432,
+                    "baseline_rss_bytes": 382136320,
+                    "peak_rss_bytes": 382136320,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  },
+                  {
+                    "duration_seconds": 0.336503569,
+                    "baseline_rss_bytes": 382140416,
+                    "peak_rss_bytes": 382140416,
+                    "peak_rss_delta_bytes": 0,
+                    "retained_with_output_bytes": 0,
+                    "retained_after_gc_bytes": 0,
+                    "output": {
+                      "kind": "builtins.dict",
+                      "keys": [
+                        "axes",
+                        "png_bytes"
+                      ]
+                    }
+                  }
+                ],
+                "median_duration_seconds": 0.340344975,
+                "min_duration_seconds": 0.331701636,
+                "max_duration_seconds": 0.344721657,
+                "max_peak_rss_delta_bytes": 159744,
+                "max_retained_after_gc_bytes": 159744
+              }
+            }
+          },
+          "execution_order": [
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ],
+            [
+              "scanpy",
+              "ggann"
+            ],
+            [
+              "ggann",
+              "scanpy"
+            ]
+          ],
+          "speedup_scanpy_over_ggann": 0.5105349470455989,
+          "claim_status": "comparable"
+        }
+      },
+      "isolated_memory": {
+        "preparation": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.075377186,
+              "baseline_rss_bytes": 280162304,
+              "peak_rss_bytes": 282918912,
+              "peak_rss_delta_bytes": 2756608,
+              "retained_with_output_bytes": 2756608,
+              "retained_after_gc_bytes": 2756608,
+              "output": {
+                "kind": "pandas.DataFrame",
+                "shape": [
+                  1024,
+                  3
+                ],
+                "bytes": 13556
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "preparation",
+            "sample": {
+              "duration_seconds": 0.015622005,
+              "baseline_rss_bytes": 354390016,
+              "peak_rss_bytes": 357453824,
+              "peak_rss_delta_bytes": 3063808,
+              "retained_with_output_bytes": 3063808,
+              "retained_after_gc_bytes": 3063808,
+              "output": {
+                "kind": "pandas.DataFrame",
+                "shape": [
+                  32,
+                  32
+                ],
+                "bytes": 5702
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        },
+        "end_to_end": {
+          "ggann": {
+            "library": "ggann",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 0.884036961,
+              "baseline_rss_bytes": 272687104,
+              "peak_rss_bytes": 289665024,
+              "peak_rss_delta_bytes": 16977920,
+              "retained_with_output_bytes": 16977920,
+              "retained_after_gc_bytes": 16977920,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          },
+          "scanpy": {
+            "library": "scanpy",
+            "stage": "end_to_end",
+            "sample": {
+              "duration_seconds": 0.352056112,
+              "baseline_rss_bytes": 345399296,
+              "peak_rss_bytes": 354406400,
+              "peak_rss_delta_bytes": 9007104,
+              "retained_with_output_bytes": 9007104,
+              "retained_after_gc_bytes": 9007104,
+              "output": {
+                "kind": "builtins.dict",
+                "keys": [
+                  "axes",
+                  "png_bytes"
+                ]
+              }
+            },
+            "input_bytes": {
+              "x": 1680004,
+              "layers": 3360008,
+              "raw": 1680004,
+              "obsm": 4160000,
+              "obs": 470482,
+              "var": 168890,
+              "total": 11519388
+            },
+            "input_fingerprint_before": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_fingerprint_after": "6b449661fdffc97e6543218de5a58537e9b9a07ac8e5d473c6bd80a0a2bcac4f",
+            "input_immutable": true,
+            "process_scope": "fresh child; imports and fixture creation precede the RSS baseline; the measured call is the first plotting/preparation call"
+          }
+        }
+      }
+    }
+  ],
+  "release_gates": {
+    "status": "fail",
+    "checks": [
+      {
+        "workload": "embedding_categorical",
+        "comparable": true,
+        "preparation_speedup": 0.25636048624546204,
+        "preparation_at_least_2x": false,
+        "end_to_end_speedup": 0.4417985795296843,
+        "end_to_end_no_more_than_10pct_slower": false,
+        "peak_memory_ggann_over_scanpy": 5.080221300138312,
+        "peak_memory_source": "fresh_child_end_to_end",
+        "peak_memory_no_more_than_10pct_worse": false
+      },
+      {
+        "workload": "dotplot",
+        "comparable": true,
+        "preparation_speedup": 0.33141536727415283,
+        "preparation_at_least_2x": false,
+        "end_to_end_speedup": 0.4987112413862663,
+        "end_to_end_no_more_than_10pct_slower": false,
+        "peak_memory_ggann_over_scanpy": 1.2362857142857142,
+        "peak_memory_source": "fresh_child_end_to_end",
+        "peak_memory_no_more_than_10pct_worse": false
+      },
+      {
+        "workload": "matrixplot",
+        "comparable": true,
+        "preparation_speedup": 0.20019189589906355,
+        "preparation_at_least_2x": false,
+        "end_to_end_speedup": 0.5105349470455989,
+        "end_to_end_no_more_than_10pct_slower": false,
+        "peak_memory_ggann_over_scanpy": 1.8849477035015916,
+        "peak_memory_source": "fresh_child_end_to_end",
+        "peak_memory_no_more_than_10pct_worse": false
+      }
+    ],
+    "end_to_end_geometric_speedup": 0.48272484251113684,
+    "end_to_end_geometric_mean_faster": false,
+    "baseline_regression_gate": "not_evaluated_by_this_cross-library_runner",
+    "note": "A cross-library pass is not a complete release-performance pass until the separate ggann baseline regression gate is also evaluated."
+  }
+}

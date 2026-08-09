@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import plotnine as p9
 import pytest
 

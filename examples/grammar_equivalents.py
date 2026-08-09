@@ -1,18 +1,16 @@
-"""The layer-by-layer plotnine grammar behind each ggann utility helper.
+"""Reference plotnine constructions for selected ggann helpers.
 
-Every plotnine-native ``plot_*`` helper is a thin wrapper: it resolves names
-through annplyr into a tidy ``DataFrame``, then stacks plotnine layers. Each
-``*_grammar`` function here rebuilds a helper's figure from that grammar, so you
-can see there is no magic -- and drop down to raw grammar whenever a helper does
-not expose what you need.
+Each ``*_grammar`` function exposes the data preparation and plotnine layers
+used for one helper-shaped figure. Helpers may also apply validation, ordering,
+and styling that is omitted from these compact constructions.
 
 ``gganndata(adata, aes(...))`` does the name resolution and returns a real
 ``plotnine.ggplot`` whose ``.data`` is the tidy frame the layers draw from; for
 grouped summaries the annplyr accessor (``adata.ap.summarize``) does the
 aggregation. From there it is ordinary plotnine (``+ geom_* + scale_* + theme``).
 
-``HELPERS`` maps each name to the one-line helper that produces the same figure,
-so ``main()`` can render both and save them side by side under
+``HELPERS`` maps each name to the corresponding convenience call so ``main()``
+can render both and save them side by side under
 ``docs/images/compare/``. Escape hatches (``plot_clustermap`` via PyComplexHeatmap,
 ``plot_upset`` via marsilea) are not plotnine and have no grammar equivalent.
 
@@ -33,6 +31,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
+    element_blank,
     geom_boxplot,
     geom_col,
     geom_errorbar,
@@ -40,16 +39,15 @@ from plotnine import (
     geom_line,
     geom_point,
     geom_tile,
-    element_blank,
     geom_violin,
     ggplot,
     guide_legend,
     guides,
     labs,
-    theme,
     scale_color_cmap,
     scale_fill_cmap,
     scale_size,
+    theme,
 )
 
 import ggann as ag
@@ -76,7 +74,10 @@ def embedding_grammar(adata, color=GROUP, basis="umap", label=True):
         cents = base.data.groupby(color, observed=True)[[xcol, ycol]].median().reset_index()
         cents = cents.rename(columns={color: "label"})
         plot = plot + pe.geom_label_repel(
-            aes(xcol, ycol, label="label"), data=cents, fill="white", color="black",
+            aes(xcol, ycol, label="label"),
+            data=cents,
+            fill="white",
+            color="black",
             inherit_aes=False,
         )
     return plot
@@ -90,7 +91,12 @@ def features_grammar(adata, features=("CD3D", "NKG7", "CST3", "GNLY"), basis="um
     wide = gganndata(adata, ag.aes(xcol, ycol, color=ag.gene(feats[0]))).data[[xcol, ycol]]
     for f in feats:
         wide[f] = gganndata(adata, ag.aes(xcol, ycol, color=ag.gene(f))).data[f]
-    long = wide.melt(id_vars=[xcol, ycol], value_vars=feats, var_name="feature", value_name="expression")
+    long = wide.melt(
+        id_vars=[xcol, ycol],
+        value_vars=feats,
+        var_name="feature",
+        value_name="expression",
+    )
     long["feature"] = pd.Categorical(long["feature"], categories=feats, ordered=True)
     long = long.sort_values("expression")
     return (
@@ -138,7 +144,8 @@ def _grouped_means(adata, genes, group, cutoff=0.0):
     mean = mean.set_index(group)[genes].astype(float)
     frac = frac.set_index(group)[genes].astype(float)
     long = (
-        mean.reset_index().melt(id_vars=group, var_name="feature", value_name="mean")
+        mean.reset_index()
+        .melt(id_vars=group, var_name="feature", value_name="mean")
         .merge(
             frac.reset_index().melt(id_vars=group, var_name="feature", value_name="frac"),
             on=[group, "feature"],
@@ -252,12 +259,23 @@ def proportions_grammar(adata, group=GROUP, split="phase"):
 
 
 # --- plot_correlation(group) ----------------------------------------------- #
-def correlation_grammar(adata, group=GROUP, n_genes=100):
-    genes = list(adata.var_names[np.asarray(adata.var["highly_variable"], bool)])[:n_genes]
-    means = adata.ap.summarize(x={g: ap.mean(ap.col(g)) for g in genes}, by=group)
-    profiles = means.set_index(group)[genes].apply(lambda c: np.asarray(c, float)).T  # genes x groups
+def correlation_grammar(adata, group=GROUP, n_genes=None):
+    genes = list(adata.var_names[np.asarray(adata.var["highly_variable"], bool)])
+    if n_genes is not None:
+        genes = genes[:n_genes]
+    # Match plot_correlation's default source: raw when present, otherwise X.
+    source = "raw" if adata.raw is not None else "x"
+    means = adata.ap.summarize(
+        **{source: {g: ap.mean(ap.col(g)) for g in genes}},
+        by=group,
+    )
+    profiles = (
+        means.set_index(group)[genes].apply(lambda c: np.asarray(c, float)).T
+    )  # genes x groups
     corr = profiles.corr()
-    long = corr.rename_axis("row").reset_index().melt(id_vars="row", var_name="col", value_name="corr")
+    long = (
+        corr.rename_axis("row").reset_index().melt(id_vars="row", var_name="col", value_name="corr")
+    )
     return (
         ggplot(long, aes("col", "row", fill="corr"))
         + geom_tile()
@@ -268,7 +286,7 @@ def correlation_grammar(adata, group=GROUP, n_genes=100):
     )
 
 
-# Helper name -> grammar twin (used by the tests + comparison renderer).
+# Helper name -> reference construction used by the docs and smoke tests.
 EQUIVALENTS = {
     "plot_embedding": embedding_grammar,
     "plot_features": features_grammar,
@@ -283,18 +301,24 @@ EQUIVALENTS = {
     "plot_correlation": correlation_grammar,
 }
 
-# Helper name -> the one-line convenience call that produces the same figure.
+# Helper name -> corresponding convenience call.
 HELPERS = {
     "plot_embedding": lambda ad: ag.plot_embedding(ad, "umap", color=GROUP, label=True),
-    "plot_features": lambda ad: ag.plot_features(ad, ["CD3D", "NKG7", "CST3", "GNLY"], basis="umap"),
+    "plot_features": lambda ad: ag.plot_features(
+        ad, ["CD3D", "NKG7", "CST3", "GNLY"], basis="umap"
+    ),
     "plot_density": lambda ad: ag.plot_density(ad, "CD3D", basis="umap"),
     "plot_dotplot": lambda ad: ag.plot_dotplot(ad, MARKERS, GROUP),
     "plot_matrixplot": lambda ad: ag.plot_matrixplot(ad, MARKERS, GROUP),
     "plot_violin": lambda ad: ag.plot_violin(ad, ["CD3D"], GROUP),
     "plot_box": lambda ad: ag.plot_box(ad, ["CD3D"], GROUP),
     "plot_expression_bar": lambda ad: ag.plot_expression_bar(ad, ["CD3D"], GROUP),
-    "plot_expression_line": lambda ad: ag.plot_expression_line(ad, ["CD3D"], x="phase", group_by=GROUP),
-    "plot_proportions": lambda ad: ag.plot_proportions(ad, GROUP, split_by="phase", position="fill"),
+    "plot_expression_line": lambda ad: ag.plot_expression_line(
+        ad, ["CD3D"], x="phase", group_by=GROUP
+    ),
+    "plot_proportions": lambda ad: ag.plot_proportions(
+        ad, GROUP, split_by="phase", position="fill"
+    ),
     "plot_correlation": lambda ad: ag.plot_correlation(ad, GROUP),
 }
 
@@ -306,8 +330,17 @@ def main():
     out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "compare")
     os.makedirs(out, exist_ok=True)
     for name, grammar in EQUIVALENTS.items():
-        for kind, plot in (("helper", HELPERS[name](adata)), ("grammar", grammar(adata))):
-            plot.save(os.path.join(out, f"{name}_{kind}.png"), width=5, height=4, dpi=80, verbose=False)
+        for kind, plot in (
+            ("helper", HELPERS[name](adata)),
+            ("grammar", grammar(adata)),
+        ):
+            plot.save(
+                os.path.join(out, f"{name}_{kind}.png"),
+                width=5,
+                height=4,
+                dpi=80,
+                verbose=False,
+            )
         print("wrote", name)
 
 

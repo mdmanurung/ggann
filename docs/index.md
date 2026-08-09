@@ -1,79 +1,107 @@
 # ggann
 
-**A ggplot2-style plotting layer for scanpy `AnnData` objects.**
-
-`ggann` gives single-cell users the grammar of graphics over an `AnnData`, the
-way `ggplot2` works in R. `gganndata(adata) + aes(...) + geom_*()` returns a real
-[`plotnine.ggplot`](https://plotnine.org), and high-level `plot_*` helpers
-reproduce scanpy's core figures — every one is a thin stack of grammar layers.
+`ggann` turns `AnnData` into composable plotnine graphics and concise
+single-cell plotting helpers, then carries the same scientific content into an
+exact-size editable publication figure.
 
 ```python
-import scanpy as sc
 import ggann as ag
-from ggann import gganndata, aes
+
+plot = ag.plot_embedding(adata, "umap", color="cell_type")
+```
+
+For custom figures, `gganndata` returns an ordinary `plotnine.ggplot`:
+
+```python
+from ggann import aes, gganndata
 from plotnine import geom_point
 
-adata = sc.datasets.pbmc68k_reduced()
-
-# grammar of graphics, straight over the AnnData
-gganndata(adata, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()
-
-# or the high-level, scanpy-equivalent helpers
-ag.plot_embedding(adata, basis="umap", color="CD3D")
-ag.plot_dotplot(adata, ["CD3D", "NKG7", "CST3"], group_by="bulk_labels")
+plot = gganndata(
+    adata,
+    aes("UMAP_1", "UMAP_2", color="cell_type"),
+) + geom_point()
 ```
+
+All plotnine-native helpers remain composable. `plot_clustermap` and
+`plot_upset` are the two documented grid-backend exceptions.
 
 ## Start here
 
 ::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} Install ggann
-:link: installation
-:link-type: doc
-
-Set up the package and its optional extras.
-:::
-
 :::{grid-item-card} Quickstart
 :link: quickstart
 :link-type: doc
 
-Build your first figures, both ways.
+Create a helper plot, then build the same data flow with the grammar.
 :::
 
-:::{grid-item-card} Gallery
-:link: gallery
+:::{grid-item-card} API concepts
+:link: concepts
 :link-type: doc
 
-See every figure `ggann` produces on `pbmc68k_reduced`.
+Understand source resolution, grouping, ownership, and return types.
 :::
 
-:::{grid-item-card} API Reference
-:link: api
+:::{grid-item-card} Executable vignettes
+:link: vignettes/index
 :link-type: doc
 
-Look up the grammar, helpers, scales and theme.
+Run six offline workflows, including two real PBMC analyses.
+:::
+
+:::{grid-item-card} Publication figures
+:link: publication
+:link-type: doc
+
+Coordinate final-size styles, palettes, layouts, rasterization, and export.
+:::
+
+:::{grid-item-card} Performance
+:link: performance
+:link-type: doc
+
+Reproduce matched Scanpy timings, memory measurements, and acceptance criteria.
 :::
 
 ::::
 
 ```{toctree}
-:caption: Get Started
+:caption: Get started
 :maxdepth: 1
 :hidden:
 
 installation
 quickstart
+concepts
+publication
 gallery
 comparisons
-scplotter_parity
+```
+
+```{toctree}
+:caption: Workflows
+:maxdepth: 2
+:hidden:
+
+vignettes/index
 scanpy_parity
+scplotter_parity
 stats_pseudobulk
 ```
 
 ```{toctree}
-:caption: API Reference
+:caption: Adoption and validation
+:maxdepth: 1
+:hidden:
+
+migration
+performance
+```
+
+```{toctree}
+:caption: Reference
 :maxdepth: 1
 :hidden:
 

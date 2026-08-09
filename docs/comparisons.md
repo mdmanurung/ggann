@@ -1,270 +1,146 @@
-# Helper ↔ grammar
+# Helpers and grammar
 
-Every plotnine-native `plot_*` helper is a thin wrapper over the plotnine
-grammar. This page puts the convenience call next to the layer-by-layer grammar
-that reproduces it, with both figures rendered side by side — so you can start
-from a helper and drop down to raw grammar the moment you need something it does
-not expose.
+High-level helpers combine data preparation with plotnine layers. Use
+`gganndata` when the required data are per-cell fields that map directly to
+aesthetics. Use a helper when the plot also needs aggregation, ordering, or
+specialized preparation.
 
-Each grammar block uses `gganndata(adata, aes(...))` to resolve names into a
-tidy `DataFrame` (its `.data`), or `adata.ap.summarize(...)` for grouped
-summaries, then stacks ordinary plotnine layers. Every twin below is built and
-checked in
+The complete reference constructions are in
 [`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py).
+The test suite builds both the helper calls and those constructions. The two
+paths are not image-comparison tests.
+
+## Per-cell data
+
+An embedding needs only resolved coordinates and an observation column:
 
 ```python
 import scanpy as sc
 import ggann as ag
-from ggann import gganndata, aes, gene
-from plotnine import *
+from ggann import aes, gganndata
+from plotnine import geom_point
 
 adata = sc.datasets.pbmc68k_reduced()
 group = "bulk_labels"
-```
 
-## Embedding
+helper = ag.plot_embedding(adata, "umap", color=group)
 
-```python
-# helper
-ag.plot_embedding(adata, "umap", color=group, label=True)
-
-# grammar
-coords = ag.embedding_coords(adata, "umap")
-x, y = coords.columns[:2]
-base = gganndata(adata, aes(x, y, color=group))
-cents = base.data.groupby(group, observed=True)[[x, y]].median().reset_index()
-(
-    base
+grammar = (
+    gganndata(adata, aes("UMAP_1", "UMAP_2", color=group))
     + geom_point(size=1.5, alpha=0.9)
     + ag.scale_color_obs(adata, group)
-    + guides(color=guide_legend(override_aes={"size": 4}))
-    + ag.theme_ggann()
-    + geom_label_repel(aes(x, y, label=group), data=cents, fill="white", inherit_aes=False)
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_embedding_helper.png) | ![grammar](images/compare/plot_embedding_grammar.png) |
-
-## Multi-gene grid
-
-```python
-# helper
-ag.plot_features(adata, ["CD3D", "NKG7", "CST3", "GNLY"], basis="umap")
-
-# grammar: resolve each gene, melt long, facet
-long = ...  # gganndata(...).data per gene, melted to [x, y, feature, expression]
-(
-    ggplot(long, aes(x, y, color="expression"))
-    + geom_point(size=1.2, alpha=0.9)
-    + facet_wrap("~feature")
-    + scale_color_cmap(cmap_name="magma")
     + ag.theme_ggann()
 )
 ```
 
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_features_helper.png) | ![grammar](images/compare/plot_features_grammar.png) |
+The helper additionally applies embedding-axis styling and categorical legend
+defaults.
 
-## Dotplot
+## Aggregated data
+
+Dotplots require a mean and an expressing-cell fraction for every group and
+gene. That preparation happens before plotnine draws the points:
 
 ```python
-# helper
-ag.plot_dotplot(adata, ["CD3D", "NKG7", "CST3", "GNLY"], group)
-
-# grammar: aggregate mean + fraction expressing via annplyr, then size/colour
 import annplyr as ap
-mean = adata.ap.summarize(raw={g: ap.mean(ap.col(g)) for g in genes}, by=group)
-frac = adata.ap.summarize(raw={g: ap.mean(ap.col(g) > 0) for g in genes}, by=group)
-long = ...  # merge mean + frac, melt to [group, feature, mean, frac]
-(
-    ggplot(long, aes("feature", group))
-    + geom_point(aes(size="frac", color="mean"))
+from plotnine import aes, geom_point, ggplot, scale_color_cmap, scale_size
+
+genes = ["CD3D", "NKG7", "CST3", "GNLY"]
+
+mean = adata.ap.summarize(
+    raw={g: ap.mean(ap.col(g)) for g in genes},
+    by=group,
+)
+fraction = adata.ap.summarize(
+    raw={g: ap.mean(ap.col(g) > 0) for g in genes},
+    by=group,
+)
+
+mean = mean.melt(
+    id_vars=group,
+    var_name="feature",
+    value_name="mean_expression",
+)
+fraction = fraction.melt(
+    id_vars=group,
+    var_name="feature",
+    value_name="fraction",
+)
+summary = mean.merge(fraction, on=[group, "feature"])
+
+grammar = (
+    ggplot(summary, aes("feature", group))
+    + geom_point(aes(size="fraction", color="mean_expression"))
     + scale_color_cmap(cmap_name="Reds")
-    + scale_size(range=(0.5, 8.0), labels=lambda xs: [f"{x:.0%}" for x in xs])
+    + scale_size(range=(0.5, 8.0))
     + ag.theme_ggann()
 )
 ```
 
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_dotplot_helper.png) | ![grammar](images/compare/plot_dotplot_grammar.png) |
+`plot_dotplot` also preserves requested gene order, observation-category order,
+and split-group behavior.
 
-## Matrixplot
+## Complete helper-to-grammar map
 
-```python
-# helper
-ag.plot_matrixplot(adata, ["CD3D", "NKG7", "CST3", "GNLY"], group)
+Every plotnine-native helper can be reproduced by preparing the stated table
+and adding ordinary plotnine layers. The helper remains preferable when it also
+owns validation, source selection, category ordering, or a non-trivial
+statistic.
 
-# grammar: same group means, drawn as tiles
-(
-    ggplot(long, aes("feature", group, fill="mean"))
-    + geom_tile()
-    + scale_fill_cmap(cmap_name="viridis")
-    + ag.theme_ggann()
-)
-```
+| Helper | Prepared data | Grammar recipe |
+|---|---|---|
+| `plot_embedding` | Two `obsm` coordinates plus optional colour/split fields | `gganndata + geom_point` |
+| `plot_features` | Coordinates and expression, pivoted by feature | `ggplot + geom_point + facet_wrap` |
+| `plot_density` | Coordinates plus pyNebulosa feature density | `ggplot + geom_point + scale_color_cmap` |
+| `plot_embedding_density` | Coordinates plus two-dimensional KDE | `ggplot + geom_point` faceted by group |
+| `plot_dotplot` | Group/gene mean and fraction expressing | `ggplot + geom_point(size=..., color=...)` |
+| `plot_dotplot_grouped` | Dotplot table plus gene-set labels | Dotplot recipe plus grouped x-axis facets |
+| `plot_matrixplot` | Group/gene mean | `ggplot + geom_tile` |
+| `plot_matrixplot_grouped` | Matrix table plus gene-set labels | Matrix recipe plus grouped x-axis facets |
+| `plot_heatmap` | Per-cell long expression table | `ggplot + geom_tile` |
+| `plot_violin` | Per-cell long expression table | `ggplot + geom_violin + facet_wrap` |
+| `plot_stacked_violin` | Per-cell long expression table | Violin recipe with one row per feature |
+| `plot_tracksplot` | Per-cell long expression ordered by group | `ggplot + geom_col + facet_grid` |
+| `plot_box` | Per-cell long expression table | `ggplot + geom_boxplot` and optional points |
+| `plot_sina` | Per-cell long expression table | `ggplot + plotnine_extra.geom_sina` |
+| `plot_ridge` | Per-group KDE curves on an offset grid | `ggplot + geom_ribbon + geom_line` |
+| `plot_expression_bar` | Group mean and uncertainty | `ggplot + geom_col + geom_errorbar` |
+| `plot_expression_line` | Mean expression by x/group | `ggplot + geom_line + geom_point` |
+| `plot_proportions` | annplyr cell counts, optionally normalized | `ggplot + geom_col`, `geom_area`, or `geom_line` |
+| `plot_correlation` | Group mean profiles and correlation matrix | `ggplot + geom_tile` |
+| `plot_dendrogram` | SciPy dendrogram link coordinates | `ggplot + geom_line` |
+| `plot_rank_genes_dotplot` | `rank_genes_df` plus dotplot summary | Ranked selection followed by dotplot recipe |
+| `plot_rank_genes_matrixplot` | `rank_genes_df` plus group means | Ranked selection followed by matrix recipe |
+| `plot_volcano` | Differential-expression result table | `ggplot + geom_point` and optional repel labels |
+| `plot_ma` | Mean abundance and fold-change table | `ggplot + geom_point` and optional repel labels |
+| `plot_qc_violin` | Long observation-metric table | `ggplot + geom_violin + facet_wrap` |
+| `plot_qc_scatter` | Two resolved per-cell fields plus colour | `gganndata + geom_point` |
+| `plot_highest_expr_genes` | Per-cell fractions for top-ranked genes | `ggplot + geom_boxplot` |
+| `plot_variance_ratio` | PCA variance-ratio vector | `ggplot + geom_point + geom_line` |
 
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_matrixplot_helper.png) | ![grammar](images/compare/plot_matrixplot_grammar.png) |
+`plot_clustermap` and `plot_upset` are grid-backend escape hatches and therefore
+have no plotnine grammar equivalent. The representative executable
+constructions in `examples/grammar_equivalents.py` expose the exact table/layer
+boundary for the most common recipes.
 
-## Violin
+## Rendered references
 
-```python
-# helper
-ag.plot_violin(adata, ["CD3D"], group)
+These images show the convenience calls beside the corresponding reference
+constructions from `examples/grammar_equivalents.py`.
 
-# grammar
-d = gganndata(adata, aes(group, gene("CD3D"), fill=group)).data
-(
-    ggplot(d, aes(group, "CD3D", fill=group))
-    + geom_violin(scale="width")
-    + ag.scale_fill_obs(adata, group)
-    + ag.theme_ggann()
-)
-```
+| Helper | Convenience call | Reference construction |
+|---|:---:|:---:|
+| `plot_embedding` | ![](images/compare/plot_embedding_helper.png) | ![](images/compare/plot_embedding_grammar.png) |
+| `plot_features` | ![](images/compare/plot_features_helper.png) | ![](images/compare/plot_features_grammar.png) |
+| `plot_density` | ![](images/compare/plot_density_helper.png) | ![](images/compare/plot_density_grammar.png) |
+| `plot_dotplot` | ![](images/compare/plot_dotplot_helper.png) | ![](images/compare/plot_dotplot_grammar.png) |
+| `plot_matrixplot` | ![](images/compare/plot_matrixplot_helper.png) | ![](images/compare/plot_matrixplot_grammar.png) |
+| `plot_violin` | ![](images/compare/plot_violin_helper.png) | ![](images/compare/plot_violin_grammar.png) |
+| `plot_box` | ![](images/compare/plot_box_helper.png) | ![](images/compare/plot_box_grammar.png) |
+| `plot_expression_bar` | ![](images/compare/plot_expression_bar_helper.png) | ![](images/compare/plot_expression_bar_grammar.png) |
+| `plot_expression_line` | ![](images/compare/plot_expression_line_helper.png) | ![](images/compare/plot_expression_line_grammar.png) |
+| `plot_proportions` | ![](images/compare/plot_proportions_helper.png) | ![](images/compare/plot_proportions_grammar.png) |
+| `plot_correlation` | ![](images/compare/plot_correlation_helper.png) | ![](images/compare/plot_correlation_grammar.png) |
 
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_violin_helper.png) | ![grammar](images/compare/plot_violin_grammar.png) |
-
-## Box
-
-```python
-# helper
-ag.plot_box(adata, ["CD3D"], group)
-
-# grammar: box + jittered cells
-(
-    ggplot(d, aes(group, "CD3D", fill=group))
-    + geom_boxplot(width=0.7, outlier_alpha=0.0)
-    + geom_jitter(width=0.2, size=0.35, alpha=0.25, stroke=0)
-    + ag.scale_fill_obs(adata, group)
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_box_helper.png) | ![grammar](images/compare/plot_box_grammar.png) |
-
-## Expression bar (mean ± SE)
-
-```python
-# helper
-ag.plot_expression_bar(adata, ["CD3D"], group)
-
-# grammar: aggregate mean and standard error, then col + errorbar
-d = gganndata(adata, aes(group, gene("CD3D"))).data
-s = d.groupby(group, observed=True)["CD3D"].agg(mean="mean", sd="std", n="count").reset_index()
-s["se"] = s["sd"] / s["n"] ** 0.5
-(
-    ggplot(s, aes(group, "mean", fill=group))
-    + geom_col(width=0.7)
-    + geom_errorbar(aes(ymin="mean - se", ymax="mean + se"), width=0.3)
-    + ag.scale_fill_obs(adata, group)
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_expression_bar_helper.png) | ![grammar](images/compare/plot_expression_bar_grammar.png) |
-
-## Expression line
-
-```python
-# helper
-ag.plot_expression_line(adata, ["CD3D"], x="phase", group_by=group)
-
-# grammar: mean expression per (x, group), then line + points
-d = gganndata(adata, aes("phase", gene("CD3D"), color=group)).data
-s = d.groupby(["phase", group], observed=True)["CD3D"].mean().reset_index(name="mean")
-(
-    ggplot(s, aes("phase", "mean", color=group, group=group))
-    + geom_line()
-    + geom_point(size=2)
-    + ag.scale_color_obs(adata, group)
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_expression_line_helper.png) | ![grammar](images/compare/plot_expression_line_grammar.png) |
-
-## Composition
-
-```python
-# helper
-ag.plot_proportions(adata, group, split_by="phase", position="fill")
-
-# grammar: count cells per (phase, group), normalise within phase, stack
-d = gganndata(adata, aes("phase", fill=group)).data
-counts = d.groupby(["phase", group], observed=True).size().reset_index(name="n")
-counts["frac"] = counts.groupby("phase", observed=True)["n"].transform(lambda x: x / x.sum())
-(
-    ggplot(counts, aes("phase", "frac", fill=group))
-    + geom_col()
-    + ag.scale_fill_obs(adata, group)
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_proportions_helper.png) | ![grammar](images/compare/plot_proportions_grammar.png) |
-
-## Density (pyNebulosa)
-
-```python
-# helper
-ag.plot_density(adata, "CD3D", basis="umap")
-
-# grammar: resolve expression, compute the weighted KDE, colour by it
-from pynebulosa import calculate_density
-d = gganndata(adata, aes(x, y, color=gene("CD3D"))).data
-d["density"] = calculate_density(d["CD3D"].to_numpy(float), d[[x, y]].to_numpy(float))
-(
-    ggplot(d.sort_values("density"), aes(x, y, color="density"))
-    + geom_point(size=1.5, alpha=0.9)
-    + scale_color_cmap(cmap_name="magma")
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_density_helper.png) | ![grammar](images/compare/plot_density_grammar.png) |
-
-## Correlation
-
-```python
-# helper (also clusters the axes)
-ag.plot_correlation(adata, group)
-
-# grammar: pseudobulk means -> group x group correlation -> tiles
-means = adata.ap.summarize(x={g: ap.mean(ap.col(g)) for g in genes}, by=group)
-corr = means.set_index(group)[genes].T.corr()
-long = corr.rename_axis("row").reset_index().melt(id_vars="row", var_name="col", value_name="corr")
-(
-    ggplot(long, aes("col", "row", fill="corr"))
-    + geom_tile()
-    + scale_fill_cmap(cmap_name="RdBu_r")
-    + ag.theme_ggann()
-)
-```
-
-| convenience helper | grammar of graphics |
-|:---:|:---:|
-| ![helper](images/compare/plot_correlation_helper.png) | ![grammar](images/compare/plot_correlation_grammar.png) |
-
-```{note}
-The helper adds niceties the bare grammar above leaves out — e.g.
-`plot_correlation` hierarchically clusters the axes, and several helpers order
-groups by the obs categorical order. That is exactly the point: the helpers are
-convenience layers over the same grammar you can always write yourself.
-```
+`plot_clustermap` and `plot_upset` use grid-based backends and do not have a
+plotnine grammar construction.

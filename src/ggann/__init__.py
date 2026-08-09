@@ -31,6 +31,7 @@ from plotnine_extra import (
     stat_regline_equation,
 )
 
+from ._matplotlib_backend import MatplotlibGGPlot
 from ._palette import obs_colors, scale_color_obs, scale_colour_obs, scale_fill_obs
 from ._resolve import embedding_coords, gene, obs, obsm
 from .clustermap import plot_clustermap
@@ -70,13 +71,20 @@ from .plots import (
     plot_matrixplot,
 )
 from .pseudobulk import pseudobulk
+from .publication import (
+    PublicationStyle,
+    publication_palette,
+    publication_style,
+    save_publication,
+    style_context,
+    theme_publication,
+)
 from .qc import (
     plot_highest_expr_genes,
     plot_qc_scatter,
     plot_qc_violin,
     plot_variance_ratio,
 )
-from .upset import plot_upset
 from .theme import (
     reset_theme,
     scale_color_celltype,
@@ -89,6 +97,7 @@ from .theme import (
     sizes,
     theme_ggann,
 )
+from .upset import plot_upset
 
 try:
     __version__ = version("ggann")
@@ -102,6 +111,7 @@ __all__ = [
     "obs",
     "obsm",
     "embedding_coords",
+    "MatplotlibGGPlot",
     "plot_embedding",
     "plot_embedding_density",
     "plot_features",
@@ -134,6 +144,12 @@ __all__ = [
     "plot_correlation",
     "plot_upset",
     "theme_ggann",
+    "PublicationStyle",
+    "publication_style",
+    "theme_publication",
+    "style_context",
+    "publication_palette",
+    "save_publication",
     "set_theme",
     "reset_theme",
     "sizes",

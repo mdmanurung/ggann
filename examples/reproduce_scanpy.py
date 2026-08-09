@@ -1,10 +1,8 @@
-"""Reproduce scanpy's core plots with ggann, side by side.
+"""Render scanpy and ggann plots side by side.
 
 For each ``sc.pl.*`` figure we render scanpy's output and the ggann equivalent to
 ``docs/images/scanpy/<name>_scanpy.png`` / ``<name>_ggann.png`` on the same
-``pbmc68k_reduced`` data, so the docs can show them next to each other. Plots
-scanpy has that ggann does not yet cover are listed in the parity table in
-``docs/scanpy_parity.md`` (they are the missing-plot backlog).
+``pbmc68k_reduced`` data for the comparisons in ``docs/scanpy_parity.md``.
 
 Run: ``python examples/reproduce_scanpy.py``.
 """
@@ -93,13 +91,19 @@ def main():
     adata = _adata()
     out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "scanpy")
     os.makedirs(out, exist_ok=True)
+    failures = []
     for name, (scfn, ggfn) in pairs(adata).items():
         try:
             _save_scanpy(scfn, os.path.join(out, f"{name}_scanpy.png"))
             _save_ggann(ggfn(), os.path.join(out, f"{name}_ggann.png"))
             print("wrote", name)
-        except Exception as e:  # keep going; report the failure
-            print("FAILED", name, type(e).__name__, str(e)[:80])
+        except Exception as error:
+            failures.append((name, error))
+            print("FAILED", name, type(error).__name__, str(error)[:80])
+
+    if failures:
+        names = ", ".join(name for name, _ in failures)
+        raise RuntimeError(f"Failed to render: {names}")
 
 
 if __name__ == "__main__":

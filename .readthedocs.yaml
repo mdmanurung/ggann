@@ -5,6 +5,12 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+  # Temporary release-candidate bootstrap. Remove once these versions are on
+  # PyPI; pyproject.toml remains the authoritative runtime contract.
+  jobs:
+    pre_install:
+      - python -m pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617"
+      - python -m pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8"
 
 sphinx:
   configuration: docs/conf.py

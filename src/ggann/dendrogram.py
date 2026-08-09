@@ -21,7 +21,7 @@ from plotnine import (
     scale_y_continuous,
 )
 
-from .theme import theme_ggann
+from .publication import _family_theme
 
 __all__ = ["plot_dendrogram"]
 
@@ -31,19 +31,51 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
     if key not in adata.uns:
         import scanpy as sc
 
-        # matches scanpy's own plotting behaviour: compute (and cache) if absent.
-        # key_added=key so a custom key is written where we then read it.
-        sc.tl.dendrogram(adata, groupby=group_by, key_added=key)
+        result = sc.tl.dendrogram(adata, groupby=group_by, key_added=key, inplace=False)
+        if result is None:
+            raise RuntimeError("scanpy did not return dendrogram coordinates.")
+        return result["dendrogram_info"]
     return adata.uns[key]["dendrogram_info"]
 
 
 def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation: str = "top"):
     """Hierarchical tree relating the categories of ``group_by`` (``sc.pl.dendrogram``).
 
-    Reuses the coordinates stored by ``sc.tl.dendrogram`` in
-    ``adata.uns['dendrogram_<group_by>']`` (computing them if absent, as scanpy
-    does). ``orientation='top'`` draws leaves along the x axis with linkage height
-    on y; ``orientation='left'`` rotates the tree so leaves run down the y axis.
+    Reuses coordinates stored by ``sc.tl.dendrogram``. If they are absent, the
+    coordinates are computed without modifying ``adata``. ``orientation='top'``
+    draws leaves along the x axis; ``orientation='left'`` draws them along y.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    group_by : str
+        Categorical observation column.
+    key : str, optional
+        ``adata.uns`` dendrogram key.
+    orientation : {"top", "left"}
+        Direction of the rendered tree.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable dendrogram.
+
+    Raises
+    ------
+    KeyError
+        If grouping data or the requested stored result is missing.
+    ValueError
+        If ``orientation`` is unsupported or scanpy rejects grouping data.
+
+    Notes
+    -----
+    Missing coordinates are computed on a temporary AnnData copy; input ownership
+    is preserved.
+
+    Examples
+    --------
+    >>> p = plot_dendrogram(adata, group_by="cell_type")
     """
     if orientation not in {"top", "left"}:
         raise ValueError("orientation must be 'top' or 'left'.")
@@ -66,7 +98,7 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
             + geom_line()
             + scale_x_continuous(breaks=leaf_pos, labels=list(ivl))
             + labs(x="", y="distance")
-            + theme_ggann()
+            + _family_theme("matrix")
             # rotate the leaf labels so long category names stay legible
             + pe.rotate_x_text(90)
         )
@@ -76,5 +108,5 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
         + geom_line()
         + scale_y_continuous(breaks=leaf_pos, labels=list(ivl))
         + labs(x="distance", y="")
-        + theme_ggann()
+        + _family_theme("matrix")
     )

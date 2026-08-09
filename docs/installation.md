@@ -1,29 +1,44 @@
 # Installation
 
-`ggann` requires Python ≥ 3.12.
+`ggann` requires Python 3.12 or later.
 
 ```bash
-pip install git+https://github.com/mdmanurung/ggann
+pip install ggann
 ```
 
-`ggann` builds on [plotnine](https://plotnine.org),
-[plotnine-extra](https://github.com/mdmanurung/plotnine-extra) and
-[annplyr](https://github.com/mdmanurung/annplyr); the latter two install
-automatically from git.
+The core install includes [plotnine](https://plotnine.org/),
+[`plotnine-extra`](https://github.com/mdmanurung/plotnine-extra), and
+[`annplyr`](https://github.com/mdmanurung/annplyr). All runtime requirements are
+declared as bounded package versions; ggann does not install dependencies from
+Git commit URLs.
 
 ## Optional extras
 
-Some helpers use heavy, single-purpose backends kept out of the core install:
-
-| Extra | Enables | Backend |
-|-------|---------|---------|
+| Extra | Functions | Backend |
+|---|---|---|
 | `density` | {func}`~ggann.plot_density` | [pyNebulosa](https://github.com/mdmanurung/pyNebulosa) |
 | `upset` | {func}`~ggann.plot_upset` | [marsilea](https://marsilea.readthedocs.io/) |
 | `heatmap` | {func}`~ggann.plot_clustermap` | [PyComplexHeatmap](https://github.com/DingWB/PyComplexHeatmap) |
+| `pseudobulk` | {func}`~ggann.pseudobulk` | [decoupler](https://decoupler-py.readthedocs.io/) |
+
+Install one or more extras from the same distribution:
 
 ```bash
-pip install "ggann[density,upset,heatmap] @ git+https://github.com/mdmanurung/ggann"
+pip install "ggann[density,upset,heatmap,pseudobulk]"
 ```
 
-Calling a helper without its extra raises an `ImportError` naming the extra to
-install.
+Calling one of these functions without its backend raises an `ImportError` that
+names the required extra.
+
+## Install a source checkout
+
+For release verification or development:
+
+```bash
+git clone https://github.com/mdmanurung/ggann.git
+cd ggann
+python -m pip install -e ".[test,docs]"
+```
+
+Do not add sibling repositories to `PYTHONPATH` when validating a wheel. A clean
+wheel-install test must resolve every runtime dependency from declared metadata.

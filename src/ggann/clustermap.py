@@ -16,15 +16,17 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 
-from ._aggregate import aggregate_expression, expression_source
-from ._resolve import _densify
+from ._aggregate import _standardize, group_means
+from ._expression import densify_frame as _densify
+from ._expression import ordered_unique, project_expression, resolve_source
+from .publication import _active_style
 
 __all__ = ["plot_clustermap"]
 
 
 def _require_pch():
     try:
-        import PyComplexHeatmap as pch  # noqa: N813
+        import PyComplexHeatmap as pch
     except ImportError as exc:  # pragma: no cover - env-dependent
         raise ImportError(
             "plot_clustermap requires PyComplexHeatmap. "
@@ -63,6 +65,56 @@ def plot_clustermap(
     (PyComplexHeatmap-side row/column z-score) are mutually exclusive -- applying
     both would normalize twice. Returns the
     :class:`PyComplexHeatmap.ClusterMapPlotter` instance.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    genes : sequence of str
+        Genes displayed as rows.
+    group_by : str, optional
+        Observation column to aggregate into columns; otherwise show cells.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    annotations : iterable of str, optional
+        Observation annotations for per-cell columns.
+    standard_scale : {None, "var", "group", "zscore"}
+        ggann-side scaling before clustering.
+    z_score : {0, 1}, optional
+        Backend row or column z-score.
+    row_cluster, col_cluster : bool
+        Enable hierarchical clustering.
+    cmap : str
+        Matplotlib colormap name.
+    show_rownames, show_colnames : bool
+        Show matrix labels.
+    plot : bool
+        Render immediately.
+    **kwargs
+        Passed to ``PyComplexHeatmap.ClusterMapPlotter``.
+
+    Returns
+    -------
+    PyComplexHeatmap.ClusterMapPlotter
+        Grid-backend plotter; this is not a plotnine object.
+
+    Raises
+    ------
+    ImportError
+        If the ``heatmap`` extra is unavailable.
+    KeyError
+        If requested genes, metadata, or a layer are missing.
+    ValueError
+        If sources are incompatible or both scaling mechanisms are selected.
+
+    Notes
+    -----
+    Requested genes are projected before aggregation. Per-cell mode materializes a
+    genes-by-cells table for clustering; ``adata`` remains unchanged.
+
+    Examples
+    --------
+    >>> cm = plot_clustermap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
     if standard_scale is not None and z_score is not None:
         raise ValueError(
@@ -70,27 +122,21 @@ def plot_clustermap(
             "matrix); set at most one."
         )
     pch = _require_pch()
-    genes = list(genes)
+    genes = ordered_unique(genes)
 
     if group_by is not None:
-        agg = aggregate_expression(
-            adata, genes, group_by, layer=layer, use_raw=use_raw,
-            standard_scale=standard_scale,
-        )
-        matrix = agg.pivot(index="feature", columns=group_by, values="mean_expression")
-        matrix = matrix.loc[genes]
+        means = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw)
+        matrix = _standardize(means, standard_scale).T.loc[genes]
         ann_df = pd.DataFrame({group_by: matrix.columns}, index=matrix.columns)
     else:
-        kind, lyr = expression_source(adata, layer, use_raw)
-        if kind == "raw":
-            wide = adata.ap.to_df(raw=genes)
-            wide = wide.rename(columns={f"raw_{g}": g for g in genes})
-        else:
-            wide = adata.ap.to_df(x=genes, layer=lyr)
-        wide = _densify(wide)[genes]
-        matrix = wide.T  # genes x cells
+        kind, lyr = resolve_source(adata, layer, use_raw)
         ann_cols = list(annotations) if annotations else []
-        ann_df = adata.ap.to_df(obs=ann_cols) if ann_cols else None
+        projected, genes = project_expression(adata, genes, kind=kind, layer=lyr, obs=ann_cols)
+        wide = _densify(projected.ap.to_df(x=genes))[genes]
+        wide.index = adata.obs_names.copy()
+        wide = _standardize(wide, standard_scale)
+        matrix = wide.T  # genes x cells
+        ann_df = projected.ap.to_df(obs=ann_cols) if ann_cols else None
 
     top_annotation = None
     if ann_df is not None and not ann_df.empty:
@@ -106,7 +152,7 @@ def plot_clustermap(
                 ann_df[col] = ann_df[col].astype("category")
         top_annotation = pch.HeatmapAnnotation(df=ann_df, axis=1, plot_legend=True)
 
-    return pch.ClusterMapPlotter(
+    result = pch.ClusterMapPlotter(
         data=matrix,
         top_annotation=top_annotation,
         z_score=z_score,
@@ -118,3 +164,8 @@ def plot_clustermap(
         plot=plot,
         **kwargs,
     )
+    if style := _active_style():
+        # Preserve the backend's documented return type while retaining the
+        # style used to construct/render it for ggann's export adapter.
+        result._ggann_publication_style = style
+    return result

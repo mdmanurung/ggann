@@ -11,10 +11,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
+
+      # Pinned first-party dependency snapshots keep CI reproducible until the
+      # corresponding distributions are available from the package index.
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/annplyr
+          ref: cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617
+          path: vendor/annplyr
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/plotnine-extra
+          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          path: vendor/plotnine-extra
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -25,7 +38,85 @@ jobs:
       - name: Install ggann with test extras
         run: |
           python -m pip install --upgrade pip
+          pip install ./vendor/annplyr ./vendor/plotnine-extra
           pip install -e ".[test]"
 
       - name: Run tests
-        run: pytest -q
+        env:
+          MPLBACKEND: Agg
+          PYTHONPATH: src
+        run: python -m pytest -q
+
+      - name: Run benchmark smoke test
+        if: matrix.python-version == '3.12'
+        env:
+          MPLBACKEND: Agg
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --preset smoke \
+            --formats csr \
+            --workloads resolve_x,aggregate_x,plot_embedding_prepare,plot_dotplot_prepare \
+            --repeats 1 \
+            --output /tmp/ggann-benchmark-smoke.json
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/annplyr
+          ref: cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617
+          path: vendor/annplyr
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/plotnine-extra
+          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          path: vendor/plotnine-extra
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install quality tools
+        run: |
+          python -m pip install ./vendor/annplyr ./vendor/plotnine-extra
+          python -m pip install -e ".[dev]"
+      - name: Lint, check formatting, and type-check
+        run: |
+          ruff check src tests benchmarks docs/extensions examples scripts
+          ruff format --check src tests benchmarks docs/extensions examples scripts
+          python scripts/run_pyright.py
+
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/annplyr
+          ref: cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617
+          path: vendor/annplyr
+      - uses: actions/checkout@v4
+        with:
+          repository: mdmanurung/plotnine-extra
+          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          path: vendor/plotnine-extra
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Build and validate distributions
+        run: |
+          python -m pip install --upgrade pip
+          pip install "build>=1.2,<2" "twine>=6,<7"
+          python -m build
+          python -m twine check dist/*
+      - name: Verify the wheel with pinned dependency snapshots
+        run: |
+          python -m venv /tmp/ggann-wheel-test
+          /tmp/ggann-wheel-test/bin/pip install ./vendor/annplyr ./vendor/plotnine-extra
+          /tmp/ggann-wheel-test/bin/pip install dist/*.whl
+          /tmp/ggann-wheel-test/bin/pip install "ggann[test,docs,benchmark,release]"
+          cd /tmp
+          /tmp/ggann-wheel-test/bin/python -c "import PyComplexHeatmap, build, decoupler, ggann, marsilea, psutil, pynebulosa, sphinx, twine; print(ggann.__version__)"
+          /tmp/ggann-wheel-test/bin/pip check

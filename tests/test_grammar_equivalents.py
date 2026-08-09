@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import os
 
+import numpy as np
 import plotnine as p9
 import pytest
 
@@ -53,3 +54,26 @@ def test_every_plotnine_utility_has_a_grammar_equivalent():
     assert not missing, f"utilities lacking a grammar equivalent: {sorted(missing)}"
     # every grammar twin must have a paired helper for the side-by-side comparison
     assert set(ge.EQUIVALENTS) == set(ge.HELPERS)
+
+
+@pytest.mark.parametrize("has_raw", [True, False])
+def test_correlation_reference_matches_helper_data(adata, has_raw):
+    selected = adata if has_raw else adata.copy()
+    if not has_raw:
+        selected.raw = None
+
+    helper = ge.ag.plot_correlation(selected, ge.GROUP, cluster=False).data.copy()
+    reference = ge.correlation_grammar(selected).data.copy()
+
+    def keyed(frame):
+        frame["row"] = frame["row"].astype(str)
+        frame["col"] = frame["col"].astype(str)
+        return frame.set_index(["row", "col"])["corr"].sort_index()
+
+    helper_values = keyed(helper)
+    reference_values = keyed(reference)
+    assert helper_values.index.equals(reference_values.index)
+    # The helper uses a sparse matrix reduction while the grammar reference uses
+    # annplyr/pandas column reductions; both are numerically equivalent but sum
+    # float32 inputs in a different order.
+    np.testing.assert_allclose(helper_values, reference_values, rtol=1e-6, atol=1e-7)

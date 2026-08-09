@@ -1,10 +1,9 @@
-"""Reproduce scplotter's CellDimPlot / FeatureStatPlot vignette figures with ggann.
+"""Render ggann counterparts to scplotter vignette figures.
 
 scplotter's vignettes run on a Seurat ``pancreas_sub`` object; here we reproduce
-the *chart types and options* on ``pbmc68k_reduced`` to show ggann reaches the
-same figures -- either directly through a helper or by composing one plotnine
-layer onto it (the composable API). Capabilities that need data ggann does not
-model (RNA velocity, pseudotime lineages, kNN-graph edges, 3D) are out of scope.
+the chart types and options on ``pbmc68k_reduced``. Capabilities that require
+RNA velocity, lineage fits, neighbour graphs, or three-dimensional rendering
+are outside this example.
 
 Run: ``python examples/reproduce_scplotter.py`` -> writes docs/images/scplotter/.
 """

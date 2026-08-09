@@ -5,7 +5,7 @@ import pytest
 from plotnine import geom_point, ggplot
 
 from ggann import aes, gganndata
-from ggann._resolve import parse_token, plain_name, resolve_frame, Ref, ObsmRef
+from ggann._resolve import ObsmRef, Ref, parse_token, plain_name, resolve_frame
 
 
 @pytest.fixture(scope="module")
@@ -63,10 +63,13 @@ def test_plain_name_rewrites(adata):
 
 
 def test_gganndata_all_prefix_strings(adata_layers, tmp_path):
-    p = gganndata(
-        adata_layers,
-        aes("obsm:umap[0]", "obsm:umap[1]", color="gene:CD3D@logcounts", shape="obs:phase"),
-    ) + geom_point()
+    p = (
+        gganndata(
+            adata_layers,
+            aes("obsm:umap[0]", "obsm:umap[1]", color="gene:CD3D@logcounts", shape="obs:phase"),
+        )
+        + geom_point()
+    )
     assert isinstance(p, ggplot)
     for col in ("UMAP_1", "UMAP_2", "CD3D", "phase"):
         assert col in p.data.columns

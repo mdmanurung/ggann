@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from plotnine import ggplot, geom_point
+from plotnine import geom_point, ggplot
 
 from ggann import aes, gene, gganndata, obs
 from ggann._resolve import resolve_frame

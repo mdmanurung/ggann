@@ -18,10 +18,11 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
-from plotnine import aes, geom_point, ggplot, labs, scale_color_cmap
+from plotnine import aes, geom_point, ggplot, labs
 
+from ._expression import ordered_unique
 from ._resolve import embedding_coords, plain_name, resolve_frame
-from .theme import theme_ggann
+from .plots import _continuous_scale, _embedding_style
 
 __all__ = ["plot_density"]
 
@@ -60,6 +61,9 @@ def plot_density(
     alpha: float = 0.9,
     cmap: str = "magma",
     ncol: int | None = None,
+    rasterized: bool = False,
+    show_axes: bool | None = None,
+    equal_aspect: bool | None = None,
 ):
     """Gene-weighted density over an embedding, one faceted panel per feature.
 
@@ -77,12 +81,67 @@ def plot_density(
     differ by orders of magnitude across genes). The scaling is monotonic, so the
     within-panel ordering is unchanged; for raw-magnitude colourbars, compose
     separate ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    features : str or sequence of str
+        Genes or numeric observation columns.
+    joint : bool
+        Add the product-density panel for multiple features.
+    basis : str
+        Embedding basis.
+    layer, use_raw : optional
+        Mutually exclusive expression source.
+    method : {"wkde", "ks"}
+        pyNebulosa density estimator.
+    adjust : float
+        Bandwidth multiplier.
+    size, alpha : float
+        Point size and opacity.
+    cmap : str
+        Matplotlib colormap name.
+    ncol : int, optional
+        Facet columns.
+    rasterized : bool, default=False
+        Rasterize only the density points in vector output.
+    show_axes : bool, optional
+        Explicitly show or hide embedding axes; ``None`` selects the active
+        legacy or publication default.
+    equal_aspect : bool, optional
+        Force equal x/y data units; ``None`` enables it in publication mode.
+
+    Returns
+    -------
+    plotnine.ggplot
+        Composable faceted density plot.
+
+    Raises
+    ------
+    ImportError
+        If the ``density`` extra is unavailable.
+    KeyError
+        If the embedding or an explicit feature source is missing.
+    TypeError
+        If a resolved feature is non-numeric.
+    ValueError
+        If the method or expression-source selection is invalid.
+
+    Notes
+    -----
+    Only selected features and two coordinates are projected. KDE cost scales with
+    observations and features; the input is not mutated.
+
+    Examples
+    --------
+    >>> p = plot_density(adata, ["CD3D", "NKG7"], joint=True)
     """
     calculate_density = _require_pynebulosa()
 
     if isinstance(features, str):
         features = [features]
-    features = list(features)
+    features = ordered_unique(features)
     if not features:
         raise ValueError("plot_density needs at least one feature.")
 
@@ -127,7 +186,12 @@ def plot_density(
 
     frames = [
         pd.DataFrame(
-            {xcol: xy[:, 0], ycol: xy[:, 1], "density": _minmax(panel_density[label]), "feature": label}
+            {
+                xcol: xy[:, 0],
+                ycol: xy[:, 1],
+                "density": _minmax(panel_density[label]),
+                "feature": label,
+            }
         )
         for label in panels
     ]
@@ -137,9 +201,9 @@ def plot_density(
 
     return (
         ggplot(long, aes(xcol, ycol, color="density"))
-        + geom_point(size=size, alpha=alpha)
+        + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + scale_color_cmap(cmap_name=cmap)
+        + _continuous_scale("color", long["density"], cmap, signed=False)
         + labs(color="density\n(scaled)")
-        + theme_ggann()
+        + _embedding_style(show_axes, equal_aspect)
     )
