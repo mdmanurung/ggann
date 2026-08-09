@@ -90,6 +90,21 @@ class SelectionTests(unittest.TestCase):
         self.assertFalse(supported)
         self.assertIn("no use_raw", reason)
 
+    def test_real_dataset_case_id_is_not_described_as_synthetic(self) -> None:
+        spec = replace(
+            _spec(),
+            dataset="pbmc68k_reduced",
+            matrix_format="dense",
+            n_obs=700,
+            n_vars=765,
+            n_genes=4,
+            n_groups=10,
+        )
+
+        self.assertEqual(spec.case_id, "pbmc68k_reduced/dense/x/dotplot")
+        with self.assertRaisesRegex(ValueError, "synthetic"):
+            spec.fixture_spec()
+
 
 class ComparabilityTests(unittest.TestCase):
     def test_numeric_tolerance_and_categorical_color_are_supported(self) -> None:

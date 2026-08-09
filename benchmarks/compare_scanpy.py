@@ -44,6 +44,7 @@ try:
         CaseSpec,
         _ggann_source_metadata,
         _make_fixture,
+        _matrix_bytes,
         _positive_int_values,
         _rss_bytes,
         _RSSSampler,
@@ -55,6 +56,7 @@ except ModuleNotFoundError:  # direct ``python benchmarks/compare_scanpy.py``
         CaseSpec,
         _ggann_source_metadata,
         _make_fixture,
+        _matrix_bytes,
         _positive_int_values,
         _rss_bytes,
         _RSSSampler,
@@ -137,18 +139,22 @@ class ComparisonSpec:
     seed: int
     repeats: int
     rss_interval_seconds: float
+    dataset: str = "synthetic"
     ggann_backend: str = "plotnine"
     variant: str = "base"
 
     @property
     def case_id(self) -> str:
-        defaults = _shape_for(self.preset, self.matrix_format)
-        changed = [
-            f"{name}={getattr(self, name)}"
-            for name in _SCALING_FIELDS
-            if getattr(self, name) != defaults[name]
-        ]
-        suffix = f"[{','.join(changed)}]" if changed else ""
+        if self.dataset == "synthetic":
+            defaults = _shape_for(self.preset, self.matrix_format)
+            changed = [
+                f"{name}={getattr(self, name)}"
+                for name in _SCALING_FIELDS
+                if getattr(self, name) != defaults[name]
+            ]
+            prefix = self.preset + (f"[{','.join(changed)}]" if changed else "")
+        else:
+            prefix = self.dataset
         qualifiers = []
         if self.ggann_backend != "plotnine":
             qualifiers.append(f"ggann_backend={self.ggann_backend}")
@@ -156,10 +162,12 @@ class ComparisonSpec:
             qualifiers.append(f"variant={self.variant}")
         qualifier = f"[{','.join(qualifiers)}]" if qualifiers else ""
         return (
-            f"{self.preset}{suffix}/{self.matrix_format}/{self.source}/{self.workload}{qualifier}"
+            f"{prefix}/{self.matrix_format}/{self.source}/{self.workload}{qualifier}"
         )
 
     def fixture_spec(self) -> CaseSpec:
+        if self.dataset != "synthetic":
+            raise ValueError("fixture_spec is only defined for synthetic benchmark data")
         return CaseSpec(
             preset=self.preset,
             matrix_format=self.matrix_format,
@@ -281,6 +289,93 @@ def _add_fixture_metadata(adata: Any) -> None:
     adata.uns["group_colors"] = [
         colors.to_hex(cmap(index / max(1, len(categories) - 1))) for index in range(len(categories))
     ]
+
+
+def _anndata_input_bytes(adata: Any) -> dict[str, int]:
+    """Describe one real AnnData payload with the synthetic-fixture byte schema."""
+    values = {
+        "x": _matrix_bytes(adata.X),
+        "layers": sum(
+            _matrix_bytes(matrix) for key, matrix in adata.layers.items() if key is not None
+        ),
+        "raw": _matrix_bytes(adata.raw.X) if adata.raw is not None else 0,
+        "obsm": sum(_matrix_bytes(matrix) for matrix in adata.obsm.values()),
+        "obs": int(adata.obs.memory_usage(index=True, deep=True).sum()),
+        "var": int(adata.var.memory_usage(index=True, deep=True).sum()),
+    }
+    values["total"] = sum(values.values())
+    return values
+
+
+def _pbmc68k_reduced_fixture() -> tuple[Any, list[str], dict[str, int]]:
+    """Load Scanpy's deterministic real-data fixture and install matched aliases."""
+    import pandas as pd
+    import scanpy as sc
+
+    adata = sc.datasets.pbmc68k_reduced().copy()
+    if adata.raw is None:
+        raise ValueError("pbmc68k_reduced unexpectedly has no .raw expression source")
+    adata.obs["group"] = pd.Categorical(adata.obs["bulk_labels"])
+    adata.obs["score"] = adata.obs["n_genes"].astype(float)
+    # The dataset has no named layer. Copies make X/layer/raw routes explicit while
+    # preserving one identical payload for the cross-library comparison.
+    adata.layers["counts"] = adata.X.copy()
+    adata.layers["sqrt_counts"] = adata.X.copy()
+    genes = [
+        gene
+        for gene in ("CD3D", "NKG7", "CST3", "GNLY")
+        if gene in adata.var_names and gene in adata.raw.var_names
+    ]
+    if len(genes) != 4:
+        raise ValueError("pbmc68k_reduced is missing one of the four deterministic marker genes")
+    return adata, genes, _anndata_input_bytes(adata)
+
+
+def _pbmc68k_reduced_shape() -> dict[str, Any]:
+    import numpy as np
+    from scipy import sparse
+
+    adata, genes, _ = _pbmc68k_reduced_fixture()
+    nonzero = adata.X.nnz if sparse.issparse(adata.X) else np.count_nonzero(adata.X)
+    return {
+        "n_obs": int(adata.n_obs),
+        "n_vars": int(adata.n_vars),
+        "n_genes": len(genes),
+        "n_groups": int(adata.obs["group"].nunique()),
+        "density": float(nonzero / (adata.n_obs * adata.n_vars)),
+        "embedding_dims": int(adata.obsm["X_pca"].shape[1]),
+        "render_cells": int(adata.n_obs),
+    }
+
+
+def _load_fixture(spec: ComparisonSpec) -> tuple[Any, list[str], dict[str, int]]:
+    if spec.dataset == "synthetic":
+        return _make_fixture(spec.fixture_spec())
+    if spec.dataset != "pbmc68k_reduced":
+        raise ValueError(f"Unknown benchmark dataset: {spec.dataset}")
+
+    from scipy import sparse
+
+    adata, genes, input_bytes = _pbmc68k_reduced_fixture()
+    storage = adata.X.format if sparse.issparse(adata.X) else "dense"
+    if spec.matrix_format != storage:
+        raise ValueError(
+            f"pbmc68k_reduced uses {storage} .X storage, not {spec.matrix_format}"
+        )
+    expected = {
+        "n_obs": adata.n_obs,
+        "n_vars": adata.n_vars,
+        "n_genes": len(genes),
+        "n_groups": adata.obs["group"].nunique(),
+    }
+    mismatches = [
+        f"{name}={getattr(spec, name)} (expected {value})"
+        for name, value in expected.items()
+        if getattr(spec, name) != value
+    ]
+    if mismatches:
+        raise ValueError("pbmc68k_reduced shape metadata mismatch: " + ", ".join(mismatches))
+    return adata, genes, input_bytes
 
 
 def _matrix_with_expression_nans(matrix: Any) -> Any:
@@ -1253,7 +1348,7 @@ def _execute_case_with_fixture(
 def _execute_case(spec: ComparisonSpec) -> dict[str, Any]:
     import anndata as ad
 
-    adata, genes, input_bytes = _make_fixture(spec.fixture_spec())
+    adata, genes, input_bytes = _load_fixture(spec)
     _add_fixture_metadata(adata)
     adata = _apply_fixture_variant(adata, spec.variant)
     if spec.workload in _RANK_WORKLOADS:
@@ -1278,7 +1373,7 @@ def _execute_isolated_memory_probe(
     import matplotlib
 
     matplotlib.use("Agg", force=True)
-    adata, genes, input_bytes = _make_fixture(spec.fixture_spec())
+    adata, genes, input_bytes = _load_fixture(spec)
     _add_fixture_metadata(adata)
     adata = _apply_fixture_variant(adata, spec.variant)
     if spec.workload in _RANK_WORKLOADS:
@@ -1584,7 +1679,8 @@ def _evaluate_release_gates(results: list[dict[str, Any]]) -> dict[str, Any]:
     large_sparse = [
         result
         for result in results
-        if result["parameters"]["preset"] == "extended"
+        if result["parameters"].get("dataset", "synthetic") == "synthetic"
+        and result["parameters"]["preset"] == "extended"
         and result["parameters"]["matrix_format"] in {"csr", "csc"}
         and result["parameters"]["source"] == "x"
         and result["parameters"]["workload"] in required
@@ -1705,6 +1801,12 @@ def _markdown_report(document: dict[str, Any]) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dataset",
+        choices=("synthetic", "pbmc68k_reduced"),
+        default="synthetic",
+        help="Seeded synthetic fixture or Scanpy's deterministic real PBMC fixture.",
+    )
     parser.add_argument("--preset", choices=("smoke", "standard", "extended"), default="smoke")
     parser.add_argument(
         "--formats",
@@ -1835,10 +1937,17 @@ def main(argv: list[str] | None = None) -> int:
             )
         isolated_memory_stages = list(dict.fromkeys(isolated_memory_stages))
         overrides = {field: getattr(args, field) for field in _SCALING_FIELDS}
-        shapes = {
-            matrix_format: _shape_variants(args.preset, matrix_format, overrides)
-            for matrix_format in formats
-        }
+        if args.dataset == "synthetic":
+            shapes = {
+                matrix_format: _shape_variants(args.preset, matrix_format, overrides)
+                for matrix_format in formats
+            }
+        else:
+            if any(value is not None for value in overrides.values()):
+                raise ValueError("Shape overrides are not valid for a fixed real dataset")
+            if formats != ["dense"]:
+                raise ValueError("pbmc68k_reduced currently has dense .X; pass --formats dense")
+            shapes = {"dense": [_pbmc68k_reduced_shape()]}
     except ValueError as error:
         parser.error(str(error))
 
@@ -1869,6 +1978,7 @@ def main(argv: list[str] | None = None) -> int:
                                 seed=args.seed,
                                 repeats=args.repeats,
                                 rss_interval_seconds=args.rss_interval_ms / 1_000,
+                                dataset=args.dataset,
                                 ggann_backend=args.ggann_backend,
                                 variant=variant,
                                 **shape,
@@ -1934,6 +2044,7 @@ def main(argv: list[str] | None = None) -> int:
                 "backend": "Agg",
             },
             "preset": args.preset,
+            "dataset": args.dataset,
             "formats": formats,
             "workloads": workloads,
             "sources": sources,
