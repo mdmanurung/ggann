@@ -1,17 +1,28 @@
 # Quickstart
 
-This guide uses Scanpy's bundled 700-cell PBMC68k subset. It has a UMAP,
-curated `bulk_labels`, cell-cycle `phase`, scaled values in `.X`, and
-log-normalized expression in `.raw`, so the core PBMC workflow runs as written
-without downloading data.
+This guide uses the 2,638-cell PBMC3K dataset from Scanpy's and Seurat's
+clustering tutorials. It has a UMAP, Louvain cell-type labels, scaled
+highly-variable genes in `.X`, and log-normalized expression for all 13,714
+genes in `.raw`, so the core PBMC workflow runs as written. Scanpy downloads it
+on the first call and reuses the cached copy afterwards.
 
 ```python
+import numpy as np
 import scanpy as sc
 import ggann as ag
 
-adata = sc.datasets.pbmc68k_reduced()
+adata = sc.datasets.pbmc3k_processed()
 genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
+
+# A median split of the measured library size, used by a facet further down.
+adata.obs["depth"] = np.where(
+    adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"
+)
 ```
+
+Highly-variable-gene selection dropped `CD3D`, `IL7R`, and `LYZ` from `.X`, so
+every marker call below reads `.raw` with `use_raw=True`. That is the usual
+arrangement for a processed object, not a quirk of this one.
 
 ## One-call biological summaries
 
@@ -21,27 +32,27 @@ Use a helper when the intended summary is standard:
 embedding = ag.plot_embedding(
     adata,
     basis="umap",
-    color="bulk_labels",
+    color="louvain",
     label=True,
 )
 
 dotplot = ag.plot_dotplot(
     adata,
     genes,
-    group_by="bulk_labels",
+    group_by="louvain",
     use_raw=True,
 )
 
 violin = ag.plot_violin(
     adata,
     ["CD3D"],
-    group_by="bulk_labels",
+    group_by="louvain",
     use_raw=True,
     add_box=True,
 )
 ```
 
-The embedding retains all 700 observations. The dotplot colour is arithmetic
+The embedding retains all 2,638 observations. The dotplot colour is arithmetic
 mean log-normalized expression from `.raw`; dot size is the fraction above the
 expression cutoff. The violin uses every `.raw` observation; its inner box
 shows the median and interquartile range. These calls return ordinary
@@ -78,10 +89,10 @@ including after an exception.
 ```python
 with ag.style_context("double-column"):
     embedding = ag.plot_embedding(
-        adata, "umap", color="bulk_labels", label=True
+        adata, "umap", color="louvain", label=True
     )
     dotplot = ag.plot_dotplot(
-        adata, genes, group_by="bulk_labels", use_raw=True
+        adata, genes, group_by="louvain", use_raw=True
     )
     figure = ag.compose(
         [embedding, dotplot],
@@ -110,7 +121,7 @@ vector figure:
 ```python
 with ag.style_context():
     dense = ag.plot_embedding(
-        adata, "umap", color="bulk_labels", rasterized=True
+        adata, "umap", color="louvain", rasterized=True
     )
 
 ag.save_publication(dense, "dense_umap.svg", height=70)
@@ -130,22 +141,22 @@ For a custom annotation, make the vocabulary explicit once:
 ```python
 import pandas as pd
 
-cell_types = ["T cell", "B cell", "NK cell", "Monocyte", "Dendritic", "CD34+"]
+cell_types = [
+    "T cell", "B cell", "NK cell", "Monocyte", "Dendritic", "Megakaryocyte"
+]
 colours = ag.publication_palette("qualitative", categories=cell_types)
 
 adata = adata.copy()
-adata.obs["cell_type"] = adata.obs["bulk_labels"].map(
+adata.obs["cell_type"] = adata.obs["louvain"].astype(str).map(
     {
-        "CD4+/CD25 T Reg": "T cell",
-        "CD4+/CD45RA+/CD25- Naive T": "T cell",
-        "CD4+/CD45RO+ Memory": "T cell",
-        "CD8+ Cytotoxic T": "T cell",
-        "CD8+/CD45RA+ Naive Cytotoxic": "T cell",
-        "CD14+ Monocyte": "Monocyte",
-        "CD19+ B": "B cell",
-        "CD34+": "CD34+",
-        "CD56+ NK": "NK cell",
-        "Dendritic": "Dendritic",
+        "CD4 T cells": "T cell",
+        "CD8 T cells": "T cell",
+        "B cells": "B cell",
+        "NK cells": "NK cell",
+        "CD14+ Monocytes": "Monocyte",
+        "FCGR3A+ Monocytes": "Monocyte",
+        "Dendritic cells": "Dendritic",
+        "Megakaryocytes": "Megakaryocyte",
     }
 )
 adata.obs["cell_type"] = adata.obs["cell_type"].astype(
@@ -163,7 +174,7 @@ direct labels.
 
 Use `gganndata` when plotnine already expresses the figure clearly. Include a
 field in the aesthetic mapping when a later facet or layer needs that column;
-`group=` is a convenient non-visual mapping for `phase` here.
+`group=` is a convenient non-visual mapping for `depth` here.
 
 ```python
 from ggann import aes, gganndata, obs, obsm
@@ -175,12 +186,12 @@ plot = (
         aes(
             x=obsm("umap", 0),
             y=obsm("umap", 1),
-            color=obs("bulk_labels"),
-            group=obs("phase"),
+            color=obs("louvain"),
+            group=obs("depth"),
         ),
     )
     + geom_point(size=1.0, alpha=0.8)
-    + facet_wrap("phase")
+    + facet_wrap("depth")
     + theme(legend_position="bottom")
 )
 ```
@@ -194,10 +205,10 @@ coordinate system, facet, label, or theme. A bare plotnine plot built inside
 The same source arguments apply to the grammar and expression helpers:
 
 ```python
-# scaled values in adata.X
-x_plot = ag.plot_embedding(adata, "umap", color="CD3D", use_raw=False)
+# scaled values in adata.X; NKG7 survived highly-variable-gene selection
+x_plot = ag.plot_embedding(adata, "umap", color="NKG7", use_raw=False)
 
-# log-normalized values in adata.raw.X
+# log-normalized values in adata.raw.X, where CD3D is also available
 raw_plot = ag.plot_embedding(adata, "umap", color="CD3D", use_raw=True)
 
 # a named layer on an object that provides one
@@ -222,7 +233,7 @@ bounded = gganndata(
     aes(
         x=obsm("umap", 0),
         y=obsm("umap", 1),
-        color=ag.gene("CD3D", use_raw=False),
+        color=ag.gene("NKG7", use_raw=False),
     ),
     max_matrix_values=3 * adata.n_obs,
 ) + geom_point()

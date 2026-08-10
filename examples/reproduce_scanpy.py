@@ -2,7 +2,7 @@
 
 For each ``sc.pl.*`` figure we render scanpy's output and the ggann equivalent to
 ``docs/images/scanpy/<name>_scanpy.png`` / ``<name>_ggann.png`` on the same
-``pbmc68k_reduced`` data for the comparisons in ``docs/scanpy_parity.md``.
+``pbmc3k_processed`` data for the comparisons in ``docs/scanpy_parity.md``.
 
 Run: ``python examples/reproduce_scanpy.py``.
 """
@@ -16,16 +16,28 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import scanpy as sc
 
 import ggann as ag
 
-GROUP = "bulk_labels"
+GROUP = "louvain"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 
 
 def _adata():
-    adata = sc.datasets.pbmc68k_reduced()
+    sc.settings.datasetdir = os.path.join(os.path.dirname(__file__), "..", "data")
+    adata = sc.datasets.pbmc3k_processed()
+    # A median split of the measured library size, standing in for a treatment
+    # variable this single-donor sample does not have.
+    adata.obs["depth"] = pd.Categorical(
+        np.where(adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"),
+        categories=["low", "high"],
+        ordered=True,
+    )
+    # pbmc3k_processed.X is already restricted to the highly variable genes.
+    adata.var["highly_variable"] = True
     sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
     sc.tl.dendrogram(adata, groupby=GROUP)
     return adata

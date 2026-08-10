@@ -292,9 +292,12 @@ python benchmarks/check_invariance.py compare \
   /tmp/ggann-baseline /tmp/ggann-current
 ```
 
-The `pbmc68k_reduced` artifact check may use a pre-populated Scanpy cache for
-offline execution. Deterministic synthetic fixtures remain the network-free
-fallback when that dataset is unavailable.
+The benchmarks keep the `pbmc68k_reduced` artifact check so recorded timings
+stay comparable against the published results, and because Scanpy's bundled copy
+needs no network. The documentation, vignettes, and example scripts use
+`pbmc3k_processed`, which `scripts/fetch_datasets.py` downloads once into
+`data/`; with `GGANN_DOCS_OFFLINE=1` a missing cache raises rather than
+downloading.
 
 ## Performance acceptance criteria
 

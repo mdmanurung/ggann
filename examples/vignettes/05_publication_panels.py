@@ -3,7 +3,8 @@
 The scientific claim is that broad PBMC lineages occupy distinct UMAP
 neighbourhoods and show coherent lineage-marker programs. The four panels map
 that claim to position, marker expression, a log-normalized expression
-distribution, and cell-cycle composition. Run with ``--output figures/pbmc``
+distribution, and composition across sequencing-depth halves. Run with
+``--output figures/pbmc``
 to retain the figure and its machine-readable manifest; the documentation
 build uses a temporary directory.
 """
@@ -25,8 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pandas as pd
-import scanpy as sc
-from _fixture import fingerprint
+from _fixture import fingerprint, load_adata
 from plotnine import labs, theme
 
 import ggann as ag
@@ -37,38 +37,36 @@ CLAIM = (
     "coherent lineage-marker programs."
 )
 GENES = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
-LINEAGES = ["T cell", "B cell", "NK cell", "Monocyte", "Dendritic", "CD34+"]
+LINEAGES = ["T cell", "B cell", "NK cell", "Monocyte", "Dendritic", "Megakaryocyte"]
 PANEL_MAP = {
     "a": "all-cell UMAP, coloured and directly labelled by broad lineage",
     "b": "mean log-normalized raw expression and fraction detected for five lineage markers",
     "c": "all-cell CD3D distributions with median and interquartile range",
-    "d": "lineage proportions within each annotated cell-cycle phase",
+    "d": "lineage proportions within each half of the sequencing-depth distribution",
 }
 
 
 def load_data():
-    """Load Scanpy's bundled PBMC68k subset and add a broad-lineage annotation."""
-    adata = sc.datasets.pbmc68k_reduced().copy()
+    """Load the processed PBMC3K dataset and add a broad-lineage annotation."""
+    adata = load_adata()
     lineage = (
-        adata.obs["bulk_labels"]
+        adata.obs["louvain"]
         .astype("string")
         .map(
             {
-                "CD4+/CD25 T Reg": "T cell",
-                "CD4+/CD45RA+/CD25- Naive T": "T cell",
-                "CD4+/CD45RO+ Memory": "T cell",
-                "CD8+ Cytotoxic T": "T cell",
-                "CD8+/CD45RA+ Naive Cytotoxic": "T cell",
-                "CD14+ Monocyte": "Monocyte",
-                "CD19+ B": "B cell",
-                "CD34+": "CD34+",
-                "CD56+ NK": "NK cell",
-                "Dendritic": "Dendritic",
+                "CD4 T cells": "T cell",
+                "CD8 T cells": "T cell",
+                "B cells": "B cell",
+                "NK cells": "NK cell",
+                "CD14+ Monocytes": "Monocyte",
+                "FCGR3A+ Monocytes": "Monocyte",
+                "Dendritic cells": "Dendritic",
+                "Megakaryocytes": "Megakaryocyte",
             }
         )
     )
     if lineage.isna().any():
-        raise AssertionError("The bundled PBMC labels changed; review the lineage mapping.")
+        raise AssertionError("The PBMC3K Louvain labels changed; review the lineage mapping.")
     adata.obs["lineage"] = pd.Categorical(lineage, categories=LINEAGES, ordered=True)
 
     # One explicit vocabulary is reused by every panel that represents lineage.
@@ -109,10 +107,10 @@ def build_panels(adata):
         ag.plot_proportions(
             adata,
             group_by="lineage",
-            split_by="phase",
+            split_by="depth",
             normalize=True,
         )
-        + labs(title="Composition by cell-cycle phase"),
+        + labs(title="Composition by sequencing depth"),
     ]
 
 
@@ -215,7 +213,7 @@ def render(output: Path) -> dict[str, object]:
 
     n_by_lineage = adata.obs["lineage"].value_counts(sort=False)
     manifest: dict[str, object] = {
-        "dataset": "scanpy.datasets.pbmc68k_reduced",
+        "dataset": "scanpy.datasets.pbmc3k_processed",
         "claim": CLAIM,
         "panel_map": PANEL_MAP,
         "n_cells": int(adata.n_obs),
@@ -240,7 +238,7 @@ def render(output: Path) -> dict[str, object]:
                 "center": None,
                 "interval": None,
                 "test": "none; descriptive panel",
-                "denominator": "all cells within each annotated cell-cycle phase",
+                "denominator": "all cells within each half of the sequencing-depth distribution",
             },
         },
         "palette": palette,
@@ -282,7 +280,7 @@ def main() -> None:
     )
     with temporary as directory:
         manifest = render(Path(directory))
-        assert manifest["n_cells"] == 700
+        assert manifest["n_cells"] == 2638
 
 
 if __name__ == "__main__":

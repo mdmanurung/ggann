@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
-from _fixture import CELL_TYPES, fingerprint, make_adata
+from _fixture import CELL_TYPES, MARKERS, fingerprint, load_adata
 from matplotlib.figure import Figure
 from plotnine import aes, facet_wrap, geom_point, scale_color_cmap, theme_classic
 
@@ -23,7 +23,7 @@ from ggann._aggregate import aggregate_expression
 
 FIGURE_SIZE = (6.0, 4.5)
 DPI = 80
-GENES = ["CD3D", "NKG7", "MS4A1", "CST3"]
+GENES = MARKERS
 ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK = ROOT / "benchmarks" / "results" / "scanpy-extended-csr.json"
 
@@ -72,26 +72,26 @@ def _validate_prepared_payloads(adata) -> None:
     ggann_summary = aggregate_expression(
         adata,
         GENES,
-        "cell_type",
+        "louvain",
         use_raw=False,
     )
-    wide = sc.get.obs_df(adata, keys=["cell_type", *GENES], use_raw=False).set_index("cell_type")
+    wide = sc.get.obs_df(adata, keys=["louvain", *GENES], use_raw=False).set_index("louvain")
     scanpy_means = wide.groupby(level=0, observed=True, sort=False).mean().reindex(CELL_TYPES)
     scanpy_fraction = (
         (wide > 0).groupby(level=0, observed=True, sort=False).mean().reindex(CELL_TYPES)
     )
     ggann_means = ggann_summary.pivot(
-        index="cell_type", columns="feature", values="mean_expression"
+        index="louvain", columns="feature", values="mean_expression"
     ).reindex(index=CELL_TYPES, columns=GENES)
     ggann_fraction = ggann_summary.pivot(
-        index="cell_type", columns="feature", values="fraction"
+        index="louvain", columns="feature", values="fraction"
     ).reindex(index=CELL_TYPES, columns=GENES)
     np.testing.assert_allclose(ggann_means, scanpy_means[GENES], rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(ggann_fraction, scanpy_fraction[GENES], rtol=1e-6, atol=1e-7)
 
 
 def main() -> None:
-    adata = make_adata(storage="csr")
+    adata = load_adata(storage="csr")
     before = fingerprint(adata)
     _validate_prepared_payloads(adata)
 
@@ -104,7 +104,7 @@ def main() -> None:
         "embedding-categorical": ag.plot_embedding(
             adata,
             "umap",
-            color="cell_type",
+            color="louvain",
             pointdensity=False,
         ),
         "embedding-gene": ag.plot_embedding(
@@ -116,14 +116,14 @@ def main() -> None:
         "dotplot": ag.plot_dotplot(
             adata,
             GENES,
-            group_by="cell_type",
+            group_by="louvain",
             use_raw=False,
             categories_order=CELL_TYPES,
         ),
         "matrixplot": ag.plot_matrixplot(
             adata,
             GENES,
-            group_by="cell_type",
+            group_by="louvain",
             use_raw=False,
             categories_order=CELL_TYPES,
         ),
@@ -132,7 +132,7 @@ def main() -> None:
         "embedding-categorical": sc.pl.embedding(
             adata,
             "umap",
-            color="cell_type",
+            color="louvain",
             show=False,
             return_fig=True,
         ),
@@ -148,7 +148,7 @@ def main() -> None:
         "dotplot": sc.pl.dotplot(
             adata,
             GENES,
-            "cell_type",
+            "louvain",
             use_raw=False,
             categories_order=CELL_TYPES,
             figsize=FIGURE_SIZE,
@@ -158,7 +158,7 @@ def main() -> None:
         "matrixplot": sc.pl.matrixplot(
             adata,
             GENES,
-            "cell_type",
+            "louvain",
             use_raw=False,
             categories_order=CELL_TYPES,
             figsize=FIGURE_SIZE,
@@ -184,13 +184,13 @@ def main() -> None:
                     x=ag.obsm("umap", 0),
                     y=ag.obsm("umap", 1),
                     color=ag.gene("NKG7", layer="logcounts"),
-                    group=ag.obs("condition"),
+                    group=ag.obs("compartment"),
                 ),
                 max_matrix_values=3 * adata.n_obs,
                 add_theme=False,
             )
             + geom_point(size=1.8, alpha=0.85)
-            + facet_wrap("condition")
+            + facet_wrap("compartment")
             + scale_color_cmap(cmap_name="magma")
             + theme_classic()
         )

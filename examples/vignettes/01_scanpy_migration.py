@@ -8,7 +8,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import scanpy as sc
-from _fixture import fingerprint
+from _fixture import fingerprint, load_adata
 from plotnine import ggplot
 from plotnine.composition import Compose
 
@@ -16,32 +16,34 @@ import ggann as ag
 
 
 def main() -> None:
-    adata = sc.datasets.pbmc68k_reduced()
-    genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
+    adata = load_adata()
+    # CD3D and LYZ did not survive this dataset's highly-variable-gene
+    # selection, so the marker panel reads them from ``.raw`` with use_raw=True.
+    genes = ["CD3D", "IL7R", "MS4A1", "NKG7", "GNLY", "LYZ"]
 
     # A familiar Scanpy call is a useful starting point for the translation.
     # Use a copy because third-party plotting is outside ggann's ownership
     # contract and may cache plotting metadata on AnnData.
-    sc.pl.embedding(adata.copy(), basis="umap", color="bulk_labels", show=False)
+    sc.pl.embedding(adata.copy(), basis="umap", color="louvain", show=False)
     plt.close("all")
 
     before = fingerprint(adata)
     embedding = ag.plot_embedding(
         adata,
         basis="umap",
-        color="bulk_labels",
+        color="louvain",
         label=True,
     )
     markers = ag.plot_dotplot(
         adata,
         genes,
-        group_by="bulk_labels",
+        group_by="louvain",
         use_raw=True,
     )
     distribution = ag.plot_violin(
         adata,
         ["CD3D"],
-        group_by="bulk_labels",
+        group_by="louvain",
         use_raw=True,
         add_box=True,
         stats=False,

@@ -4,9 +4,9 @@ This executable workflow starts from a scientific claim, maps it to four
 panels, proves that styling leaves the prepared data unchanged, and exports one
 identical-content figure to SVG, PDF, PNG, and TIFF.
 
-It uses `scanpy.datasets.pbmc68k_reduced`: 700 real PBMC profiles with a bundled
-UMAP, curated labels, cell-cycle phase, and log-normalized raw expression. No
-network access is required.
+It uses `scanpy.datasets.pbmc3k_processed`: 2,638 real PBMC profiles with a
+published UMAP, Louvain cell-type labels, measured library sizes, and
+log-normalized expression for all 13,714 genes in `.raw`.
 
 ## Claim and panel map
 
@@ -15,13 +15,14 @@ network access is required.
 
 | Panel | Evidence | Population and summary |
 |---|---|---|
-| **a** | All-cell UMAP coloured and directly labelled by broad lineage | all 700 cells; no centre, interval, or test |
-| **b** | CD3D, MS4A1, NKG7, GNLY, and CST3 dotplot | all 700 cells; colour is arithmetic mean log-normalized raw expression; size is fraction above zero; no interval or test |
-| **c** | CD3D expression distributions | all 700 cells; violin KDE plus median and interquartile range; no inferential test |
-| **d** | Broad-lineage composition by annotated cell-cycle phase | all 700 cells; denominator is all cells within each phase; no interval or test |
+| **a** | All-cell UMAP coloured and directly labelled by broad lineage | all 2,638 cells; no centre, interval, or test |
+| **b** | CD3D, MS4A1, NKG7, GNLY, and CST3 dotplot | all 2,638 cells; colour is arithmetic mean log-normalized raw expression; size is fraction above zero; no interval or test |
+| **c** | CD3D expression distributions | all 2,638 cells; violin KDE plus median and interquartile range; no inferential test |
+| **d** | Broad-lineage composition by sequencing-depth half | all 2,638 cells; denominator is all cells within each depth half; no interval or test |
 
-The broad-lineage mapping reduces ten fine PBMC labels to six interpretable
-groups for this claim: T cell, B cell, NK cell, monocyte, dendritic, and CD34+.
+The broad-lineage mapping reduces eight Louvain labels to six interpretable
+groups for this claim: T cell, B cell, NK cell, monocyte, dendritic, and
+megakaryocyte.
 The original data object is copied before that analysis-specific annotation is
 added.
 
@@ -65,7 +66,7 @@ with ag.style_context("double-column", dpi=300):
             adata, ["CD3D"], group_by="lineage", use_raw=True, stats=False
         ) + theme(legend_position="none"),
         ag.plot_proportions(
-            adata, group_by="lineage", split_by="phase", normalize=True
+            adata, group_by="lineage", split_by="depth", normalize=True
         ),
     ]
     figure = ag.compose(

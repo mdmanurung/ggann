@@ -67,8 +67,10 @@ myst_enable_extensions = [
     "html_admonition",
 ]
 myst_url_schemes = ("http", "https", "mailto")
-# Notebook execution remains off; ``executable_vignettes`` runs the six
-# network-free Python workflows in isolated processes before every build.
+# Notebook execution remains off; ``executable_vignettes`` runs the six Python
+# workflows in isolated processes before every build. They read the PBMC3K
+# dataset from the ``data/`` cache that ``scripts/fetch_datasets.py`` populates,
+# so the build itself reaches no network.
 nb_execution_mode = "off"
 typehints_defaults = "braces"
 always_use_bars_union = True

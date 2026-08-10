@@ -5,9 +5,11 @@ The immediate review question is whether the annotation agrees with canonical
 lineage markers. ggann keeps that familiar one-call plotting vocabulary, but
 returns objects that can be styled, combined, inspected, and exported later.
 
-The executable example uses the bundled 700-cell `pbmc68k_reduced` dataset and
-five canonical markers: CD3D, MS4A1, NKG7, GNLY, and CST3. It never downloads
-data.
+The executable example uses the 2,638-cell `pbmc3k_processed` dataset -- the
+PBMC sample behind Scanpy's and Seurat's clustering tutorials -- and six
+canonical markers: CD3D, IL7R, MS4A1, NKG7, GNLY, and LYZ. CD3D, IL7R, and LYZ
+did not survive highly-variable-gene selection, so the marker calls pass
+`use_raw=True` to read all 13,714 genes from `.raw`.
 
 ## Familiar calls, reusable results
 
@@ -26,14 +28,14 @@ every call below returns the plot without drawing it.
 sc.pl.embedding(
     adata,
     basis="umap",
-    color="bulk_labels",
+    color="louvain",
     show=False,
 )
 
 embedding = ag.plot_embedding(
     adata,
     basis="umap",
-    color="bulk_labels",
+    color="louvain",
     label=True,
 )
 ```
@@ -42,18 +44,18 @@ Expression source choices are explicit in a real analysis. Here `.raw` contains
 log-normalized expression, so both marker summaries request `use_raw=True`:
 
 ```python
-genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
+genes = ["CD3D", "IL7R", "MS4A1", "NKG7", "GNLY", "LYZ"]
 
 markers = ag.plot_dotplot(
     adata,
     genes,
-    group_by="bulk_labels",
+    group_by="louvain",
     use_raw=True,
 )
 distribution = ag.plot_violin(
     adata,
     ["CD3D"],
-    group_by="bulk_labels",
+    group_by="louvain",
     use_raw=True,
     add_box=True,
     stats=False,
@@ -83,8 +85,9 @@ figure = ag.compose(
 `embedding`, `markers`, and `distribution` remain ordinary
 `plotnine.ggplot` objects. Add a plotnine layer, scale, facet, label, coordinate
 system, or theme to any one of them before composition. The executable workflow
-also checks that the embedding contains all 700 cells, the marker table contains
-all five genes, the violin contains all 700 measurements, and the input AnnData
+also checks that the embedding contains all 2,638 cells, the marker table
+contains all six genes, the violin contains all 2,638 measurements, and the
+input AnnData
 fingerprint is unchanged.
 
 Visual equivalence with Scanpy means the same cells, variables, groups, and

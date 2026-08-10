@@ -1,9 +1,10 @@
 # Ask a custom question with the grammar of graphics
 
-The deterministic PBMC-like fixture contains control and stimulated cells. Its
-stimulated cells have a higher MKI67 program by construction. The question is
-whether that condition-associated expression pattern remains visible across
-the embedding rather than being driven by one annotated lineage.
+`NKG7` marks the cytotoxic granule program of NK and CD8 T cells. The question
+is whether that program stays confined to the lymphoid side of the PBMC3K
+embedding, or also appears among myeloid cells. `compartment` splits the
+published Louvain labels into their lymphoid and myeloid lineages, so the facet
+asks the biological question directly.
 
 `gganndata` resolves only the fields referenced by `aes(...)`, then returns an
 ordinary `plotnine.ggplot`. Explicit selectors make the source of every visual
@@ -15,8 +16,8 @@ plot = gganndata(
     aes(
         x=obsm("umap", 0),
         y=obsm("umap", 1),
-        color=gene("MKI67", layer="logcounts"),
-        group=obs("condition"),
+        color=gene("NKG7", layer="logcounts"),
+        group=obs("compartment"),
     ),
     max_matrix_values=3 * adata.n_obs,
     add_theme=False,
@@ -32,13 +33,15 @@ grammar interface:
 
 1. `geom_point` adds a layer;
 2. `scale_color_cmap` controls the continuous expression scale;
-3. `facet_wrap` separates control and stimulated cells;
+3. `facet_wrap` separates lymphoid and myeloid cells;
 4. `theme_classic` replaces the default theme.
 
-`condition` is included as a `group` aesthetic so it is present in the resolved
-table when the facet evaluates it. `add_theme=False` leaves the theme decision
-to the final grammar. The executable check computes condition means from
-`plot.data` and verifies that stimulated MKI67 is higher before rendering.
+`compartment` is included as a `group` aesthetic so it is present in the
+resolved table when the facet evaluates it. `add_theme=False` leaves the theme
+decision to the final grammar. The executable check computes compartment means
+from `plot.data` and confirms the lymphoid excess (0.63 versus 0.20 mean
+log-normalized `NKG7`) before rendering. The figure shows where that excess
+sits: one bright island of NK and CD8 T cells, not a diffuse lymphoid shift.
 
 ## Executed source
 

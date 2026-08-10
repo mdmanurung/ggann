@@ -109,16 +109,18 @@ plotnine composability, and exact publication export.
 
 The warning-as-error offline build executes six scenario-led examples:
 
-1. a real PBMC marker-review figure from a familiar Scanpy analysis;
-2. a condition-associated MKI67 question expressed through the grammar;
+1. a PBMC marker-review figure from a familiar Scanpy analysis;
+2. an NKG7 cytotoxic-program question expressed through the grammar;
 3. sparse and read-only backed marker review;
-4. a condition-aware custom annplyr summary beside a standard helper;
-5. a real PBMC claim-to-publication workflow;
+4. a depth-aware custom annplyr summary beside a standard helper;
+5. a claim-to-publication workflow;
 6. an evidence-linked Scanpy trade-off comparison.
 
-The first and fifth use bundled real PBMC data. The focused workflows use a
-deterministic PBMC-like control/stimulation fixture so documentation remains
-fast and network-free.
+All six run on `scanpy.datasets.pbmc3k_processed`, the 2,638-cell PBMC sample
+behind Scanpy's and Seurat's clustering tutorials. `scripts/fetch_datasets.py`
+caches it into `data/` once; the build itself reaches no network, and
+`GGANN_DOCS_OFFLINE=1` turns a missing cache into an error rather than a
+download.
 
 ## Distribution verification
 
@@ -144,6 +146,7 @@ operational upload-time check and was not inferred from the offline build.
 ## Reproduction commands
 
 ```bash
+python scripts/fetch_datasets.py
 python scripts/run_pyright.py
 ruff check src tests benchmarks docs/extensions examples scripts
 ruff format --check src tests benchmarks docs/extensions examples scripts

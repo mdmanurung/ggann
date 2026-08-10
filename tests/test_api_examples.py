@@ -23,15 +23,12 @@ _NON_FIGURE = {"plot_annotation", "plot_layout"}
 
 
 @pytest.fixture(scope="module")
-def de_adata(adata):
-    import scanpy as sc
-
-    # work on a COPY: pbmc68k_reduced ships a logreg rank_genes_groups (no
-    # p-values) that another test asserts on; recompute wilcoxon here without
-    # mutating the shared session fixture.
-    ad = adata.copy()
-    sc.tl.rank_genes_groups(ad, "bulk_labels", method="wilcoxon", n_genes=50)
-    return ad
+def de_adata():
+    # Build from the script's own loader rather than the shared session fixture:
+    # the builders name PBMC3K cell types (for example the volcano's "NK cells"
+    # group), so validating them on another dataset only tests the mismatch.
+    # This needs the cached dataset from ``python scripts/fetch_datasets.py``.
+    return apiex._adata()
 
 
 def test_every_plot_function_has_an_api_example(de_adata):

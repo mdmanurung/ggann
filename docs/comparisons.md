@@ -20,8 +20,8 @@ import ggann as ag
 from ggann import aes, gganndata
 from plotnine import geom_point
 
-adata = sc.datasets.pbmc68k_reduced()
-group = "bulk_labels"
+adata = sc.datasets.pbmc3k_processed()
+group = "louvain"
 
 helper = ag.plot_embedding(adata, "umap", color=group)
 

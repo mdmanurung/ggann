@@ -41,6 +41,17 @@ jobs:
           pip install ./vendor/annplyr ./vendor/plotnine-extra
           pip install -e ".[test]"
 
+      # The vignette tests run with GGANN_DOCS_OFFLINE=1, which turns a missing
+      # dataset into an error instead of a download. Fetch it here, once.
+      - name: Cache the PBMC3K dataset
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: scanpy-datasets-pbmc3k-processed-v1
+
+      - name: Fetch documentation datasets
+        run: python scripts/fetch_datasets.py
+
       - name: Run tests
         env:
           MPLBACKEND: Agg

@@ -1,7 +1,7 @@
 """Render ggann counterparts to scplotter vignette figures.
 
 scplotter's vignettes run on a Seurat ``pancreas_sub`` object; here we reproduce
-the chart types and options on ``pbmc68k_reduced``. Capabilities that require
+the chart types and options on ``pbmc3k_processed``. Capabilities that require
 RNA velocity, lineage fits, neighbour graphs, or three-dimensional rendering
 are outside this example.
 
@@ -17,6 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
+import pandas as pd
 import scanpy as sc
 from plotnine import (
     aes,
@@ -33,12 +34,22 @@ from plotnine import (
 
 import ggann as ag
 
-GROUP = "bulk_labels"
+GROUP = "louvain"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 
 
 def _adata():
-    adata = sc.datasets.pbmc68k_reduced()
+    sc.settings.datasetdir = os.path.join(os.path.dirname(__file__), "..", "data")
+    adata = sc.datasets.pbmc3k_processed()
+    # A median split of the measured library size, standing in for a treatment
+    # variable this single-donor sample does not have.
+    adata.obs["depth"] = pd.Categorical(
+        np.where(adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"),
+        categories=["low", "high"],
+        ordered=True,
+    )
+    # pbmc3k_processed.X is already restricted to the highly variable genes.
+    adata.var["highly_variable"] = True
     sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
     return adata
 
@@ -59,7 +70,7 @@ def build(adata):
         "CellDimPlot(..., label = TRUE)",
     )
     figs["celldim_split"] = (
-        ag.plot_embedding(adata, "umap", color=GROUP, split_by="phase"),
+        ag.plot_embedding(adata, "umap", color=GROUP, split_by="depth"),
         'CellDimPlot(..., split_by = "Phase")',
     )
     figs["celldim_feature"] = (

@@ -27,6 +27,14 @@ do not modify them from a ggann pull request.
 
 ## Required checks
 
+The test suite and the documentation build both execute the vignettes, which
+read the PBMC3K dataset from a local cache rather than downloading it. Fetch it
+once, while online:
+
+```bash
+python scripts/fetch_datasets.py
+```
+
 Run the same deterministic checks used in continuous integration:
 
 ```bash

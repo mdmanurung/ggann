@@ -40,21 +40,22 @@ plot = (
 ## From AnnData to a publication figure
 
 Publication styling is opt-in and uses the same helper calls. This example uses
-Scanpy's bundled PBMC68k subset, so it can be run as written:
+the 2,638-cell PBMC3K dataset from Scanpy's and Seurat's clustering tutorials,
+so it can be run as written:
 
 ```python
 import scanpy as sc
 import ggann as ag
 
-adata = sc.datasets.pbmc68k_reduced()
+adata = sc.datasets.pbmc3k_processed()  # downloads once, then caches
 genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
 
 with ag.style_context("double-column"):
     embedding = ag.plot_embedding(
-        adata, "umap", color="bulk_labels", label=True
+        adata, "umap", color="louvain", label=True
     )
     markers = ag.plot_dotplot(
-        adata, genes, group_by="bulk_labels", use_raw=True
+        adata, genes, group_by="louvain", use_raw=True
     )
     figure = ag.compose(
         [embedding, markers],
@@ -176,7 +177,7 @@ GGANN_DOCS_OFFLINE=1 sphinx-build -W --keep-going -b html docs docs/_build/html
 ```
 
 The warning-as-error docs build executes all six scripts in
-`examples/vignettes/`. The first-use and publication workflows use Scanpy's
-bundled `pbmc68k_reduced` dataset; four focused workflows use a deterministic
-PBMC-like fixture. All use a headless renderer, write only to temporary
-directories by default, and require no network access.
+`examples/vignettes/`. All six run on the same real dataset,
+`scanpy.datasets.pbmc3k_processed`. Fetch it once with `python
+scripts/fetch_datasets.py`; the scripts then use a headless renderer, write
+only to temporary directories by default, and reach no network themselves.
