@@ -1,9 +1,11 @@
 # scplotter comparisons
 
 This page maps scplotter's `CellDimPlot` and `FeatureStatPlot` interfaces to
-ggann helpers and plotnine layers. The rendered examples use
-`pbmc68k_reduced`; scplotter's vignettes use a different Seurat dataset, so the
-comparison concerns plot types and options rather than pixel equality.
+ggann helpers and plotnine layers. The rendered examples stay on
+`pbmc68k_reduced` to keep this page's figures comparable with the earlier
+published set; scplotter's vignettes use a different Seurat dataset again, so
+the comparison concerns plot types and options rather than pixel equality. The
+tutorials and vignettes use `pbmc3k_processed`.
 
 [`examples/reproduce_scplotter.py`](https://github.com/mdmanurung/ggann/blob/main/examples/reproduce_scplotter.py)
 generates the images.

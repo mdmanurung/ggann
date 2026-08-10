@@ -12,10 +12,10 @@ kind of biological summary and returns a plot object:
 
 ```python
 # Scanpy
-sc.pl.dotplot(adata, genes, groupby="bulk_labels", show=False)
+sc.pl.dotplot(adata, genes, groupby="louvain", show=False)
 
 # ggann
-dotplot = ag.plot_dotplot(adata, genes, group_by="bulk_labels")
+dotplot = ag.plot_dotplot(adata, genes, group_by="louvain")
 ```
 
 You can display `dotplot`, add plotnine components with `+`, place it in a
@@ -37,27 +37,35 @@ is an ordinary `plotnine.ggplot`.
 
 ## Common Scanpy translations
 
-The examples use the bundled PBMC68k subset:
+The examples use the 2,638-cell PBMC3K dataset, which Scanpy downloads once
+and then caches. Highly-variable-gene selection dropped `CD3D` and `LYZ` from
+`.X`, so marker calls read `.raw` with `use_raw=True`:
 
 ```python
+import numpy as np
 import scanpy as sc
 import ggann as ag
 
-adata = sc.datasets.pbmc68k_reduced()
+adata = sc.datasets.pbmc3k_processed()
 genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
+
+# A median split of the measured library size, used by the facets below.
+adata.obs["depth"] = np.where(
+    adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"
+)
 ```
 
 ### UMAP by annotation
 
 ```python
 # Scanpy
-sc.pl.umap(adata, color="bulk_labels", legend_loc="on data", show=False)
+sc.pl.umap(adata, color="louvain", legend_loc="on data", show=False)
 
 # ggann
 umap = ag.plot_embedding(
     adata,
     "umap",
-    color="bulk_labels",
+    color="louvain",
     label=True,
 )
 ```
@@ -70,15 +78,15 @@ scientific use permits an explicit subset.
 
 ```python
 # Scanpy
-sc.pl.dotplot(adata, genes, groupby="bulk_labels", use_raw=True, show=False)
-sc.pl.matrixplot(adata, genes, groupby="bulk_labels", use_raw=True, show=False)
+sc.pl.dotplot(adata, genes, groupby="louvain", use_raw=True, show=False)
+sc.pl.matrixplot(adata, genes, groupby="louvain", use_raw=True, show=False)
 
 # ggann
 dotplot = ag.plot_dotplot(
-    adata, genes, group_by="bulk_labels", use_raw=True
+    adata, genes, group_by="louvain", use_raw=True
 )
 matrix = ag.plot_matrixplot(
-    adata, genes, group_by="bulk_labels", use_raw=True
+    adata, genes, group_by="louvain", use_raw=True
 )
 ```
 
@@ -91,13 +99,13 @@ least 12 points wide and high.
 
 ```python
 # Scanpy
-sc.pl.violin(adata, "CD3D", groupby="bulk_labels", use_raw=True, show=False)
+sc.pl.violin(adata, "CD3D", groupby="louvain", use_raw=True, show=False)
 
 # ggann
 violin = ag.plot_violin(
     adata,
     ["CD3D"],
-    group_by="bulk_labels",
+    group_by="louvain",
     use_raw=True,
     add_box=True,     # median and interquartile range
     add_points=False,
@@ -114,13 +122,13 @@ off when the p-value must represent the full population.
 ```python
 composition = ag.plot_proportions(
     adata,
-    group_by="bulk_labels",
-    split_by="phase",
+    group_by="louvain",
+    split_by="depth",
     normalize=True,
 )
 ```
 
-Each phase bar sums to one. The helper counts observation metadata only and
+Each depth bar sums to one. The helper counts observation metadata only and
 does not materialize expression.
 
 ## scplotter-style ergonomic options
@@ -153,18 +161,18 @@ Use `gganndata` when plotnine already describes the figure:
 from ggann import aes, gene, gganndata, obs, obsm
 from plotnine import facet_wrap, geom_point
 
-phase_umap = (
+depth_umap = (
     gganndata(
         adata,
         aes(
             x=obsm("umap", 0),
             y=obsm("umap", 1),
             color=gene("CD3D", use_raw=True),
-            group=obs("phase"),
+            group=obs("depth"),
         ),
     )
     + geom_point(size=1)
-    + facet_wrap("phase")
+    + facet_wrap("depth")
 )
 ```
 
@@ -202,8 +210,8 @@ The calls do not need to be rewritten:
 ```python
 with ag.style_context("double-column"):
     panels = [
-        ag.plot_embedding(adata, "umap", color="bulk_labels", label=True),
-        ag.plot_dotplot(adata, genes, group_by="bulk_labels", use_raw=True),
+        ag.plot_embedding(adata, "umap", color="louvain", label=True),
+        ag.plot_dotplot(adata, genes, group_by="louvain", use_raw=True),
     ]
     figure = ag.compose(panels, ncol=2, widths=(0.9, 1.3), gap=2)
 

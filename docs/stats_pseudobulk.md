@@ -10,8 +10,8 @@ with plotnine-native ggann helpers.
 import scanpy as sc
 import ggann as ag
 
-adata = sc.datasets.pbmc68k_reduced()
-group = "bulk_labels"
+adata = sc.datasets.pbmc3k_processed()
+group = "louvain"
 
 scatter = ag.plot_qc_scatter(
     adata,
@@ -23,6 +23,7 @@ violin = ag.plot_violin(
     adata,
     ["CD3D"],
     group,
+    use_raw=True,   # CD3D lives in .raw, not in the highly-variable .X
 ) + ag.stat_central_tendency()
 ```
 

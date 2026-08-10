@@ -4,6 +4,10 @@ Parity means that a pair represents the same cells, variables, groups, and
 summary statistic. It does not mean pixel identity: Scanpy and ggann use
 different plotting systems.
 
+The rendered pairs on this page stay on `pbmc68k_reduced` because they mirror
+figures from Scanpy's own documentation, which is built on that dataset. The
+tutorials and vignettes use `pbmc3k_processed`.
+
 ## Supported mappings
 
 | ggann | Closest Scanpy interface | Important difference |

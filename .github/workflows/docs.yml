@@ -41,6 +41,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install ./vendor/annplyr ./vendor/plotnine-extra
           pip install -e ".[docs]"
+      # The executable vignettes run with GGANN_DOCS_OFFLINE=1, which turns a
+      # missing dataset into an error instead of a download. Fetch it here.
+      - name: Cache the PBMC3K dataset
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: scanpy-datasets-pbmc3k-processed-v1
+      - name: Fetch documentation datasets
+        run: python scripts/fetch_datasets.py
       - name: Build docs
         env:
           GGANN_DOCS_OFFLINE: "1"

@@ -193,10 +193,11 @@ python benchmarks/render_scanpy_vignette.py \
   docs/_includes/scanpy-extended-csr.md
 ```
 
-The small deterministic correctness/render smoke remains part of documentation
-CI:
+The correctness/render smoke remains part of documentation CI. It reads the
+cached dataset rather than downloading it, so fetch that once first:
 
 ```bash
+python scripts/fetch_datasets.py
 GGANN_DOCS_OFFLINE=1 MPLBACKEND=Agg PYTHONPATH=src \
   python examples/vignettes/06_scanpy_tradeoffs.py
 ```

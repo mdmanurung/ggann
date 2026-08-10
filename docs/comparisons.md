@@ -5,6 +5,10 @@ High-level helpers combine data preparation with plotnine layers. Use
 aesthetics. Use a helper when the plot also needs aggregation, ordering, or
 specialized preparation.
 
+The snippets on this page stay on `pbmc68k_reduced` so they match the committed
+reference images; the tutorials and vignettes use `pbmc3k_processed`. Both are
+real 10x PBMC data and the helper/grammar equivalences hold on either.
+
 The complete reference constructions are in
 [`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py).
 The test suite builds both the helper calls and those constructions. The two

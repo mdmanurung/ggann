@@ -6,6 +6,8 @@ build/
 dist/
 .pytest_cache/
 .ruff_cache/
+# Scanpy dataset cache populated by scripts/fetch_datasets.py
+data/
 examples/_output/
 examples/_compare/
 examples/_phase1/
