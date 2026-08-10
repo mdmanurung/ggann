@@ -12,11 +12,14 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import scanpy as sc
 
 import ggann as ag
 
-OUT = Path(__file__).parent.parent / "docs" / "images"
+ROOT = Path(__file__).parent.parent
+OUT = ROOT / "docs" / "images"
 
 
 def _save(plot, name: str, **kwargs) -> None:
@@ -27,9 +30,19 @@ def _save(plot, name: str, **kwargs) -> None:
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    adata = sc.datasets.pbmc68k_reduced()
-    adata.obs["condition"] = adata.obs["phase"].astype(str)
-    group = "bulk_labels"
+    sc.settings.datasetdir = ROOT / "data"
+    adata = sc.datasets.pbmc3k_processed()
+    # A median split of the measured library size, used by the composition and
+    # trend panels in place of a treatment variable this donor sample lacks.
+    adata.obs["depth"] = pd.Categorical(
+        np.where(adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"),
+        categories=["low", "high"],
+        ordered=True,
+    )
+    # pbmc3k_processed.X is already restricted to the highly variable genes, so
+    # flagging them makes plot_correlation's default gene selection explicit.
+    adata.var["highly_variable"] = True
+    group = "louvain"
     markers = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
     sc.tl.rank_genes_groups(adata, group, method="wilcoxon", n_genes=50)
 
@@ -62,14 +75,14 @@ def main() -> None:
         dpi=100,
     )
     _save(
-        ag.plot_volcano(adata, group="CD56+ NK"),
+        ag.plot_volcano(adata, group="NK cells"),
         "volcano.png",
         width=6.5,
         height=5,
         dpi=100,
     )
     _save(
-        ag.plot_proportions(adata, group, split_by="condition", position="fill"),
+        ag.plot_proportions(adata, group, split_by="depth", position="fill"),
         "proportions.png",
         width=6,
         height=5,
@@ -122,7 +135,7 @@ def main() -> None:
         dpi=100,
     )
     _save(
-        ag.plot_expression_line(adata, markers[:3], x="phase", group_by=group),
+        ag.plot_expression_line(adata, markers[:3], x="depth", group_by=group),
         "expression_line.png",
         width=7,
         height=7,
@@ -137,7 +150,7 @@ def main() -> None:
     )
 
     de = ag.rank_genes_df(adata)
-    selected_groups = ["CD14+ Monocyte", "CD19+ B", "CD56+ NK", "Dendritic"]
+    selected_groups = ["CD14+ Monocytes", "B cells", "NK cells", "Dendritic cells"]
     marker_sets = {
         name: list(de[de["group"] == name].head(20)["names"]) for name in selected_groups
     }

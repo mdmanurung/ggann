@@ -28,8 +28,9 @@ def _save(plot, name: str, **kwargs) -> None:
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    adata = sc.datasets.pbmc68k_reduced()
-    group = "bulk_labels"
+    sc.settings.datasetdir = Path(__file__).parent.parent / "data"
+    adata = sc.datasets.pbmc3k_processed()
+    group = "louvain"
     markers = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
     markers = [gene for gene in markers if gene in adata.raw.var_names]
 

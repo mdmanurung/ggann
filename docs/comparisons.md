@@ -5,10 +5,6 @@ High-level helpers combine data preparation with plotnine layers. Use
 aesthetics. Use a helper when the plot also needs aggregation, ordering, or
 specialized preparation.
 
-The snippets on this page stay on `pbmc68k_reduced` so they match the committed
-reference images; the tutorials and vignettes use `pbmc3k_processed`. Both are
-real 10x PBMC data and the helper/grammar equivalences hold on either.
-
 The complete reference constructions are in
 [`examples/grammar_equivalents.py`](https://github.com/mdmanurung/ggann/blob/main/examples/grammar_equivalents.py).
 The test suite builds both the helper calls and those constructions. The two
@@ -24,8 +20,8 @@ import ggann as ag
 from ggann import aes, gganndata
 from plotnine import geom_point
 
-adata = sc.datasets.pbmc68k_reduced()
-group = "bulk_labels"
+adata = sc.datasets.pbmc3k_processed()
+group = "louvain"
 
 helper = ag.plot_embedding(adata, "umap", color=group)
 

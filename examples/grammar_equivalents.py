@@ -53,7 +53,7 @@ from plotnine import (
 import ggann as ag
 from ggann import gganndata
 
-GROUP = "bulk_labels"
+GROUP = "louvain"
 MARKERS = ["CD3D", "NKG7", "CST3", "GNLY"]
 
 
@@ -230,7 +230,7 @@ def bar_grammar(adata, gene="CD3D", group=GROUP):
 
 
 # --- plot_expression_line(gene, x, group) ---------------------------------- #
-def line_grammar(adata, gene="CD3D", x="phase", group=GROUP):
+def line_grammar(adata, gene="CD3D", x="depth", group=GROUP):
     d = gganndata(adata, ag.aes(x, ag.gene(gene), color=group)).data
     s = d.groupby([x, group], observed=True)[gene].mean().reset_index(name="mean")
     return (
@@ -244,7 +244,7 @@ def line_grammar(adata, gene="CD3D", x="phase", group=GROUP):
 
 
 # --- plot_proportions(group, split_by) ------------------------------------- #
-def proportions_grammar(adata, group=GROUP, split="phase"):
+def proportions_grammar(adata, group=GROUP, split="depth"):
     d = gganndata(adata, ag.aes(split, fill=group)).data
     counts = d.groupby([split, group], observed=True).size().reset_index(name="n")
     counts["frac"] = counts.groupby(split, observed=True)["n"].transform(lambda x: x / x.sum())
@@ -314,20 +314,33 @@ HELPERS = {
     "plot_box": lambda ad: ag.plot_box(ad, ["CD3D"], GROUP),
     "plot_expression_bar": lambda ad: ag.plot_expression_bar(ad, ["CD3D"], GROUP),
     "plot_expression_line": lambda ad: ag.plot_expression_line(
-        ad, ["CD3D"], x="phase", group_by=GROUP
+        ad, ["CD3D"], x="depth", group_by=GROUP
     ),
     "plot_proportions": lambda ad: ag.plot_proportions(
-        ad, GROUP, split_by="phase", position="fill"
+        ad, GROUP, split_by="depth", position="fill"
     ),
     "plot_correlation": lambda ad: ag.plot_correlation(ad, GROUP),
 }
 
 
 def main():
+    import numpy as np
+    import pandas as pd
     import scanpy as sc
 
-    adata = sc.datasets.pbmc68k_reduced()
-    out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "compare")
+    root = os.path.join(os.path.dirname(__file__), "..")
+    sc.settings.datasetdir = os.path.join(root, "data")
+    adata = sc.datasets.pbmc3k_processed()
+    # A median split of the measured library size, standing in for a treatment
+    # variable this single-donor sample does not have.
+    adata.obs["depth"] = pd.Categorical(
+        np.where(adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"),
+        categories=["low", "high"],
+        ordered=True,
+    )
+    # pbmc3k_processed.X is already restricted to the highly variable genes.
+    adata.var["highly_variable"] = True
+    out = os.path.join(root, "docs", "images", "compare")
     os.makedirs(out, exist_ok=True)
     for name, grammar in EQUIVALENTS.items():
         for kind, plot in (

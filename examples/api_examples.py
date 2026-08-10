@@ -24,7 +24,7 @@ from plotnine import geom_point
 import ggann as ag
 from ggann import aes, gganndata
 
-GROUP = "bulk_labels"
+GROUP = "louvain"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 GENE_GROUPS = {
     "T": ["CD3D", "CD8A"],
@@ -35,12 +35,26 @@ GENE_GROUPS = {
 
 
 def _adata():
-    adata = sc.datasets.pbmc68k_reduced()
+    sc.settings.datasetdir = os.path.join(os.path.dirname(__file__), "..", "data")
+    adata = sc.datasets.pbmc3k_processed()
+    # A median split of the measured library size, used by the composition and
+    # trend panels in place of a treatment variable this donor sample lacks.
+    import numpy as np
+    import pandas as pd
+
+    adata.obs["depth"] = pd.Categorical(
+        np.where(adata.obs["n_counts"] < adata.obs["n_counts"].median(), "low", "high"),
+        categories=["low", "high"],
+        ordered=True,
+    )
+    # pbmc3k_processed.X is already restricted to the highly variable genes, so
+    # flagging them makes plot_correlation's default gene selection explicit.
+    adata.var["highly_variable"] = True
     sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
     return adata
 
 
-def _ma_frame(adata, group="CD56+ NK"):
+def _ma_frame(adata, group="NK cells"):
     """A PyDESeq2-shaped DE table for the MA-plot example, built from the marker
     result plus each gene's mean log-normalized expression (the "base mean")."""
     import numpy as np
@@ -57,7 +71,7 @@ def _ma_frame(adata, group="CD56+ NK"):
 
 def _examples(adata):
     de = ag.rank_genes_df(adata)
-    sel = ["CD14+ Monocyte", "CD19+ B", "CD56+ NK", "Dendritic"]
+    sel = ["CD14+ Monocytes", "B cells", "NK cells", "Dendritic cells"]
     marker_sets = {g: list(de[de["group"] == g].head(20)["names"]) for g in sel}
     return {
         "ggann.gganndata": lambda: (
@@ -89,13 +103,13 @@ def _examples(adata):
         "ggann.plot_sina": lambda: ag.plot_sina(adata, MARKERS[:3], GROUP, use_raw=True),
         "ggann.plot_expression_bar": lambda: ag.plot_expression_bar(adata, MARKERS[:3], GROUP),
         "ggann.plot_expression_line": lambda: ag.plot_expression_line(
-            adata, ["CD3D"], x="phase", group_by=GROUP
+            adata, ["CD3D"], x="depth", group_by=GROUP
         ),
-        "ggann.plot_proportions": lambda: ag.plot_proportions(adata, GROUP, split_by="phase"),
+        "ggann.plot_proportions": lambda: ag.plot_proportions(adata, GROUP, split_by="depth"),
         "ggann.plot_correlation": lambda: ag.plot_correlation(adata, GROUP),
         "ggann.plot_rank_genes_dotplot": lambda: ag.plot_rank_genes_dotplot(adata, n_genes=3),
         "ggann.plot_rank_genes_matrixplot": lambda: ag.plot_rank_genes_matrixplot(adata, n_genes=3),
-        "ggann.plot_volcano": lambda: ag.plot_volcano(adata, group="CD56+ NK"),
+        "ggann.plot_volcano": lambda: ag.plot_volcano(adata, group="NK cells"),
         "ggann.plot_ma": lambda: ag.plot_ma(_ma_frame(adata), label_top=8),
         "ggann.plot_qc_violin": lambda: ag.plot_qc_violin(
             adata, metrics=["n_genes", "percent_mito", "n_counts"], group_by=GROUP
@@ -103,7 +117,7 @@ def _examples(adata):
         "ggann.plot_qc_scatter": lambda: ag.plot_qc_scatter(
             adata, x="n_counts", y="n_genes", color=GROUP
         ),
-        # use_raw: pbmc68k_reduced.X is scaled (z-scored); .raw is log-normalized,
+        # use_raw: pbmc3k_processed.X is scaled (z-scored); .raw is log-normalized,
         # so "% of total counts" is meaningful there rather than blowing up.
         "ggann.plot_highest_expr_genes": lambda: ag.plot_highest_expr_genes(
             adata, n=20, use_raw=True
