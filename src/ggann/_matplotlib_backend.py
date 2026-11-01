@@ -53,6 +53,10 @@ class _RenderSpec:
     signed: bool = False
     annotation_min_cell_pt: float | None = None
     annotation_format: str = "{:.2g}"
+    vmin: float | None = None
+    vmax: float | None = None
+    symmetric: bool = False  # zero-centred colour limits (z-scores)
+    dot_limits: tuple[float, float] | None = None
 
 
 class MatplotlibGGPlot(ggplot):
@@ -396,7 +400,12 @@ def _spec_cmap(spec: _RenderSpec):
 
 def _spec_norm(spec: _RenderSpec, values: np.ndarray) -> Normalize | None:
     """Use a symmetric zero-centred normalization for signed publication data."""
-    if spec.publication_style is None or not spec.signed:
+    if spec.vmin is not None or spec.vmax is not None:
+        finite = values[np.isfinite(values)]
+        low = spec.vmin if spec.vmin is not None else float(finite.min())
+        high = spec.vmax if spec.vmax is not None else float(finite.max())
+        return Normalize(vmin=low, vmax=high, clip=True)
+    if not spec.symmetric and (spec.publication_style is None or not spec.signed):
         return None
     finite = values[np.isfinite(values)]
     limit = float(np.abs(finite).max()) if len(finite) else 1.0
@@ -443,7 +452,8 @@ def _set_discrete_axes(
     axis.set_yticks(np.arange(len(y_levels)), [str(value) for value in y_levels])
     axis.tick_params(axis="both", labelsize=style.axis_text_size if style else 9)
     axis.set_xlim(-0.5, len(x_levels) - 0.5)
-    axis.set_ylim(-0.5, len(y_levels) - 0.5)
+    # first category on top, as in scanpy; levels keep their semantic order
+    axis.set_ylim(len(y_levels) - 0.5, -0.5)
     axis.set_xlabel("")
     axis.set_ylabel("")
 
@@ -474,7 +484,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     collection = axis.scatter(
         x,
         y,
-        s=_dot_sizes(fractions, spec.size_range),
+        s=_dot_sizes(fractions, spec.size_range, limits=spec.dot_limits),
         c=values,
         cmap=cmap,
         norm=norm,
@@ -489,7 +499,8 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     proxy_sizes = _dot_sizes(
         fraction_ticks,
         spec.size_range,
-        limits=(0, 1) if spec.publication_style else _numeric_limits(fractions),
+        limits=spec.dot_limits
+        or ((0, 1) if spec.publication_style else _numeric_limits(fractions)),
     )
     handles = [
         Line2D(
