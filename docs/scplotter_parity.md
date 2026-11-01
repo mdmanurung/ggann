@@ -51,7 +51,8 @@ hexbin = ggplot(coords, aes(x, y)) + geom_bin2d(bins=28)
 
 Features that require lineage fits, velocity estimates, neighbour graphs,
 three-dimensional rendering, or embedded charts are outside ggann's data and
-plotting model.
+plotting model. `plot_embedding` has no `projection="3d"`, `edges`, `arrows` or
+`add_outline`; see {doc}`limitations`.
 
 ## FeatureStatPlot
 
@@ -76,6 +77,14 @@ plotting model.
 | ![Matrix plot](images/scplotter/feat_heatmap.png) | ![Dotplot](images/scplotter/feat_dot.png) |
 | ![Correlation](images/scplotter/feat_cor.png) | ![Flipped boxplot](images/scplotter/feat_box_flip.png) |
 
+The stacked violin fills each violin by group median expression, as Scanpy
+does, and draws genes as rows with no y tick labels. `plot_violin`,
+`plot_box` and `plot_stacked_violin` take `order=` to subset and order the
+groups, and `log=True` to plot `log1p(expression)`. The dotplot and matrixplot
+draw the first category at the top.
+`stat_compare_means(comparisons=)` fails upstream, so do not use it for pairwise
+brackets; see {doc}`limitations`.
+
 Custom summaries and coordinate changes remain plotnine operations:
 
 ```python
@@ -91,3 +100,7 @@ flipped = ag.plot_box(adata, ["CD3D"], group) + coord_flip()
 
 Annotated grid heatmaps can use `plot_clustermap`; correlation pairs matrices
 and lineage-aware feature plots are not implemented.
+Use `swap_axes=True`, not `coord_flip()`, to swap the dotplot or matrixplot
+axes, because a flip reverses the displayed category order. `coord_flip()` is
+fine for the box plot above. The images on this page were regenerated with
+`python examples/reproduce_scplotter.py`.
