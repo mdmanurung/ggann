@@ -26,6 +26,7 @@ from typing import Iterable, cast
 
 import pandas as pd
 
+from ._compat import SKIP_GGANN_FRAMES
 from ._expression import (
     _expression_kwargs,
     expression_frame,
@@ -463,7 +464,7 @@ def resolve_frame(
                 warnings.warn(
                     f"'{name}' is both an obs column and a gene; using obs. "
                     f"Use 'gene:{name}' to plot expression.",
-                    stacklevel=2,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
                 )
             obs_names.append(name)
         elif name in default_set:
@@ -481,7 +482,7 @@ def resolve_frame(
             )
             if strict:
                 raise KeyError(message)
-            warnings.warn(message, stacklevel=2)
+            warnings.warn(message, skip_file_prefixes=SKIP_GGANN_FRAMES)
             continue
         elif strict:
             raise KeyError(

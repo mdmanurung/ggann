@@ -25,6 +25,7 @@ from plotnine import (
 )
 
 from ._aggregate import tidy_expression
+from ._compat import accepts_groupby
 from ._expression import ordered_unique
 from ._grouping import _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_fill_obs
@@ -105,6 +106,7 @@ def _add_gene_group_facet(plot, gene_groups: dict):
     return plot + facet_grid(". ~ gene_group", scales="free_x", space="free_x")
 
 
+@accepts_groupby
 def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     """Draw a dotplot with genes bracketed into labelled groups.
 
@@ -145,6 +147,7 @@ def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     return _add_gene_group_facet(plot_dotplot(adata, genes, group_by, **kwargs), gene_groups)
 
 
+@accepts_groupby
 def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     """Draw a matrixplot with genes bracketed into labelled groups.
 
@@ -185,6 +188,7 @@ def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
     return _add_gene_group_facet(plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups)
 
 
+@accepts_groupby
 def plot_tracksplot(
     adata,
     genes: Sequence[str] | dict,

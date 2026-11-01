@@ -21,6 +21,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_point, ggplot, labs
 
+from ._compat import SKIP_GGANN_FRAMES
 from ._expression import ordered_unique
 from ._grouping import _downsample_cells
 from ._resolve import embedding_coords, plain_name, resolve_frame
@@ -201,7 +202,7 @@ def plot_density(
         warnings.warn(
             "joint=True needs at least two features; drawing the single feature panel.",
             UserWarning,
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
     if joint and len(panels) > 1:
         joint_label = " + ".join(panels)

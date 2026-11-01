@@ -163,3 +163,48 @@ def test_gene_in_other_source_hint():
     a = full[:, :3].copy()
     with pytest.raises(KeyError, match=r"They are in \.raw; pass use_raw=True"):
         ag.plot_violin(a, ["G5"], group_by="g", use_raw=False)
+
+
+# A1: Scanpy's groupby= spelling is a silent alias on every group_by helper.
+ALIAS_CALLS = {
+    "violin": lambda a, **k: ag.plot_violin(a, GENES, use_raw=True, **k),
+    "dotplot": lambda a, **k: ag.plot_dotplot(a, GENES, use_raw=True, **k),
+    "matrixplot": lambda a, **k: ag.plot_matrixplot(a, GENES, use_raw=True, **k),
+    "heatmap": lambda a, **k: ag.plot_heatmap(a, GENES, use_raw=True, **k),
+    "tracksplot": lambda a, **k: ag.plot_tracksplot(a, GENES, use_raw=True, **k),
+    "ridge": lambda a, **k: ag.plot_ridge(a, GENES, use_raw=True, **k),
+    "proportions": lambda a, **k: ag.plot_proportions(a, **k),
+    "qc_violin": lambda a, **k: ag.plot_qc_violin(a, ["n_counts"], **k),
+}
+
+
+@pytest.mark.parametrize("name", ALIAS_CALLS)
+def test_A1_groupby_alias_matches_group_by(adata, name):
+    call = ALIAS_CALLS[name]
+    expected = call(adata, group_by=GROUP).data
+    got = call(adata, groupby=GROUP).data
+    pd.testing.assert_frame_equal(got.reset_index(drop=True), expected.reset_index(drop=True))
+    with pytest.raises(TypeError, match="aliases"):
+        call(adata, group_by=GROUP, groupby="louvain")
+
+
+def test_A1_every_group_by_helper_is_aliased():
+    import inspect
+
+    missing = [
+        name
+        for name in ag.__all__
+        if inspect.isfunction(getattr(ag, name))
+        and "group_by" in inspect.signature(getattr(ag, name)).parameters
+        and not hasattr(getattr(ag, name), "__wrapped__")
+    ]
+    assert missing == []
+
+
+def test_warnings_point_at_the_callers_line(nan_adata):
+    # skip_file_prefixes: decorated helpers still attribute warnings to user code
+    from pathlib import Path
+
+    with pytest.warns(UserWarning, match="dropped") as caught:
+        ag.plot_violin(nan_adata, GENES, groupby=GROUP, use_raw=True)
+    assert Path(caught[0].filename) == Path(__file__)

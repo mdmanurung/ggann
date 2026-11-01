@@ -34,6 +34,7 @@ from plotnine import (
 )
 from plotnine.options import get_option, set_option
 
+from ._compat import SKIP_GGANN_FRAMES
 from .theme import _resolve_font, sizes, theme_ggann
 
 __all__ = [
@@ -883,7 +884,10 @@ def _warn_overflow(figure, width_mm: float, height_mm: float) -> None:
     try:
         found = _overflow_report(figure)
     except Exception as exc:  # detection must never block an export
-        warnings.warn(f"save_publication: overflow check skipped ({exc!r}).", stacklevel=3)
+        warnings.warn(
+            f"save_publication: overflow check skipped ({exc!r}).",
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
+        )
         return
     if not found:
         return
@@ -893,7 +897,7 @@ def _warn_overflow(figure, width_mm: float, height_mm: float) -> None:
         f"{height_mm:.0f} mm canvas: {shown}. The canvas was not changed; shorten labels, "
         "reduce font sizes or enlarge the figure.",
         UserWarning,
-        stacklevel=3,
+        skip_file_prefixes=SKIP_GGANN_FRAMES,
     )
 
 

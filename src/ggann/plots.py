@@ -48,6 +48,7 @@ from ._aggregate import (
     tidy_expression,
 )
 from ._annotation import annotation_threshold, geom_contrast_text
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
 from ._grouping import (
     _check_group_cardinality,
@@ -224,7 +225,7 @@ def _native_embedding_frame(
                 warnings.warn(
                     f"'{name}' is both an obs column and a gene; using obs. "
                     f"Use 'gene:{name}' to plot expression.",
-                    stacklevel=3,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
                 )
             vector = adata.obs[name].array
         else:
@@ -795,7 +796,7 @@ def plot_embedding(
         warnings.warn(
             "plot_embedding: label=True is ignored when color is None "
             "(centroid labels need a categorical color).",
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
 
     if color is None:
@@ -823,7 +824,7 @@ def plot_embedding(
                     "quadratically); pass method='binned' for a fast approximation, "
                     "pointdensity=False, or downsample=.",
                     UserWarning,
-                    stacklevel=2,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
                 )
             return ggplot(df, aes(xcol, ycol)) + _with_facet(
                 [
@@ -852,7 +853,7 @@ def plot_embedding(
             warnings.warn(
                 f"plot_embedding: label=True is ignored for the numeric color {color!r} "
                 "(centroid labels need a categorical color).",
-                stacklevel=2,
+                skip_file_prefixes=SKIP_GGANN_FRAMES,
             )
         # Draw low-expression cells first so high-expression cells are not occluded
         # (mirrors scanpy's sc.pl.embedding ordering); missing values go first.
@@ -1232,6 +1233,7 @@ def _matrix_layout(
     return xcol, ycol, parts
 
 
+@accepts_groupby
 def plot_dotplot(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],
@@ -1436,6 +1438,7 @@ def plot_dotplot(
     )
 
 
+@accepts_groupby
 def plot_matrixplot(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],
@@ -1605,6 +1608,7 @@ def plot_matrixplot(
     )
 
 
+@accepts_groupby
 def plot_embedding_density(
     adata,
     basis: str = "umap",
@@ -1768,6 +1772,7 @@ def plot_embedding_density(
     return plot + scale + _embedding_style(show_axes, equal_aspect)
 
 
+@accepts_groupby
 def plot_heatmap(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],

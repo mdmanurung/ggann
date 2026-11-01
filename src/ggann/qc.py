@@ -27,6 +27,7 @@ from plotnine import (
     theme,
 )
 
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import densify_frame as _densify
 from ._expression import resolve_source, source_label, source_matrix
 from ._grouping import _drop_missing_groups
@@ -210,6 +211,7 @@ def _select_backed_dense_columns(matrix, indices: np.ndarray) -> np.ndarray:
     return result
 
 
+@accepts_groupby
 def plot_qc_violin(
     adata,
     metrics: Sequence[str] | None = None,
@@ -509,7 +511,7 @@ def plot_highest_expr_genes(
                 if adata.raw is not None
                 else "Pass layer= to point at counts or log-normalized values."
             ),
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
     denominators, included, zero_total = _percentage_normalization(totals)
     n_zero = int(zero_total.sum())
@@ -517,7 +519,7 @@ def plot_highest_expr_genes(
         warnings.warn(
             f"{n_zero} cell(s) with zero total counts retained as 0% in "
             "plot_highest_expr_genes, matching Scanpy.",
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
     means = _mean_percentages(
         matrix,

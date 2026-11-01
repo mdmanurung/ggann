@@ -26,7 +26,7 @@ from plotnine import (
     scale_x_log10,
 )
 
-from ._compat import renamed_keyword
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from .plots import plot_dotplot, plot_matrixplot
 from .publication import _family_theme
 
@@ -226,6 +226,7 @@ def _rank_plot(plot_fn, aes_name, adata, n_genes, group_by, key, groups, min_lfc
     return plot
 
 
+@accepts_groupby
 def plot_rank_genes_dotplot(
     adata,
     n_genes: int = 10,
@@ -291,13 +292,6 @@ def plot_rank_genes_dotplot(
     --------
     >>> p = plot_rank_genes_dotplot(adata, n_genes=3)
     """
-    group_by = renamed_keyword(
-        group_by,
-        kwargs.pop("groupby", None),
-        name="group_by",
-        legacy_name="groupby",
-        default=None,
-    )
     return _rank_plot(
         plot_dotplot,
         "color",
@@ -312,6 +306,7 @@ def plot_rank_genes_dotplot(
     )
 
 
+@accepts_groupby
 def plot_rank_genes_matrixplot(
     adata,
     n_genes: int = 10,
@@ -371,13 +366,6 @@ def plot_rank_genes_matrixplot(
     --------
     >>> p = plot_rank_genes_matrixplot(adata, n_genes=3)
     """
-    group_by = renamed_keyword(
-        group_by,
-        kwargs.pop("groupby", None),
-        name="group_by",
-        legacy_name="groupby",
-        default=None,
-    )
     return _rank_plot(
         plot_matrixplot,
         "fill",
@@ -630,7 +618,7 @@ def plot_ma(
             f"plot_ma: dropped {int((~positive).sum())} of {len(data)} genes with missing "
             f"or non-positive {mean!r} (cannot be drawn on a log axis).",
             UserWarning,
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
     if not positive.any():
         raise ValueError(f"plot_ma: no gene has a positive {mean!r}.")

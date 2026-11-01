@@ -21,6 +21,7 @@ from plotnine import (
     scale_y_continuous,
 )
 
+from ._compat import accepts_groupby
 from ._grouping import _drop_missing_groups
 from .publication import _family_theme
 
@@ -58,6 +59,7 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
     return adata.uns[key]["dendrogram_info"]
 
 
+@accepts_groupby
 def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation: str = "top"):
     """Hierarchical tree relating the categories of ``group_by`` (``sc.pl.dendrogram``).
 

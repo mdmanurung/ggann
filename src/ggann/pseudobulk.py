@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import warnings
 
-from ._compat import renamed_keyword
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby, renamed_keyword
 from ._grouping import _drop_missing_groups
 
 __all__ = ["pseudobulk"]
@@ -33,6 +33,7 @@ def _require_decoupler():
     return dc
 
 
+@accepts_groupby
 def pseudobulk(
     adata,
     sample_col: str,
@@ -146,7 +147,7 @@ def pseudobulk(
                 f"dropped {int((~keep).sum())} of {pb.n_obs} pseudobulk profiles built from "
                 f"fewer than min_cells={min_cells} cells; pass min_cells=0 to keep them.",
                 UserWarning,
-                stacklevel=2,
+                skip_file_prefixes=SKIP_GGANN_FRAMES,
             )
         pb = pb[keep].copy()
     return pb

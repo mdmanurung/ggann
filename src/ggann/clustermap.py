@@ -18,6 +18,7 @@ from typing import Iterable, Sequence
 import pandas as pd
 
 from ._aggregate import _standardize, group_means
+from ._compat import accepts_groupby
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source
 from ._grouping import _drop_missing_groups
@@ -37,6 +38,7 @@ def _require_pch():
     return pch
 
 
+@accepts_groupby
 def plot_clustermap(
     adata,
     genes: Sequence[str],

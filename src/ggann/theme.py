@@ -25,6 +25,8 @@ from plotnine import (
     theme_set,
 )
 
+from ._compat import SKIP_GGANN_FRAMES
+
 __all__ = [
     "theme_ggann",
     "set_theme",
@@ -94,7 +96,7 @@ def _warn_font(requested: str, used: str, context: str) -> None:
         f"{context}: font family {requested!r} is not installed; text falls back to "
         f"{used!r}. Install {requested!r} or pass another family.",
         UserWarning,
-        stacklevel=4,
+        skip_file_prefixes=SKIP_GGANN_FRAMES,
     )
 
 

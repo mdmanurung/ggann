@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import functools
+import os
 import warnings
+
+# Attribute warnings to the first frame outside ggann, at any call depth.
+SKIP_GGANN_FRAMES = (os.path.dirname(__file__),)
 
 
 def renamed_keyword(
@@ -20,7 +25,7 @@ def renamed_keyword(
         warnings.warn(
             f"{legacy_name!r} is deprecated; use {name!r} instead.",
             FutureWarning,
-            stacklevel=3,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
         return legacy_value
     return default if value is None else value
@@ -36,3 +41,20 @@ def _resolve_alias(new_value, old_value, new_name: str, old_name: str):
             f"({new_value!r} vs {old_value!r}); pass only {new_name!r}."
         )
     return new_value
+
+
+def accepts_groupby(func):
+    """Accept Scanpy's ``groupby=`` as a silent alias of ``group_by=``.
+
+    Both spellings with different values raise ``TypeError``.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if "groupby" in kwargs:
+            kwargs["group_by"] = _resolve_alias(
+                kwargs.get("group_by"), kwargs.pop("groupby"), "group_by", "groupby"
+            )
+        return func(*args, **kwargs)
+
+    return wrapper

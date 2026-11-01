@@ -29,6 +29,7 @@ from plotnine import (
 
 from ._aggregate import group_means
 from ._annotation import annotation_threshold, geom_contrast_text
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import ordered_unique
 from ._grouping import _drop_missing_groups
 from .publication import _active_style, _family_theme
@@ -50,7 +51,7 @@ def _default_genes(adata) -> list[str]:
         warnings.warn(
             f"plot_correlation: no 'highly_variable' genes flagged; correlating all "
             f"{len(genes)} genes. Pass genes=... to restrict (faster on large data).",
-            stacklevel=3,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
     return genes
 
@@ -109,6 +110,7 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
 
 
+@accepts_groupby
 def plot_correlation(
     adata,
     group_by: str,

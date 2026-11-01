@@ -15,16 +15,18 @@ import plotnine_extra as pe
 from matplotlib.colors import is_color_like, to_hex
 from plotnine import scale_color_manual, scale_fill_manual
 
+from ._compat import SKIP_GGANN_FRAMES
+
 __all__ = ["obs_colors", "scale_color_obs", "scale_colour_obs", "scale_fill_obs"]
 
 _WARNED: set[tuple] = set()
 
 
-def _warn_once(key: tuple, message: str, stacklevel: int = 3) -> None:
+def _warn_once(key: tuple, message: str) -> None:
     if key in _WARNED:
         return
     _WARNED.add(key)
-    warnings.warn(message, UserWarning, stacklevel=stacklevel)
+    warnings.warn(message, UserWarning, skip_file_prefixes=SKIP_GGANN_FRAMES)
 
 
 def _audit_palette(colors, source: str, *, accessibility: bool) -> None:
@@ -127,7 +129,7 @@ def obs_colors(adata, col: str) -> dict | None:
             warnings.warn(
                 f"{source} contains invalid colours; using the default palette.",
                 UserWarning,
-                stacklevel=2,
+                skip_file_prefixes=SKIP_GGANN_FRAMES,
             )
             return None
         _audit_palette(colors[: len(cats)], source, accessibility=False)
@@ -145,7 +147,7 @@ def obs_colors(adata, col: str) -> dict | None:
             f"adata.uns['{col}_colors'] must contain exactly one valid colour for "
             f"each of the {len(cats)} categories; using the deterministic publication palette.",
             UserWarning,
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
         generated = publication_palette("qualitative", categories=cats, style=style)
         _audit_palette(

@@ -12,6 +12,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, labs
 
+from ._compat import accepts_groupby
 from ._grouping import _drop_missing_groups, _group_categories, _order_groups, _resolve_group_order
 from ._palette import scale_color_obs, scale_fill_obs
 from .publication import _family_theme
@@ -19,6 +20,7 @@ from .publication import _family_theme
 __all__ = ["plot_proportions"]
 
 
+@accepts_groupby
 def plot_proportions(
     adata,
     group_by: str,

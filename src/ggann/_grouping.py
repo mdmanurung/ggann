@@ -8,6 +8,8 @@ from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
+from ._compat import SKIP_GGANN_FRAMES
+
 
 def _group_categories(adata, group_by: str) -> list | None:
     """Return the declared order of a categorical observation column."""
@@ -32,7 +34,9 @@ def _drop_missing_groups(adata, *fields):
         return adata
     names = ", ".join(repr(f) for f in fields)
     warnings.warn(
-        f"dropped {n} of {adata.n_obs} cells with missing {names}", UserWarning, stacklevel=3
+        f"dropped {n} of {adata.n_obs} cells with missing {names}",
+        UserWarning,
+        skip_file_prefixes=SKIP_GGANN_FRAMES,
     )
     return adata[~missing]
 
@@ -57,7 +61,7 @@ def _check_group_cardinality(adata, field: str | None, limit: int, *, action: st
     )
     if action == "raise":
         raise ValueError(message)
-    warnings.warn(message, UserWarning, stacklevel=3)
+    warnings.warn(message, UserWarning, skip_file_prefixes=SKIP_GGANN_FRAMES)
     return n
 
 
