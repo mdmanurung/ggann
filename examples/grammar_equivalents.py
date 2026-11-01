@@ -29,6 +29,7 @@ import annplyr as ap
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
+from mizani.bounds import squish
 from plotnine import (
     aes,
     element_blank,
@@ -45,8 +46,10 @@ from plotnine import (
     guides,
     labs,
     scale_color_cmap,
+    scale_color_gradient,
     scale_fill_cmap,
     scale_size,
+    scale_y_discrete,
     theme,
 )
 
@@ -137,6 +140,11 @@ def _order_group(df, group, adata):
     return df
 
 
+def _first_group_on_top(long, group):
+    """ggplot draws the first y level at the bottom; scanpy and the helpers do not."""
+    return scale_y_discrete(limits=list(long[group].cat.categories)[::-1])
+
+
 def _grouped_means(adata, genes, group, cutoff=0.0):
     """Group-by-gene mean expression and fraction expressing, via annplyr."""
     mean = adata.ap.summarize(raw={g: ap.mean(ap.col(g)) for g in genes}, by=group)
@@ -162,6 +170,7 @@ def dotplot_grammar(adata, genes=MARKERS, group=GROUP):
         ggplot(long, aes("feature", group))
         + geom_point(aes(size="frac", color="mean"))
         + scale_color_cmap(cmap_name="Reds")
+        + _first_group_on_top(long, group)
         + scale_size(range=(0.5, 8.0), labels=lambda xs: [f"{x:.0%}" for x in xs])
         + labs(x="", y="", color="mean\nexpression", size="fraction\nexpressing")
         + ag.theme_ggann()
@@ -176,6 +185,7 @@ def matrixplot_grammar(adata, genes=MARKERS, group=GROUP):
         ggplot(long, aes("feature", group, fill="mean"))
         + geom_tile()
         + scale_fill_cmap(cmap_name="viridis")
+        + _first_group_on_top(long, group)
         + labs(x="", y="", fill="mean\nexpression")
         + ag.theme_ggann()
         + pe.rotate_x_text(45)
@@ -286,6 +296,71 @@ def correlation_grammar(adata, group=GROUP, n_genes=None):
     )
 
 
+# --- plot_embedding option twins ------------------------------------------- #
+# Scanpy-style options on plot_embedding and their plain plotnine spelling. Each
+# entry is (helper call, grammar construction) on the same cells; they are not
+# image-identical, but they show the same cells, limits, groups and labels.
+# Option twins are kept out of EQUIVALENTS: that dict is one twin per helper.
+def _embedding_xy(adata, color, basis="umap"):
+    xcol, ycol = ag.embedding_coords(adata, basis).columns[:2]
+    return gganndata(adata, ag.aes(xcol, ycol, color=color)), xcol, ycol
+
+
+def embedding_vmin_vmax_grammar(adata, gene="CD3D", vmin=0.0, vmax=3.0):
+    # vmin/vmax: fixed colour limits; values outside are squished to the end colours
+    base, xcol, ycol = _embedding_xy(adata, ag.gene(gene))
+    return (
+        base
+        + geom_point(size=1.5, alpha=0.9)
+        + scale_color_gradient(low="#d9d9d9", high="#2166ac", limits=(vmin, vmax), oob=squish)
+        + ag.theme_ggann()
+    )
+
+
+def embedding_groups_grammar(adata, color=GROUP, groups=("B cells", "NK cells")):
+    # groups: blank the other categories, then give the missing level a grey
+    base, xcol, ycol = _embedding_xy(adata, color)
+    df = base.data.copy()
+    df[color] = df[color].where(df[color].isin(groups))
+    return (
+        ggplot(df.sort_values(color, na_position="first"), aes(xcol, ycol, color=color))
+        + geom_point(size=1.5, alpha=0.9)
+        # scale_color_obs is scale_color_manual(values=<stored colours>, ...)
+        + ag.scale_color_obs(adata, color, breaks=list(groups), na_value="lightgray")
+        + ag.theme_ggann()
+    )
+
+
+def embedding_title_grammar(adata, color=GROUP, title="PBMC3K"):
+    # title: labs(title=...)
+    return embedding_grammar(adata, color, label=False) + labs(title=title)
+
+
+def embedding_legend_none_grammar(adata, color=GROUP):
+    # legend_loc="none": drop the legend
+    return embedding_grammar(adata, color, label=False) + theme(legend_position="none")
+
+
+EMBEDDING_OPTIONS = {
+    "vmin/vmax": (
+        lambda ad: ag.plot_embedding(ad, "umap", color=ag.gene("CD3D"), vmin=0, vmax=3),
+        embedding_vmin_vmax_grammar,
+    ),
+    "groups": (
+        lambda ad: ag.plot_embedding(ad, "umap", color=GROUP, groups=["B cells", "NK cells"]),
+        embedding_groups_grammar,
+    ),
+    "title": (
+        lambda ad: ag.plot_embedding(ad, "umap", color=GROUP, title="PBMC3K"),
+        embedding_title_grammar,
+    ),
+    'legend_loc="none"': (
+        lambda ad: ag.plot_embedding(ad, "umap", color=GROUP, legend_loc="none"),
+        embedding_legend_none_grammar,
+    ),
+}
+
+
 # Helper name -> reference construction used by the docs and smoke tests.
 EQUIVALENTS = {
     "plot_embedding": embedding_grammar,
@@ -355,6 +430,10 @@ def main():
                 verbose=False,
             )
         print("wrote", name)
+    for option, (helper, grammar) in EMBEDDING_OPTIONS.items():
+        for plot in (helper(adata), grammar(adata)):
+            plot._build()  # both spellings must build on the same data
+        print("built embedding option", option)
 
 
 if __name__ == "__main__":

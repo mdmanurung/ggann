@@ -47,7 +47,8 @@ writes editable SVG/PDF plus exact-size PNG/TIFF from one figure object.
 
 ![Multi-gene grid](images/features_grid.png)
 
-`plot_features` uses one panel per feature and a shared colour scale.
+`plot_features` uses one panel per feature. Genes share one colour scale;
+`color_scale="free"` gives each panel its own colour bar.
 
 ## Gene-weighted density
 
@@ -79,7 +80,12 @@ add a joint panel.
 ::::
 
 The panels show `plot_dotplot`, `plot_stacked_violin`, `plot_box`, and
-`plot_expression_bar`.
+`plot_expression_bar`. The dotplot draws the first category at the top, as
+Scanpy does; use `swap_axes=True` to transpose it, not `coord_flip()`. The
+stacked violin has genes as rows, fills each violin by the group's median
+expression, and hides the y tick labels (`yticklabels=True` restores them).
+`order=`, `log=True` and `rotation=` select groups, plot `log1p(expression)`
+and turn the group labels.
 
 ## Differential expression
 
@@ -95,7 +101,9 @@ The panels show `plot_dotplot`, `plot_stacked_violin`, `plot_box`, and
 
 ::::
 
-The panels show `plot_rank_genes_dotplot` and `plot_volcano`.
+The panels show `plot_rank_genes_dotplot` and `plot_volcano`. A gene that is a
+top marker of two groups, here `NKG7`, gets one column per group, labelled
+`NKG7 (CD8 T cells)` and `NKG7 (NK cells)`.
 
 ## Composition, correlation, and sets
 

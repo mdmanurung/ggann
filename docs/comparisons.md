@@ -78,7 +78,9 @@ grammar = (
 ```
 
 `plot_dotplot` also preserves requested gene order, observation-category order,
-and split-group behavior.
+and split-group behavior. It draws the first category at the top; ggplot puts
+the first y level at the bottom, so the reference construction reverses the y
+limits (`scale_y_discrete(limits=...)`).
 
 ## Complete helper-to-grammar map
 
@@ -99,8 +101,8 @@ statistic.
 | `plot_matrixplot_grouped` | Matrix table plus gene-set labels | Matrix recipe plus grouped x-axis facets |
 | `plot_heatmap` | Per-cell long expression table | `ggplot + geom_tile` |
 | `plot_violin` | Per-cell long expression table | `ggplot + geom_violin + facet_wrap` |
-| `plot_stacked_violin` | Per-cell long expression table | Violin recipe with one row per feature |
-| `plot_tracksplot` | Per-cell long expression ordered by group | `ggplot + geom_col + facet_grid` |
+| `plot_stacked_violin` | Per-cell long expression table | Violin recipe with one row per feature, filled by group median |
+| `plot_tracksplot` | Per-cell long expression ordered by group | `ggplot + geom_rect + facet_grid` |
 | `plot_box` | Per-cell long expression table | `ggplot + geom_boxplot` and optional points |
 | `plot_sina` | Per-cell long expression table | `ggplot + plotnine_extra.geom_sina` |
 | `plot_ridge` | Per-group KDE curves on an offset grid | `ggplot + geom_ribbon + geom_line` |
@@ -108,7 +110,7 @@ statistic.
 | `plot_expression_line` | Mean expression by x/group | `ggplot + geom_line + geom_point` |
 | `plot_proportions` | annplyr cell counts, optionally normalized | `ggplot + geom_col`, `geom_area`, or `geom_line` |
 | `plot_correlation` | Group mean profiles and correlation matrix | `ggplot + geom_tile` |
-| `plot_dendrogram` | SciPy dendrogram link coordinates | `ggplot + geom_line` |
+| `plot_dendrogram` | SciPy dendrogram link coordinates | `ggplot + geom_path` |
 | `plot_rank_genes_dotplot` | `rank_genes_df` plus dotplot summary | Ranked selection followed by dotplot recipe |
 | `plot_rank_genes_matrixplot` | `rank_genes_df` plus group means | Ranked selection followed by matrix recipe |
 | `plot_volcano` | Differential-expression result table | `ggplot + geom_point` and optional repel labels |
@@ -122,6 +124,28 @@ statistic.
 have no plotnine grammar equivalent. The representative executable
 constructions in `examples/grammar_equivalents.py` expose the exact table/layer
 boundary for the most common recipes.
+
+## Embedding options in the grammar
+
+Four `plot_embedding` options are plain plotnine components. Each runs in
+`examples/grammar_equivalents.py` (`EMBEDDING_OPTIONS` pairs every helper call
+with its grammar construction):
+
+| Helper option | Grammar |
+|---|---|
+| `vmin=0, vmax=3` | `scale_color_gradient(low=..., high=..., limits=(0, 3), oob=squish)` |
+| `groups=["B cells", "NK cells"]` | blank the other categories, then `scale_color_obs(adata, col, breaks=groups, na_value="lightgray")` |
+| `title="PBMC3K"` | `labs(title="PBMC3K")` |
+| `legend_loc="none"` | `theme(legend_position="none")` |
+
+`squish` is `mizani.bounds.squish`; it clips values outside the limits to the end
+colours, as `vmin`/`vmax` do. `scale_color_obs` is a `scale_color_manual` built
+from the stored `adata.uns["<col>_colors"]`.
+
+`gganndata` plots also accept fields named after creation, for example
+`+ aes(color="n_genes")` or `+ facet_wrap("depth")`. Those fields are read when
+you add them, share the `max_matrix_values` budget, and do not work on the
+output of a helper such as `plot_embedding`; use `split_by=` there.
 
 ## Rendered references
 
