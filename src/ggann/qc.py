@@ -22,6 +22,7 @@ from plotnine import (
     geom_violin,
     ggplot,
     labs,
+    scale_x_log10,
     scale_y_log10,
     theme,
 )
@@ -60,6 +61,14 @@ def _resolve_metrics(adata, metrics):
         missing = [m for m in metrics if m not in adata.obs]
         if missing:
             raise KeyError(f"QC metrics not in adata.obs: {missing}")
+        text = [
+            m
+            for m in metrics
+            if not pd.api.types.is_numeric_dtype(adata.obs[m])
+            or pd.api.types.is_bool_dtype(adata.obs[m])
+        ]
+        if text:
+            raise ValueError(f"QC metrics must be numeric obs columns; not numeric: {text}")
         return list(metrics)
     found = [m for m in _DEFAULT_METRICS if m in adata.obs]
     if not found:
@@ -207,6 +216,7 @@ def plot_qc_violin(
     group_by: str | None = None,
     *,
     scale: str = "width",
+    log: bool = False,
 ):
     """Violin distributions of per-cell QC metrics, one facet per metric.
 
@@ -223,6 +233,9 @@ def plot_qc_violin(
         Observation column defining violins.
     scale : str
         plotnine violin-width scaling mode.
+    log : bool
+        Draw ``log1p(value)`` and label the axis so. Never a log scale, so zero
+        counts stay on the plot. Needs non-negative metrics.
 
     Returns
     -------
@@ -234,11 +247,14 @@ def plot_qc_violin(
     KeyError
         If an explicit metric or grouping column is absent.
     ValueError
-        If no default QC metric exists or scaling is invalid.
+        If no default QC metric exists, a metric is not numeric (or is negative
+        with ``log=True``), or scaling is invalid.
 
     Notes
     -----
     Only observation metadata is copied into the plot; ``adata`` is unchanged.
+    Metrics are ``obs`` columns, so there is no ``use_raw`` option (``adata.raw``
+    holds expression, never metadata). Use :func:`ggann.plot_violin` for genes.
 
     Examples
     --------
@@ -250,6 +266,10 @@ def plot_qc_violin(
     df = _densify(adata.ap.to_df(obs=cols))
     id_vars = [group_by] if group_by else []
     long = df.melt(id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value")
+    if log:
+        if bool((long["value"] < 0).any()):
+            raise ValueError("log=True needs non-negative metrics (it draws log1p(value)).")
+        long["value"] = np.log1p(long["value"])
 
     if group_by:
         p = (
@@ -264,7 +284,7 @@ def plot_qc_violin(
     p = (
         p
         + pe.facet_wrap("~metric", scales="free_y")
-        + labs(x="", y="", fill=group_by or "")
+        + labs(x="", y="log1p(value)" if log else "", fill=group_by or "")
         + _family_theme("distribution")
     )
     if group_by:
@@ -284,6 +304,8 @@ def plot_qc_scatter(
     layer: str | None = None,
     use_raw: bool | None = None,
     size: float = 1.0,
+    alpha: float = 0.6,
+    log: bool = False,
 ):
     """Scatter of two obs QC metrics (e.g. total_counts vs pct_counts_mt).
 
@@ -301,6 +323,11 @@ def plot_qc_scatter(
         Mutually exclusive expression source.
     size : float
         Point size.
+    alpha : float
+        Point opacity in ``(0, 1]``.
+    log : bool
+        Put both axes on a log10 scale. Refused when ``x`` or ``y`` has a value
+        <= 0, because a log axis would silently drop those cells.
 
     Returns
     -------
@@ -312,7 +339,8 @@ def plot_qc_scatter(
     KeyError
         If an explicit field or layer is missing.
     ValueError
-        If expression-source selection is invalid.
+        If expression-source selection is invalid, ``alpha`` is out of range, or
+        ``log=True`` meets a non-positive value.
 
     Notes
     -----
@@ -337,7 +365,20 @@ def plot_qc_scatter(
     if missing:
         raise KeyError(f"Could not resolve field(s) from observations or expression: {missing}.")
 
-    plot = plot + geom_point(size=size, alpha=0.6)
+    if isinstance(alpha, bool) or not 0 < alpha <= 1:
+        raise ValueError(f"alpha must be in (0, 1], got {alpha!r}.")
+    if log:
+        for field in (x, y):
+            n_bad = int((plot_data[plain_name(adata, field)] <= 0).sum())
+            if n_bad:
+                raise ValueError(
+                    f"log=True would drop {n_bad} cells with {field!r} <= 0; "
+                    "use log=False or filter them first."
+                )
+
+    plot = plot + geom_point(size=size, alpha=alpha)
+    if log:
+        plot = plot + scale_x_log10() + scale_y_log10()
     if color is not None:
         color_name = plain_name(adata, color)
         is_categorical_obs = color_name in adata.obs and isinstance(
@@ -353,8 +394,19 @@ def plot_qc_scatter(
     return plot
 
 
-def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer: str | None = None):
+def plot_highest_expr_genes(
+    adata,
+    n: int | None = None,
+    *,
+    n_top: int | None = None,
+    use_raw: bool = False,
+    layer: str | None = None,
+    gene_symbols: str | None = None,
+    log: bool = False,
+):
     """Boxplots of the ``n`` genes accounting for the most counts per cell.
+
+    Shows 30 genes by default, like ``sc.pl.highest_expr_genes(n_top=30)``.
 
     Like ``sc.pl.highest_expr_genes``, this reads ``adata.X`` by default (pass
     ``layer="counts"`` or ``use_raw=True`` to point elsewhere): each cell's values
@@ -367,12 +419,21 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
     ----------
     adata
         Annotated data matrix.
-    n : int
-        Number of top genes.
+    n : int, optional
+        Number of top genes (default 30). A value above the gene count shows
+        every gene.
+    n_top : int, optional
+        Scanpy's name for ``n``. Giving both with different values is an error.
     use_raw : bool
         Read ``adata.raw`` rather than ``adata.X``.
     layer : str, optional
         Named expression layer.
+    gene_symbols : str, optional
+        Column of ``var`` (``raw.var`` with ``use_raw=True``) whose values label
+        the genes. Ranking still uses the variable names; labels must be unique.
+    log : bool
+        Draw ``log1p(percent)`` and label the axis so, keeping zero percentages
+        on the plot. Never a log scale.
 
     Returns
     -------
@@ -384,7 +445,8 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
     KeyError
         If the selected layer is absent.
     ValueError
-        If ``n`` is non-positive or source selection is invalid.
+        If ``n``/``n_top`` is non-positive or conflicting, ``gene_symbols`` is
+        not unique, or source selection is invalid.
 
     Notes
     -----
@@ -397,10 +459,23 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
     """
     from scipy import sparse
 
+    if n is not None and n_top is not None and n != n_top:
+        raise ValueError(f"n={n!r} and n_top={n_top!r} conflict; pass only one.")
+    n = 30 if n is None and n_top is None else (n if n is not None else n_top)
     if isinstance(n, (bool, np.bool_)) or not isinstance(n, (int, np.integer)) or n < 1:
         raise ValueError(f"n must be a positive integer, got {n!r}.")
     kind, lyr = resolve_source(adata, layer, use_raw)
     matrix, var_names = source_matrix(adata, kind, lyr)
+    labels = var_names
+    if gene_symbols is not None:
+        var = adata.raw.var if kind == "raw" else adata.var
+        if gene_symbols not in var:
+            raise KeyError(
+                f"gene_symbols column {gene_symbols!r} not in {source_label(kind, lyr)} var."
+            )
+        labels = pd.Index(var[gene_symbols].astype(str))
+        if not labels.is_unique:
+            raise ValueError(f"gene_symbols column {gene_symbols!r} has duplicate labels.")
     if not var_names.is_unique:
         raise ValueError(
             f"Variable names in {source_label(kind, lyr)} must be unique before plotting."
@@ -423,8 +498,12 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
         warnings.warn(
             "plot_highest_expr_genes: the expression matrix has negative values, which "
             "looks like scaled/z-scored data -- 'percent of total counts' will be "
-            "meaningless. Pass use_raw=True or layer= to point at counts or "
-            "log-normalized values.",
+            "meaningless. "
+            + (
+                "adata.raw is available: pass use_raw=True."
+                if adata.raw is not None
+                else "Pass layer= to point at counts or log-normalized values."
+            ),
             stacklevel=2,
         )
     denominators, included, zero_total = _percentage_normalization(totals)
@@ -443,7 +522,7 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
     )
     n = min(n, len(var_names))
     top_indices = np.argsort(-means, kind="stable")[:n]
-    top = var_names[top_indices].tolist()
+    top = labels[top_indices].tolist()
 
     if streamed_dense:
         selected = _select_backed_dense_columns(matrix, top_indices)
@@ -458,31 +537,35 @@ def plot_highest_expr_genes(adata, n: int = 20, *, use_raw: bool = False, layer:
         where=included[:, None],
     )
     percentages *= 100.0
+    if log:
+        percentages = np.log1p(percentages)
     long = pd.DataFrame(percentages, columns=top).melt(var_name="gene", value_name="percent")
     long["gene"] = pd.Categorical(long["gene"], categories=list(reversed(top)), ordered=True)
     return (
         ggplot(long, aes("gene", "percent"))
         + geom_boxplot(fill="#4c72b0", outlier_alpha=0.2)
         + pe.coord_flip()
-        + labs(x="", y="% of total counts per cell")
+        + labs(x="", y="log1p(% of total counts per cell)" if log else "% of total counts per cell")
         + _family_theme("distribution")
     )
 
 
-def plot_variance_ratio(adata, n_pcs: int = 50, *, key: str = "pca", log: bool = True):
+def plot_variance_ratio(adata, n_pcs: int = 30, *, key: str = "pca", log: bool = False):
     """Scree / elbow plot of PCA variance ratio (``sc.pl.pca_variance_ratio``).
 
     Reads the per-PC variance ratio stored by ``sc.tl.pca`` in
     ``adata.uns[key]['variance_ratio']`` and draws it as a point-and-line elbow, to
-    help pick how many PCs to keep. ``log=True`` (scanpy's default) puts the y axis
-    on a log scale so the elbow is easier to read.
+    help pick how many PCs to keep. Defaults match scanpy (``n_pcs=30``,
+    ``log=False``); ``log=True`` puts the y axis on a log scale so the elbow is
+    easier to read.
 
     Parameters
     ----------
     adata
         Annotated data matrix with stored PCA results.
     n_pcs : int
-        Maximum principal components to display.
+        Maximum principal components to display; a value above the number of
+        stored components shows them all.
     key : str
         Key in ``adata.uns``.
     log : bool
@@ -498,7 +581,7 @@ def plot_variance_ratio(adata, n_pcs: int = 50, *, key: str = "pca", log: bool =
     KeyError
         If variance-ratio information is absent.
     ValueError
-        If ``n_pcs`` is invalid.
+        If ``n_pcs`` is not a positive integer.
 
     Notes
     -----
@@ -513,6 +596,8 @@ def plot_variance_ratio(adata, n_pcs: int = 50, *, key: str = "pca", log: bool =
         raise KeyError(
             f"adata.uns['{key}']['variance_ratio'] not found; run sc.tl.pca(adata) first."
         )
+    if isinstance(n_pcs, (bool, np.bool_)) or not isinstance(n_pcs, (int, np.integer)) or n_pcs < 1:
+        raise ValueError(f"n_pcs must be a positive integer, got {n_pcs!r}.")
     vr = np.asarray(uns["variance_ratio"], dtype=float)
     n = min(n_pcs, vr.size)
     df = pd.DataFrame({"PC": np.arange(1, n + 1), "variance_ratio": vr[:n]})

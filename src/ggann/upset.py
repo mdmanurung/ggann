@@ -35,6 +35,7 @@ def plot_upset(
     sets: Mapping[str, Iterable[str]],
     *,
     sort_subsets: str = "cardinality",
+    ascending: bool = False,
     min_cardinality: int | None = None,
     min_degree: int | None = None,
     orient: str = "h",
@@ -45,13 +46,19 @@ def plot_upset(
 
     ``sets`` is a mapping of ``{set_name: iterable_of_members}`` -- e.g. the top
     marker genes of each cell type (build it from :func:`ggann.rank_genes_df`) to
-    see which markers are shared across clusters.
+    see which markers are shared across clusters. On ``pbmc3k_processed``, whose
+    stored result has no fold changes, compute a fresh one into its own key::
+
+        sc.tl.rank_genes_groups(adata, "louvain", method="wilcoxon", key_added="rank_wilcoxon")
+        de = ag.rank_genes_df(adata, key="rank_wilcoxon")
+        sets = {g: de[de["group"] == g].head(20)["names"] for g in ["B cells", "NK cells"]}
 
     ``sort_subsets`` orders the intersection bars (``"cardinality"`` or
-    ``"degree"``); ``min_cardinality`` / ``min_degree`` drop small or
-    low-order intersections. Extra ``kwargs`` pass through to marsilea's ``Upset``.
-    Returns the marsilea ``Upset`` (rendered to the current figure when
-    ``render=True``).
+    ``"degree"``); cardinality runs largest first unless ``ascending=True``.
+    ``min_cardinality`` / ``min_degree`` drop small or low-order intersections.
+    Bars carry marsilea's count labels; no axis titles are added. Extra
+    ``kwargs`` pass through to marsilea's ``Upset``. Returns the marsilea
+    ``Upset`` (rendered to the current figure when ``render=True``).
 
     Parameters
     ----------
@@ -59,6 +66,8 @@ def plot_upset(
         Named member sets.
     sort_subsets : {"cardinality", "degree"}
         Intersection ordering.
+    ascending : bool
+        With ``"cardinality"``, order smallest first instead of largest first.
     min_cardinality : int, optional
         Minimum intersection size.
     min_degree : int, optional
@@ -82,7 +91,8 @@ def plot_upset(
     TypeError
         If ``sets`` is not a mapping.
     ValueError
-        If fewer than two sets are supplied or filters are invalid.
+        If fewer than two sets are supplied, every set is empty,
+        ``sort_subsets`` is unknown, or filters are invalid.
 
     Notes
     -----
@@ -99,7 +109,15 @@ def plot_upset(
     names = list(sets.keys())
     if len(names) < 2:
         raise ValueError("plot_upset needs at least two sets to intersect.")
+    if sort_subsets not in {"cardinality", "degree", "-cardinality", "-degree"}:
+        raise ValueError(
+            f"sort_subsets must be cardinality or degree (marsilea also takes a leading minus), got {sort_subsets!r}."
+        )
     members = [set(sets[name]) for name in names]
+    if not any(members):
+        raise ValueError("plot_upset: every set is empty; there is nothing to intersect.")
+    if sort_subsets == "cardinality" and not ascending:
+        sort_subsets = "-cardinality"  # marsilea's "-" prefix draws the largest bar first
 
     data = UpsetData.from_sets(members, sets_names=names)
     upset = Upset(

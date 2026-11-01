@@ -43,8 +43,11 @@ def main() -> None:
     # flagging them makes plot_correlation's default gene selection explicit.
     adata.var["highly_variable"] = True
     group = "louvain"
+    # Fresh wilcoxon result in its own key: the bundled "rank_genes_groups" has no
+    # logfoldchanges and is left untouched.
+    DE_KEY = "rank_wilcoxon"
     markers = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
-    sc.tl.rank_genes_groups(adata, group, method="wilcoxon", n_genes=50)
+    sc.tl.rank_genes_groups(adata, group, method="wilcoxon", n_genes=50, key_added=DE_KEY)
 
     _save(
         ag.plot_embedding(adata, "umap", color=group),
@@ -68,14 +71,14 @@ def main() -> None:
         dpi=100,
     )
     _save(
-        ag.plot_rank_genes_dotplot(adata, n_genes=3),
+        ag.plot_rank_genes_dotplot(adata, n_genes=3, key=DE_KEY),
         "de_dotplot.png",
         width=9,
         height=5,
         dpi=100,
     )
     _save(
-        ag.plot_volcano(adata, group="NK cells"),
+        ag.plot_volcano(adata, group="NK cells", key=DE_KEY),
         "volcano.png",
         width=6.5,
         height=5,
@@ -149,7 +152,7 @@ def main() -> None:
         dpi=100,
     )
 
-    de = ag.rank_genes_df(adata)
+    de = ag.rank_genes_df(adata, key=DE_KEY)
     selected_groups = ["CD14+ Monocytes", "B cells", "NK cells", "Dendritic cells"]
     marker_sets = {
         name: list(de[de["group"] == name].head(20)["names"]) for name in selected_groups

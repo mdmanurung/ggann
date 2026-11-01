@@ -14,6 +14,8 @@ decoupler is an optional dependency (``ggann[pseudobulk]``).
 
 from __future__ import annotations
 
+import warnings
+
 from ._compat import renamed_keyword
 from ._grouping import _drop_missing_groups
 
@@ -59,10 +61,14 @@ def pseudobulk(
         ``layer=`` (or ``use_raw=True``), or ``skip_checks=True`` to aggregate
         non-counts. ``raw`` is the deprecated spelling of ``use_raw``.
     mode
-        Aggregation: ``"sum"`` (default, for count-based DE) or ``"mean"``.
+        Aggregation: ``"sum"`` (default, for count-based DE), ``"mean"`` or
+        ``"median"``. Other values are passed to decoupler, which also accepts a
+        callable.
     min_cells
         Drop pseudobulk profiles built from fewer than this many cells
-        (decoupler records the count in ``obs['psbulk_cells']``).
+        (decoupler records the count in ``obs['psbulk_cells']``). The default of
+        10 removes small profiles; a warning reports how many. Pass
+        ``min_cells=0`` to keep every profile.
     raw
         Deprecated alias of ``use_raw``.
     skip_checks
@@ -79,19 +85,34 @@ def pseudobulk(
     ImportError
         If the ``pseudobulk`` extra is unavailable.
     KeyError
-        If required observation columns or a selected layer are absent.
+        If ``sample_col``, ``group_by`` or a selected layer is absent.
     ValueError
-        If ``layer`` and ``use_raw=True`` are combined or decoupler rejects data.
+        If ``layer`` and ``use_raw=True`` are combined, ``use_raw=True`` but
+        ``adata.raw`` is absent, ``min_cells`` is negative, or decoupler rejects
+        the data.
+
+    Warns
+    -----
+    UserWarning
+        Cells with a missing sample or group label are dropped, and profiles
+        below ``min_cells`` are dropped; each warning gives the count.
 
     Notes
     -----
     A new AnnData object is returned. The input is not mutated; this whole-source
     aggregation is delegated to decoupler and may materialize its selected matrix.
+    With ``use_raw=True`` the counts and gene set come from ``adata.raw`` (which
+    may hold more genes than ``adata.var``); the result carries the raw genes.
 
     Examples
     --------
     >>> pb = pseudobulk(adata, sample_col="donor", group_by="cell_type")
     """
+    for field in (sample_col, group_by):
+        if field is not None and field not in adata.obs:
+            raise KeyError(f"{field!r} is not a column of adata.obs.")
+    if isinstance(min_cells, bool) or not isinstance(min_cells, int) or min_cells < 0:
+        raise ValueError(f"min_cells must be a non-negative integer, got {min_cells!r}.")
     adata = _drop_missing_groups(adata, sample_col, group_by)
     use_raw = renamed_keyword(
         use_raw,
@@ -102,16 +123,30 @@ def pseudobulk(
     )
     if layer is not None and use_raw:
         raise ValueError("Cannot specify use_raw=True and a layer at the same time.")
+    if use_raw:
+        if adata.raw is None:
+            raise ValueError("use_raw=True but adata.raw is None.")
+        # decoupler indexes the current .var with raw names, so hand it an
+        # AnnData whose matrix and variables are the raw ones (obs kept).
+        adata = adata.raw.to_adata()
     dc = _require_decoupler()
     pb = dc.pp.pseudobulk(
         adata,
         sample_col=sample_col,
         groups_col=group_by,
         layer=layer,
-        raw=use_raw,
+        raw=False,
         mode=mode,
         skip_checks=skip_checks,
     )
     if min_cells and "psbulk_cells" in pb.obs.columns:
-        pb = pb[pb.obs["psbulk_cells"] >= min_cells].copy()
+        keep = (pb.obs["psbulk_cells"] >= min_cells).to_numpy()
+        if not keep.all():
+            warnings.warn(
+                f"dropped {int((~keep).sum())} of {pb.n_obs} pseudobulk profiles built from "
+                f"fewer than min_cells={min_cells} cells; pass min_cells=0 to keep them.",
+                UserWarning,
+                stacklevel=2,
+            )
+        pb = pb[keep].copy()
     return pb

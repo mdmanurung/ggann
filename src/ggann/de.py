@@ -9,7 +9,8 @@ from ordinary plotnine layers, so their prepared tables remain inspectable.
 
 from __future__ import annotations
 
-from typing import cast
+import warnings
+from typing import Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -40,9 +41,6 @@ __all__ = [
     "plot_volcano",
     "plot_ma",
 ]
-
-# MA-plot significance colours: significant = red, the rest grey.
-_MA_COLORS = {True: "#B40426", False: "#B8B8B8"}
 
 
 def _require_de(adata, key: str):
@@ -83,13 +81,19 @@ def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
     Raises
     ------
     KeyError
-        If ``adata.uns[key]`` is absent.
-    ValueError
-        If scanpy rejects a group or filter.
+        If ``adata.uns[key]`` is absent or ``group`` is not a stored group
+        (scanpy raises this ``KeyError``).
+    TypeError
+        If a filter such as ``pval_cutoff`` is not numeric (scanpy raises this).
 
     Notes
     -----
-    Reads the stored result without modifying ``adata``.
+    Reads the stored result without modifying ``adata``. With a single group,
+    scanpy drops the ``group`` column. A ``logreg`` result has only ``names``
+    and ``scores``. ``pbmc3k_processed`` ships a result without
+    ``logfoldchanges``; compute a fresh one into a separate key
+    (``sc.tl.rank_genes_groups(adata, "louvain", method="wilcoxon",
+    key_added="rank_wilcoxon")``) and pass ``key="rank_wilcoxon"``.
 
     Examples
     --------
@@ -101,31 +105,168 @@ def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
     return sc.get.rank_genes_groups_df(adata, group=group, key=key, **kwargs)
 
 
-def _top_genes(adata, n_genes: int, key: str) -> list[str]:
-    df = rank_genes_df(adata, group=None, key=key)
-    top = df.groupby("group", observed=True).head(n_genes)
-    return list(dict.fromkeys(top["names"]))  # unique, group-ordered
+def _count(name: str, value, minimum: int) -> int:
+    """Return ``value`` as an int >= ``minimum`` or raise a clear ValueError."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{name} must be an integer, got {value!r}.")
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}, got {value!r}.")
+    return int(value)
+
+
+def _positive_n_genes(n_genes) -> int:
+    if isinstance(n_genes, (int, np.integer)) and not isinstance(n_genes, bool) and n_genes < 0:
+        raise ValueError(
+            f"n_genes must be a positive integer, got {n_genes!r}; scanpy's bottom-ranked "
+            "selection (negative n_genes) is not supported."
+        )
+    return _count("n_genes", n_genes, 1)
+
+
+def _marker_table(adata, n_genes, key, groups, min_logfoldchange) -> pd.DataFrame:
+    """Top ``n_genes`` per marker group as ``[group, names]``, in group order."""
+    n_genes = _positive_n_genes(n_genes)
+    stored = list(adata.uns[key]["names"].dtype.names)
+    if groups is None:
+        groups = stored
+    elif isinstance(groups, str):
+        groups = [groups]
+    unknown = [g for g in groups if g not in stored]
+    if unknown:
+        raise KeyError(f"groups {unknown} not in adata.uns[{key!r}]; stored groups: {stored}.")
+    kwargs = {}
+    if min_logfoldchange is not None:
+        if "logfoldchanges" not in adata.uns[key]:
+            raise ValueError(
+                f"min_logfoldchange needs logfoldchanges, which adata.uns[{key!r}] lacks "
+                "(e.g. method='logreg')."
+            )
+        kwargs["log2fc_min"] = min_logfoldchange
+    parts = []
+    for g in dict.fromkeys(groups):
+        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key, **kwargs))
+        df = df[df["names"].notna()].head(n_genes)
+        parts.append(pd.DataFrame({"group": g, "names": df["names"].to_numpy()}))
+    markers = pd.concat(parts, ignore_index=True)
+    if markers.empty:
+        raise ValueError("No markers left after applying groups/min_logfoldchange.")
+    return markers
+
+
+_DE_VALUES = ("scores", "logfoldchanges", "pvals", "pvals_adj", "log10_pvals", "log10_pvals_adj")
+
+
+def _de_statistic(adata, values_to_plot: str, key: str) -> pd.Series:
+    """DE statistic indexed by ``(group, gene)`` for every stored group."""
+    if values_to_plot not in _DE_VALUES:
+        raise ValueError(
+            f"values_to_plot must be one of {list(_DE_VALUES)}, got {values_to_plot!r}."
+        )
+    column = values_to_plot.removeprefix("log10_")
+    if column not in adata.uns[key]:
+        raise ValueError(
+            f"adata.uns[{key!r}] has no {column!r} (method='logreg' reports scores only)."
+        )
+    parts = []
+    for g in adata.uns[key]["names"].dtype.names:
+        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key))
+        parts.append(df.assign(group=g)[["group", "names", column]])
+    stat = cast(pd.Series, pd.concat(parts).set_index(["group", "names"])[column])
+    if values_to_plot.startswith("log10_"):
+        stat = pd.Series(-np.log10(stat.to_numpy(dtype=float)), index=stat.index)
+    return stat
+
+
+def _rank_plot(plot_fn, aes_name, adata, n_genes, group_by, key, groups, min_lfc, values, kwargs):
+    """Select markers at the DE boundary, then build/adjust the expression plot."""
+    _require_de(adata, key)
+    group_by = _de_group_by(adata, key, group_by)
+    markers = _marker_table(adata, n_genes, key, groups, min_lfc)
+    repeated = bool(markers["names"].duplicated(keep=False).any())
+    if (repeated or values is not None) and kwargs.get("backend", "plotnine") != "plotnine":
+        raise ValueError(
+            "repeated markers and values_to_plot are only supported with backend='plotnine'."
+        )
+    if values is not None and kwargs.get("standard_scale") is not None:
+        raise ValueError(
+            "standard_scale rescales expression means and cannot be combined with values_to_plot."
+        )
+    stat = _de_statistic(adata, values, key) if values is not None else None
+    plot = plot_fn(adata, list(dict.fromkeys(markers["names"])), group_by, **kwargs)
+    data = cast(pd.DataFrame, plot.data)
+    if stat is not None:
+        index = pd.MultiIndex.from_arrays([data[group_by].astype(str), data["feature"].astype(str)])
+        if not index.isin(stat.index).all():
+            raise ValueError(
+                f"adata.uns[{key!r}] lacks statistics for some plotted genes or groups; "
+                "re-run sc.tl.rank_genes_groups(..., n_genes=adata.n_vars) to store all genes."
+            )
+        data = data.assign(mean_expression=stat.reindex(index).to_numpy())
+        title = str(values).replace("_", " ").replace("pvals", "p-value")
+        title = "log fold change" if values == "logfoldchanges" else title
+        plot = plot + labs(**{aes_name: title})
+    if repeated:
+        # One column per (marker group, gene) occurrence. Values come from one
+        # per-gene computation, so repeated columns are exact copies.
+        count = markers["names"].map(markers["names"].value_counts())
+        labels = np.where(
+            count > 1, markers["names"] + " (" + markers["group"] + ")", markers["names"]
+        )
+        data = pd.concat(
+            [
+                data[data["feature"] == gene].assign(feature=label, marker_group=group)
+                for gene, label, group in zip(markers["names"], labels, markers["group"])
+            ],
+            ignore_index=True,
+        )
+        data["feature"] = pd.Categorical(
+            data["feature"], categories=list(dict.fromkeys(labels)), ordered=True
+        )
+    plot.data = data
+    return plot
 
 
 def plot_rank_genes_dotplot(
     adata,
-    n_genes: int = 5,
+    n_genes: int = 10,
     group_by: str | None = None,
     key: str = "rank_genes_groups",
+    *,
+    groups: str | Sequence[str] | None = None,
+    min_logfoldchange: float | None = None,
+    values_to_plot: str | None = None,
     **kwargs,
 ):
     """Dotplot of the top markers per group.
+
+    Matches ``sc.pl.rank_genes_groups_dotplot``: ``n_genes=10`` markers per
+    group, in DE order. A gene that is a top marker of several groups gets one
+    column per marker group, labelled ``"GENE (group)"``; ``plot.data`` then
+    carries a ``marker_group`` column. Scanpy's bottom-ranked selection
+    (negative ``n_genes``) is not supported.
 
     Parameters
     ----------
     adata
         AnnData containing a scanpy rank-genes result.
     n_genes : int
-        Markers selected per group.
+        Markers selected per group; must be positive.
     group_by : str, optional
         Observation grouping column; inferred from the stored result by default.
     key : str
         Key in ``adata.uns``.
+    groups : str or sequence of str, optional
+        Marker groups to select from; all stored groups by default. The y axis
+        still shows every category of ``group_by``.
+    min_logfoldchange : float, optional
+        Keep only markers with ``logfoldchanges`` above this value, applied
+        before the top ``n_genes`` are taken.
+    values_to_plot : str, optional
+        One of ``scores``, ``logfoldchanges``, ``pvals``, ``pvals_adj``,
+        ``log10_pvals``, ``log10_pvals_adj``. Colours dots by this DE statistic
+        instead of mean expression (dot size stays the fraction expressing).
+        Needs a result stored with ``n_genes=adata.n_vars``. Cannot be combined
+        with ``standard_scale``.
     **kwargs
         Passed to :func:`ggann.plot_dotplot`.
 
@@ -137,9 +278,10 @@ def plot_rank_genes_dotplot(
     Raises
     ------
     KeyError
-        If the stored result, genes, or grouping column is missing.
+        If the stored result, a group, genes, or grouping column is missing.
     ValueError
-        If the result or forwarded plotting options are invalid.
+        If ``n_genes`` is not a positive integer, the result lacks a requested
+        statistic, or forwarded plotting options are invalid.
 
     Notes
     -----
@@ -149,7 +291,6 @@ def plot_rank_genes_dotplot(
     --------
     >>> p = plot_rank_genes_dotplot(adata, n_genes=3)
     """
-    _require_de(adata, key)
     group_by = renamed_keyword(
         group_by,
         kwargs.pop("groupby", None),
@@ -157,36 +298,55 @@ def plot_rank_genes_dotplot(
         legacy_name="groupby",
         default=None,
     )
-    group_by = _de_group_by(adata, key, group_by)
-    genes = _top_genes(adata, n_genes, key)
-    return plot_dotplot(adata, genes, group_by, **kwargs)
+    return _rank_plot(
+        plot_dotplot,
+        "color",
+        adata,
+        n_genes,
+        group_by,
+        key,
+        groups,
+        min_logfoldchange,
+        values_to_plot,
+        kwargs,
+    )
 
 
 def plot_rank_genes_matrixplot(
     adata,
-    n_genes: int = 5,
+    n_genes: int = 10,
     group_by: str | None = None,
     key: str = "rank_genes_groups",
-    standard_scale: str | None = "var",
+    standard_scale: str | None = None,
+    *,
+    groups: str | Sequence[str] | None = None,
+    min_logfoldchange: float | None = None,
+    values_to_plot: str | None = None,
     **kwargs,
 ):
     """Matrixplot (group-mean tiles) of the top ``n_genes`` markers per group.
 
-    Matches ``sc.pl.rank_genes_groups_matrixplot`` (group summary), not the
-    per-cell ``..._heatmap``.
+    Matches ``sc.pl.rank_genes_groups_matrixplot`` (group summary, raw group
+    means by default), not the per-cell ``..._heatmap``. Repeated markers get
+    one labelled column per marker group, as in
+    :func:`ggann.plot_rank_genes_dotplot`.
 
     Parameters
     ----------
     adata
         AnnData containing a scanpy rank-genes result.
     n_genes : int
-        Markers selected per group.
+        Markers selected per group; must be positive.
     group_by : str, optional
         Observation grouping column; inferred by default.
     key : str
         Key in ``adata.uns``.
     standard_scale : str, optional
-        Scaling forwarded to :func:`ggann.plot_matrixplot`.
+        Scaling forwarded to :func:`ggann.plot_matrixplot`; ``None`` (default)
+        keeps raw group means, as scanpy does.
+    groups, min_logfoldchange, values_to_plot
+        As in :func:`ggann.plot_rank_genes_dotplot`; tiles show the DE
+        statistic when ``values_to_plot`` is given.
     **kwargs
         Additional matrixplot arguments.
 
@@ -198,9 +358,10 @@ def plot_rank_genes_matrixplot(
     Raises
     ------
     KeyError
-        If the stored result, genes, or grouping column is missing.
+        If the stored result, a group, genes, or grouping column is missing.
     ValueError
-        If the result or forwarded plotting options are invalid.
+        If ``n_genes`` is not a positive integer, the result lacks a requested
+        statistic, or forwarded plotting options are invalid.
 
     Notes
     -----
@@ -210,7 +371,6 @@ def plot_rank_genes_matrixplot(
     --------
     >>> p = plot_rank_genes_matrixplot(adata, n_genes=3)
     """
-    _require_de(adata, key)
     group_by = renamed_keyword(
         group_by,
         kwargs.pop("groupby", None),
@@ -218,9 +378,18 @@ def plot_rank_genes_matrixplot(
         legacy_name="groupby",
         default=None,
     )
-    group_by = _de_group_by(adata, key, group_by)
-    genes = _top_genes(adata, n_genes, key)
-    return plot_matrixplot(adata, genes, group_by, standard_scale=standard_scale, **kwargs)
+    return _rank_plot(
+        plot_matrixplot,
+        "fill",
+        adata,
+        n_genes,
+        group_by,
+        key,
+        groups,
+        min_logfoldchange,
+        values_to_plot,
+        {**kwargs, "standard_scale": standard_scale},
+    )
 
 
 def plot_volcano(
@@ -244,7 +413,7 @@ def plot_volcano(
     adata
         AnnData containing a scanpy rank-genes result.
     group : str
-        Group to display.
+        One group to display. A list or ``None`` is rejected.
     key : str
         Key in ``adata.uns``.
     lfc : float
@@ -254,8 +423,11 @@ def plot_volcano(
     label_top : int
         Number of strongest genes to label.
     **kwargs
-        Passed to the point layer. Defaults are ``size=1.2``, ``alpha=0.6``, and
-        ``stroke=0``.
+        Passed to the point layer. Defaults are ``size=1.5``, ``alpha=0.8``, and
+        ``stroke=0``. ``color``/``fill`` are rejected because colour encodes the
+        direction; change it with ``scale_color_manual``. Extreme fold changes
+        (for example a group with near-zero mean) stretch the x axis; zoom with
+        ``+ coord_cartesian(xlim=(-5, 5))``.
 
     Returns
     -------
@@ -267,7 +439,8 @@ def plot_volcano(
     KeyError
         If the stored result or group is absent.
     ValueError
-        If p-values/fold changes are unavailable or thresholds are invalid.
+        If ``group`` is not a single str, p-values/fold changes are unavailable,
+        or thresholds are invalid.
 
     Notes
     -----
@@ -278,6 +451,16 @@ def plot_volcano(
     >>> p = plot_volcano(adata, group="T cells")
     """
     _require_de(adata, key)
+    if not isinstance(group, str):
+        raise ValueError(
+            f"group must be one group name (str), got {group!r}; a volcano shows one "
+            "group's markers, never several pooled."
+        )
+    if {"color", "colour", "fill"} & kwargs.keys():
+        raise ValueError(
+            "plot_volcano colours points by direction; override with "
+            "+ scale_color_manual(...) instead of a color= keyword."
+        )
     df = cast(pd.DataFrame, rank_genes_df(adata, group=group, key=key))
     missing = {"logfoldchanges", "pvals_adj"} - set(df.columns)
     if missing:
@@ -315,7 +498,7 @@ def plot_volcano(
             ordered=True,
         ),
     )
-    point_kwargs = {"size": 1.2, "alpha": 0.6, "stroke": 0, **kwargs}
+    point_kwargs = {"size": 1.5, "alpha": 0.8, "stroke": 0, **kwargs}
     plot = (
         ggplot(prepared, aes("logfoldchanges", "_neg_log10_padj", color="_significance"))
         + geom_point(**point_kwargs)
@@ -359,8 +542,9 @@ def plot_ma(
     data,
     *,
     mean: str = "baseMean",
-    lfc: str = "log2FoldChange",
+    lfc_col: str = "log2FoldChange",
     pval: str = "padj",
+    lfc: float = 1.0,
     padj: float = 0.05,
     label: str | None = None,
     label_top: int = 0,
@@ -370,10 +554,13 @@ def plot_ma(
 
     Plots mean expression on the x axis (log-scaled, the "A" of MA) against the
     log2 fold change on the y axis (the "M"), the standard diagnostic for a
-    pseudobulk DE run (PyDESeq2 / decoupler / edgeR-style results). Genes with
-    ``pval < padj`` are highlighted; the default column names follow PyDESeq2
-    (``baseMean`` / ``log2FoldChange`` / ``padj``) but any table works via the
-    ``mean`` / ``lfc`` / ``pval`` arguments.
+    pseudobulk DE run (PyDESeq2 / decoupler / edgeR-style results). The default
+    column names follow PyDESeq2 (``baseMean`` / ``log2FoldChange`` / ``padj``);
+    any table works via ``mean`` / ``lfc_col`` / ``pval``.
+
+    ``lfc`` and ``padj`` are thresholds, as in :func:`ggann.plot_volcano`: a gene
+    is significant when ``pval < padj`` and ``|log2 fold change| >= lfc``, and is
+    coloured up (red) or down (blue). Pass ``lfc=0`` to colour on ``padj`` alone.
 
     ``data`` is a :class:`pandas.DataFrame` (gene name in the index or a column
     named by ``label``). Set ``label_top=N`` to annotate the ``N`` genes with the
@@ -383,14 +570,16 @@ def plot_ma(
     ----------
     data : pandas.DataFrame
         Differential-expression table.
-    mean, lfc, pval : str
-        Mean-expression, log-fold-change, and adjusted-p-value columns.
+    mean, lfc_col, pval : str
+        Mean-expression, log-fold-change, and adjusted-p-value column names.
+    lfc : float
+        Absolute log2-fold-change threshold.
     padj : float
-        Significance threshold.
+        Adjusted-p-value threshold (strict ``<``).
     label : str, optional
         Gene-label column; the index is used by default.
     label_top : int
-        Number of significant genes to label.
+        Number of significant genes to label; must be a non-negative integer.
     size : float
         Point size.
 
@@ -401,10 +590,19 @@ def plot_ma(
 
     Raises
     ------
+    TypeError
+        If ``data`` is not a DataFrame.
     KeyError
         If a required column is absent.
     ValueError
-        If thresholds or label selection are invalid.
+        If thresholds or ``label_top`` are invalid, or no gene has a positive
+        mean.
+
+    Warns
+    -----
+    UserWarning
+        Genes with a missing or non-positive ``mean`` cannot sit on the log x
+        axis; they are dropped and the count is reported.
 
     Notes
     -----
@@ -414,32 +612,67 @@ def plot_ma(
     --------
     >>> p = plot_ma(results)
     """
-    missing = [c for c in (mean, lfc, pval) if c not in data.columns]
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(f"plot_ma needs a pandas DataFrame, got {type(data).__name__}.")
+    missing = [c for c in (mean, lfc_col, pval, *([label] if label else [])) if c not in data]
     if missing:
         raise KeyError(f"plot_ma: columns {missing} not in the results table.")
+    if isinstance(lfc, bool) or not np.isfinite(lfc) or lfc < 0:
+        raise ValueError("lfc must be a finite non-negative number.")
+    if isinstance(padj, bool) or not np.isfinite(padj) or not 0 < padj <= 1:
+        raise ValueError("padj must be greater than zero and at most one.")
+    label_top = _count("label_top", label_top, 0)
 
-    # drop rows with no mean expression (can't sit on a log x axis); assign the
-    # significance flag without a second full-frame copy
-    df = data[data[mean] > 0].assign(significant=lambda d: (d[pval] < padj) & d[pval].notna())
+    # genes without a positive mean cannot sit on a log x axis: drop and say how many
+    positive = (data[mean] > 0).to_numpy()
+    if not positive.all():
+        warnings.warn(
+            f"plot_ma: dropped {int((~positive).sum())} of {len(data)} genes with missing "
+            f"or non-positive {mean!r} (cannot be drawn on a log axis).",
+            UserWarning,
+            stacklevel=2,
+        )
+    if not positive.any():
+        raise ValueError(f"plot_ma: no gene has a positive {mean!r}.")
+    frame = data.loc[positive]
+    fold_change = frame[lfc_col].to_numpy(dtype=float)
+    significant = ((frame[pval] < padj) & frame[pval].notna()).to_numpy() & (
+        np.abs(fold_change) >= lfc
+    )
+    direction = np.select(
+        [significant & (fold_change < 0), significant & (fold_change > 0)],
+        ["down", "up"],
+        default="not significant",
+    )
+    df = frame.assign(
+        significant=significant,
+        _significance=pd.Categorical(direction, categories=list(_VOLCANO_COLORS), ordered=True),
+    )
 
     plot = (
-        ggplot(df, aes(mean, lfc, color="significant"))
-        + geom_point(size=size, alpha=0.6, stroke=0)
+        ggplot(df, aes(mean, lfc_col, color="_significance"))
+        + geom_point(size=size, alpha=0.8, stroke=0)
         + geom_hline(yintercept=0, linetype="dashed", color="#4d4d4d")
         + scale_x_log10()
-        + scale_color_manual(values=_MA_COLORS, labels={True: "sig.", False: "n.s."})
-        + labs(x="mean expression", y="log2 fold change", color=f"{pval} < {padj}")
+        + scale_color_manual(values=_VOLCANO_COLORS, breaks=list(_VOLCANO_COLORS), drop=False)
+        + labs(
+            x="mean expression",
+            y="log2 fold change",
+            color=f"{pval} < {padj:g}\n|log2FC| ≥ {lfc:g}",
+        )
         + _family_theme("standard")
     )
+    if lfc:
+        plot = plot + geom_hline(yintercept=(-lfc, lfc), linetype="dashed", color="#4d4d4d")
     if label_top:
         sig = df[df["significant"]]
-        top = sig.sort_values(lfc, key=lambda s: s.abs(), ascending=False).head(label_top)
+        top = sig.sort_values(lfc_col, key=lambda s: s.abs(), ascending=False).head(label_top)
         if label is not None:
             top = top.assign(_lab=top[label])
         else:
             top = top.assign(_lab=top.index.astype(str))
         plot = plot + pe.geom_text_repel(
-            aes(mean, lfc, label="_lab"),
+            aes(mean, lfc_col, label="_lab"),
             data=top,
             size=8,
             color="black",
