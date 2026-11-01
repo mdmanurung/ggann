@@ -87,32 +87,54 @@ def _validate_backend(backend: str) -> None:
 def _continuous_scale(
     aesthetic: str,
     values: pd.Series,
-    cmap: str,
+    cmap: str | None,
     *,
     signed: bool,
+    default: str = "Reds",
 ):
-    """Publication-aware continuous scale while freezing legacy defaults."""
+    """Publication-aware continuous scale while freezing legacy defaults.
+
+    ``cmap=None`` means "not chosen": the family ``default`` applies outside a
+    style context and the style's ``sequential_cmap`` inside one; signed values
+    inside a style use its diverging palette. An explicit ``cmap`` always wins,
+    inside or outside a style context (signed values then get symmetric limits so
+    zero stays at the centre of the map). The embedding ``low``/``high`` pair
+    only drives the legacy two-colour gradient and is ignored once a ``cmap`` is
+    given.
+    """
     style = _active_style()
     scale_cmap = scale_color_cmap if aesthetic == "color" else scale_fill_cmap
     scale_diverging = scale_color_gradient2 if aesthetic == "color" else scale_fill_gradient2
+    limits = None
     if style is not None and signed:
         finite = values.to_numpy(dtype=float)
         finite = finite[np.isfinite(finite)]
         limit = float(np.abs(finite).max()) if len(finite) else 1.0
         limit = limit or 1.0
-        return scale_diverging(
-            low=style.diverging[0],
-            mid=style.diverging[1],
-            high=style.diverging[2],
-            midpoint=0,
-            limits=(-limit, limit),
-            na_value=style.missing_color,
-        )
+        limits = (-limit, limit)
+        if cmap is None:
+            return scale_diverging(
+                low=style.diverging[0],
+                mid=style.diverging[1],
+                high=style.diverging[2],
+                midpoint=0,
+                limits=limits,
+                na_value=style.missing_color,
+            )
+    if cmap is None:
+        cmap = default if style is None else style.sequential_cmap
+    extra = {} if limits is None else {"limits": limits}
     if style is not None:
-        if cmap == "Reds":
-            cmap = style.sequential_cmap
-        return scale_cmap(cmap_name=cmap, na_value=style.missing_color)
-    return scale_cmap(cmap_name=cmap)
+        return scale_cmap(cmap_name=cmap, na_value=style.missing_color, **extra)
+    return scale_cmap(cmap_name=cmap, **extra)
+
+
+def _resolve_cmap(cmap: str | None, default: str) -> str:
+    """Name of the colormap a ``cmap=None`` default resolves to (explicit wins)."""
+    if cmap is not None:
+        return cmap
+    style = _active_style()
+    return default if style is None else style.sequential_cmap
 
 
 def _native_vector(matrix) -> np.ndarray:
@@ -428,7 +450,7 @@ def plot_embedding(
             alpha=alpha,
             low=low,
             high=high,
-            cmap="Reds",
+            cmap=_resolve_cmap(None, "Reds"),
             publication_style=_active_style(),
             rasterized=rasterized,
             show_axes=show_axes,
@@ -484,7 +506,7 @@ def plot_embedding(
         finite = finite[np.isfinite(finite)]
         signed = bool(len(finite) and finite.min() < 0 < finite.max())
         continuous_scale = (
-            _continuous_scale("color", df[cname], "Reds", signed=signed)
+            _continuous_scale("color", df[cname], None, signed=signed)
             if style is not None
             else scale_color_gradient(low=low, high=high)
         )
@@ -543,7 +565,7 @@ def plot_features(
     ncol: int | None = None,
     size: float = 1.2,
     alpha: float = 0.9,
-    cmap: str = "magma",
+    cmap: str | None = None,
     downsample: int | None = None,
     random_state: int | None = 0,
     rasterized: bool = False,
@@ -574,8 +596,9 @@ def plot_features(
         Facet columns.
     size, alpha : float
         Point size and opacity.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses the family default (or the active
+        publication style's sequential map); an explicit name always wins.
     downsample : int, optional
         Maximum total observations to draw.
     random_state : int, optional
@@ -639,7 +662,7 @@ def plot_features(
         ggplot(long, aes(xcol, ycol, color="expression"))
         + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + _continuous_scale("color", long["expression"], cmap, signed=False)
+        + _continuous_scale("color", long["expression"], cmap, signed=False, default="magma")
         + _embedding_style(show_axes, equal_aspect)
     )
 
@@ -687,7 +710,7 @@ def plot_dotplot(
     use_raw: bool | None = None,
     standard_scale: str | None = None,
     expression_cutoff: float = 0.0,
-    cmap: str = "Reds",
+    cmap: str | None = None,
     size_range: tuple[float, float] = (0.5, 8.0),
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
@@ -715,8 +738,9 @@ def plot_dotplot(
         Optional scaling of summarized means.
     expression_cutoff : float
         Threshold used for the expressing fraction.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses the family default (or the active
+        publication style's sequential map); an explicit name always wins.
     size_range : tuple of float
         Minimum and maximum dot size.
     categories_order : iterable of str, optional
@@ -794,6 +818,7 @@ def plot_dotplot(
             agg["mean_expression"],
             cmap,
             signed=standard_scale == "zscore",
+            default="Reds",
         ),
         scale_size(**size_kwargs),
         labs(x="", y="", color=color_lab, size="fraction\nexpressing"),
@@ -824,12 +849,12 @@ def plot_dotplot(
         y=group_by,
         value="mean_expression",
         fraction="fraction",
-        cmap=cmap,
+        cmap=_resolve_cmap(cmap, "Reds"),
         size_range=size_range,
         value_label=color_lab,
         publication_style=_active_style(),
         rasterized=rasterized,
-        signed=standard_scale == "zscore",
+        signed=standard_scale == "zscore" and cmap is None,
         annotation_min_cell_pt=threshold,
     )
 
@@ -843,7 +868,7 @@ def plot_matrixplot(
     layer: str | None = None,
     use_raw: bool | None = None,
     standard_scale: str | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
     rasterized: bool = False,
@@ -870,8 +895,9 @@ def plot_matrixplot(
         Mutually exclusive expression-source selection.
     standard_scale : {None, "var", "group", "zscore"}
         Optional scaling of group means.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses the family default (or the active
+        publication style's sequential map); an explicit name always wins.
     categories_order : iterable of str, optional
         Complete order of observed groups.
     backend : {"plotnine", "matplotlib"}, default="plotnine"
@@ -936,6 +962,7 @@ def plot_matrixplot(
             agg["mean_expression"],
             cmap,
             signed=standard_scale == "zscore",
+            default="viridis",
         ),
         labs(x="", y="", fill=color_lab),
         _family_theme("matrix"),
@@ -964,11 +991,11 @@ def plot_matrixplot(
         x="feature",
         y=group_by,
         value="mean_expression",
-        cmap=cmap,
+        cmap=_resolve_cmap(cmap, "viridis"),
         value_label=color_lab,
         publication_style=_active_style(),
         rasterized=rasterized,
-        signed=standard_scale == "zscore",
+        signed=standard_scale == "zscore" and cmap is None,
         annotation_min_cell_pt=threshold,
     )
 
@@ -980,7 +1007,7 @@ def plot_embedding_density(
     *,
     size: float = 2.0,
     ncol: int | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
     downsample: int | None = None,
     random_state: int | None = 0,
     rasterized: bool = False,
@@ -1011,8 +1038,9 @@ def plot_embedding_density(
         Point size.
     ncol : int, optional
         Facet columns.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses the family default (or the active
+        publication style's sequential map); an explicit name always wins.
     downsample : int, optional
         Maximum observations per group.
     random_state : int, optional
@@ -1091,7 +1119,7 @@ def plot_embedding_density(
         )
     return (
         plot
-        + _continuous_scale("color", df["density"], cmap, signed=False)
+        + _continuous_scale("color", df["density"], cmap, signed=False, default="viridis")
         + _embedding_style(show_axes, equal_aspect)
     )
 
@@ -1103,7 +1131,7 @@ def plot_heatmap(
     *,
     layer: str | None = None,
     use_raw: bool | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
     standard_scale: str | None = None,
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
@@ -1130,8 +1158,9 @@ def plot_heatmap(
         Observation column defining cell blocks.
     layer, use_raw : optional
         Mutually exclusive expression-source selection.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses the family default (or the active
+        publication style's sequential map); an explicit name always wins.
     standard_scale : {None, "var", "group", "zscore"}
         Optional per-gene or per-cell scaling.
     categories_order : sequence of str, optional
@@ -1208,6 +1237,7 @@ def plot_heatmap(
             tidy["value"],
             cmap,
             signed=standard_scale == "zscore",
+            default="viridis",
         ),
         labs(x="", y="", fill=fill_lab),
         _family_theme("matrix"),

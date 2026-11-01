@@ -19,10 +19,19 @@ from io import BytesIO
 from pathlib import Path
 from typing import Sequence, cast
 
-from plotnine import labs, theme
+from plotnine import ggplot, labs, theme
 from plotnine.composition import Beside, Compose, Stack
 
 __all__ = ["compose", "tag_panels"]
+
+
+def _check_panels(panels: list) -> None:
+    for index, panel in enumerate(panels):
+        if not isinstance(panel, (ggplot, Compose)):
+            raise TypeError(
+                f"panel {index} is a {type(panel).__name__}; expected a plotnine ggplot or "
+                "composition (for example the result of a ggann plot_* helper)."
+            )
 
 
 def _validate_ratios(name: str, values: Sequence[float] | None, length: int) -> tuple[float, ...]:
@@ -88,22 +97,29 @@ class _GGAnnComposition:
         units: str = "in",
         **kwargs,
     ) -> None:
-        """Save, honoring explicit dimensions unlike native plotnine 0.15."""
+        """Save, honoring explicit dimensions unlike native plotnine 0.15.
+
+        ``dpi`` may be any finite positive integer (default 300), for example 150
+        for a draft. ``format`` must agree with a format suffix on ``filename``.
+        """
         if width is None and height is None:
             return super().save(filename, format=format, dpi=dpi, **kwargs)
         if width is None or height is None:
             raise ValueError("width and height must be supplied together.")
         if isinstance(filename, BytesIO):
+            from .publication import _validate_dpi
+
             factors = {"in": 1.0, "cm": 1 / 2.54, "mm": 1 / 25.4}
             if units not in factors:
                 raise ValueError("units must be 'in', 'cm', or 'mm'.")
+            buffer_dpi = 300 if dpi is None else _validate_dpi(dpi)
             plot = cast(Compose, self) + theme(
                 figure_size=(width * factors[units], height * factors[units]),
-                dpi=dpi or 300,
+                dpi=buffer_dpi,
             )
             figure = plot.draw(show=False)
             try:
-                figure.savefig(filename, format=format, dpi=dpi or 300, bbox_inches=None)
+                figure.savefig(filename, format=format, dpi=buffer_dpi, bbox_inches=None)
             finally:
                 import matplotlib.pyplot as plt
 
@@ -120,7 +136,7 @@ class _GGAnnComposition:
             height=height,
             units=units,
             formats=requested_formats,
-            dpi=dpi or 300,
+            dpi=300 if dpi is None else dpi,
             background=(
                 "transparent" if kwargs.get("transparent") else kwargs.get("facecolor", "white")
             ),
@@ -279,6 +295,8 @@ def tag_panels(panels: Sequence, levels: str = "A") -> list:
 
     Raises
     ------
+    TypeError
+        If a panel is not a plotnine plot or composition.
     ValueError
         If ``levels`` is unsupported, or alphabetic tags are requested for
         more than 26 panels.
@@ -292,6 +310,7 @@ def tag_panels(panels: Sequence, levels: str = "A") -> list:
     >>> tagged = tag_panels([p1, p2], levels="A")
     """
     panels = list(panels)
+    _check_panels(panels)
     tags = _tag_labels(levels, len(panels))
     return [p + labs(tag=t) for p, t in zip(panels, tags)]
 
@@ -340,12 +359,20 @@ def compose(
 
     Raises
     ------
+    TypeError
+        If a panel is not a plotnine plot or composition.
     ValueError
         If panels are empty, dimensions are invalid, or tags are unsupported.
 
     Notes
     -----
     Composition does not render plots or mutate their source data.
+
+    ``guides="collect"`` only hides exact duplicate legends; the surviving legend
+    stays inside the panel that owns it. plotnine 0.15 has no composition-level
+    legend, so a single shared legend placed beside the whole figure is not
+    available. Save with ``.save(filename, width=, height=, units=, dpi=)``; any
+    positive integer ``dpi`` (for example 150) is accepted.
 
     Examples
     --------
@@ -354,6 +381,7 @@ def compose(
     panels = list(panels)
     if not panels:
         raise ValueError("compose needs at least one panel.")
+    _check_panels(panels)
     if guides not in {"keep", "collect"}:
         raise ValueError("guides must be 'keep' or 'collect'.")
     if (

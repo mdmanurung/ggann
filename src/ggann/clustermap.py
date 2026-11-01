@@ -75,6 +75,12 @@ def plot_clustermap(
     ``row_cluster=False`` / ``col_cluster=False``. Progress text is off by
     default (``verbose=0``); pass ``verbose=1`` to see it.
 
+    PyComplexHeatmap lays the figure out at the size of the current matplotlib
+    figure when it is constructed, not at export size. For a publication
+    export, create the figure at the target size first (for example
+    ``plt.figure(figsize=(89 / 25.4, 70 / 25.4))``) and then call this
+    function; resizing afterwards clips dendrograms, colourbars and bottom rows.
+
     Parameters
     ----------
     adata
@@ -176,7 +182,16 @@ def plot_clustermap(
             else:
                 # its cmap detection only knows float64/int64, not float32/int32
                 ann_df[col] = ann_df[col].astype(float)
-        top_annotation = pch.HeatmapAnnotation(df=ann_df, axis=1, plot_legend=True)
+        # Reuse stored/publication category colours (adata.uns is not modified).
+        from ._palette import annotation_colors
+
+        stored = annotation_colors(adata, ann_df)
+        top_annotation = pch.HeatmapAnnotation(
+            df=ann_df,
+            axis=1,
+            plot_legend=True,
+            **({"colors": stored} if stored else {}),
+        )
 
     kwargs.setdefault("verbose", 0)  # PyComplexHeatmap prints progress at verbose=1
     with warnings.catch_warnings():
