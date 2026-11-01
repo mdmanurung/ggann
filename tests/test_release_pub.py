@@ -315,8 +315,10 @@ def test_S6_font_fallback_warns_once_and_unknown_family_is_reported(monkeypatch)
         warnings.simplefilter("error")
         ag.set_theme(family="NoSuchFont", register=False)  # once per process
         ag.set_theme(family="DejaVu Sans", register=False)
-    with pytest.warns(UserWarning, match="'Arial' is not installed"):
-        ag.publication_style()  # style creation is silent; the context warns
+    monkeypatch.setattr(theme, "_font_available", lambda family: family != "Arial")
+    with pytest.warns(
+        UserWarning, match="'Arial' is not installed; text falls back to 'Helvetica'"
+    ):
         with ag.style_context("single-column"):
             pass
 
@@ -333,6 +335,19 @@ def test_S6_svg_text_stays_editable_and_pdf_fonts_embedded(tmp_path):
 
 
 # ---------------------------------------------------------------------- A1
+def test_VERIFY4_grid_backends_export_and_clustermap_cut_off_is_reported(tmp_path, adata):
+    with ag.style_context():
+        clustermap = ag.plot_clustermap(
+            adata, ["CD3D", "NKG7", "CST3"], group_by="bulk_labels", use_raw=True, plot=False
+        )
+        upset = ag.plot_upset({"T": {"CD3D", "IL7R"}, "NK": {"NKG7", "GNLY"}}, render=False)
+    with pytest.warns(UserWarning, match="cut off at the 89 x 70 mm canvas"):
+        ag.save_publication(clustermap, tmp_path / "cm.svg", width=89, height=70)
+    assert (tmp_path / "cm.svg").stat().st_size > 0
+    ag.save_publication(upset, tmp_path / "up.svg", width=89, height=70)
+    assert (tmp_path / "up.svg").stat().st_size > 0
+
+
 def test_A1_resolve_alias():
     assert _resolve_alias("a", None, "new", "old") == "a"
     assert _resolve_alias(None, "b", "new", "old") == "b"
