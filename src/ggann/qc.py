@@ -256,6 +256,11 @@ def plot_qc_violin(
     Metrics are ``obs`` columns, so there is no ``use_raw`` option (``adata.raw``
     holds expression, never metadata). Use :func:`ggann.plot_violin` for genes.
 
+    With ``group_by`` the x tick labels are hidden on purpose: the fill legend
+    names each group, and long group names repeated across facets overlap.
+    Restore them with
+    ``+ theme(axis_text_x=element_text(rotation=90), axis_ticks_major_x=element_line())``.
+
     Examples
     --------
     >>> p = plot_qc_violin(adata, metrics=["total_counts", "pct_counts_mt"])
