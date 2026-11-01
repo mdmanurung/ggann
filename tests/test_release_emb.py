@@ -45,7 +45,8 @@ def test_C1_single_group_density_draws(adata):
     plot = ag.plot_embedding_density(a, "umap", "one")
     plot.draw()
     xy = np.asarray(a.obsm["X_umap"], float)[:, :2]
-    np.testing.assert_allclose(plot.data["density"].to_numpy(), _kde_density(xy.T))
+    np.testing.assert_allclose(np.sort(plot.data["density"]), np.sort(_kde_density(xy.T)))
+    assert plot.data["density"].is_monotonic_increasing  # drawn low to high
 
 
 def test_C1_interleaved_groups_and_duplicate_obs_names(adata):
@@ -58,8 +59,14 @@ def test_C1_interleaved_groups_and_duplicate_obs_names(adata):
     for level in ("even", "odd"):
         rows = np.flatnonzero(a.obs["g"].to_numpy() == level)
         expected[rows] = _kde_density(xy[rows].T)
-    # plot.data keeps the cell order, so densities line up cell by cell
-    np.testing.assert_allclose(plot.data["density"].to_numpy(), expected)
+    truth = pd.DataFrame(
+        {"UMAP_1": xy[:, 0], "UMAP_2": xy[:, 1], "density": expected, "g": a.obs["g"].to_numpy()}
+    )
+    # every cell (found by its unique coordinates) carries its own group's density
+    merged = plot.data.merge(truth, on=["UMAP_1", "UMAP_2"], suffixes=("", "_true"))
+    assert len(merged) == a.n_obs
+    np.testing.assert_allclose(merged["density"], merged["density_true"])
+    assert (merged["g"].astype(str) == merged["g_true"]).all()
     plot.draw()
 
 
@@ -453,3 +460,46 @@ def test_H1_expression_cutoff_fractions_match_scanpy(adata):
         scanpy_dot.dot_size_df.to_numpy(float),
         **H1_TOL,
     )
+
+
+# --------------------------------------------------------------------------- #
+# VERIFY-4 (emb area)
+# --------------------------------------------------------------------------- #
+def test_V4_embedding_coords_direct_calls(adata):
+    from ggann._resolve import embedding_coords
+
+    assert embedding_coords(adata, "pca", n=5).columns.tolist() == [f"PC_{i}" for i in range(1, 6)]
+    assert embedding_coords(adata, "umap", n=0).shape == (adata.n_obs, 0)
+    assert embedding_coords(adata, "umap", n=99).shape == (adata.n_obs, 2)  # capped at the width
+    b = adata.copy()
+    b.obs_names = ["x"] * b.n_obs  # duplicate names keep their row order
+    np.testing.assert_allclose(embedding_coords(b, "umap").to_numpy(), adata.obsm["X_umap"])
+    with pytest.raises(ValueError, match="non-negative"):
+        embedding_coords(adata, "umap", n=-1)
+    with pytest.raises(KeyError):
+        embedding_coords(adata, "nope")
+    with pytest.raises(Exception, match="budget|exceed|max_matrix"):
+        embedding_coords(adata, "umap", max_matrix_values=10)
+
+
+@pytest.mark.parametrize("color", [GROUP, "n_counts"])
+def test_V4_matplotlib_plot_extends_with_plus(adata, color):
+    from plotnine import labs, theme
+
+    plot = ag.plot_embedding(adata, "umap", color=color, backend="matplotlib")
+    extended = plot + labs(title="t") + theme(legend_position="bottom")
+    extended.draw()
+    assert plot.fast_path_active and not extended.fast_path_active  # original untouched
+    for fn in (ag.plot_dotplot, ag.plot_matrixplot):
+        base = fn(adata, GENES, GROUP, use_raw=True, backend="matplotlib")
+        (base + labs(title="t")).draw()
+        assert base.fast_path_active
+
+
+def test_V4_draw_order_is_low_to_high(adata):
+    mpl = ag.plot_embedding(adata, "umap", color="n_counts", backend="matplotlib")
+    assert np.all(np.diff(mpl.draw().axes[0].collections[0].get_array()) >= 0)
+    plotnine = ag.plot_embedding(adata, "umap", color="n_counts")
+    assert plotnine.data["n_counts"].is_monotonic_increasing
+    assert ag.plot_features(adata, GENES, use_raw=True).data["expression"].is_monotonic_increasing
+    assert ag.plot_embedding_density(adata, "umap", GROUP).data["density"].is_monotonic_increasing

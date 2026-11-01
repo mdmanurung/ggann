@@ -1689,6 +1689,7 @@ def plot_embedding_density(
     if group_by is None:
         df = coords.copy()
         df["density"] = _kde_density(xy.T)
+        df = df.sort_values("density", kind="stable")  # dense cells drawn last, as scanpy
         plot = ggplot(df, aes(xcol, ycol, color="density"))
     else:
         # Everything is positional: a group's density is written back to the
@@ -1715,7 +1716,7 @@ def plot_embedding_density(
         df = coords.copy()
         df[group_by] = adata.obs[group_by].array
         df["density"] = density
-        df = df[selected].copy()
+        df = cast(pd.DataFrame, df[selected]).sort_values("density", kind="stable")  # dense last
         order = [c for c in cats if str(c) in wanted]
         df = _order_groups(df, group_by, order)
         plot = ggplot(df, aes(xcol, ycol, color="density"))
