@@ -66,7 +66,7 @@ untied values the third digit of the p-value can differ from R's. With
 hundreds of cells the two agree.
 
 **Volcano and MA thresholds.** `plot_volcano(lfc=1.0, padj=0.05)` marks a gene
-significant when `pvals_adj <= padj` and `|logfoldchanges| >= lfc`.
+significant when `pvals_adj < padj` and `|logfoldchanges| >= lfc`.
 `plot_ma(lfc=1.0, padj=0.05)` marks it significant when the `pval` column is
 `< padj` and `|lfc_col| >= lfc`. Pass `lfc=0` to `plot_ma` to threshold on
 `padj` alone. A gene with a missing p-value is never significant.

@@ -550,3 +550,15 @@ def test_VERIFY4_stat_compare_means_matches_scipy(stat_frame):
     kruskal = _layer_data(stat_frame, mapping, ag.stat_compare_means(method="kruskal.test"))
     expected = ss.kruskal(*[stat_frame.loc[stat_frame["g"] == k, "y"] for k in "abc"])
     assert kruskal["p"] == pytest.approx(expected.pvalue, rel=1e-6)
+
+
+def test_D9_volcano_threshold_is_strict_like_ma(small_de):
+    # padj exactly at the cutoff is not significant in either plot
+    group = small_de.obs[GROUP].cat.categories[0]
+    data = ag.plot_volcano(small_de, group, key=KEY, lfc=0).data
+    cut = float(data["pvals_adj"].iloc[0])
+    if not 0 < cut <= 1:
+        pytest.skip("first gene has no usable adjusted p-value")
+    at_cut = ag.plot_volcano(small_de, group, key=KEY, lfc=0, padj=cut).data
+    at_cut = at_cut.loc[at_cut["pvals_adj"] == cut, "_significance"].astype(str)
+    assert len(at_cut) and set(at_cut) == {"not significant"}

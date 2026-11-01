@@ -1,8 +1,9 @@
-"""Marker-summary plots: tracksplot and the gene-group-bracketed dot/matrix plots.
+"""Marker-summary plots: tracksplot and the gene-group dot/matrix plots.
 
 ``plot_tracksplot`` stacks genes as rows (``facet_grid`` over the feature),
-mirroring ``sc.pl.tracksplot``; the ``*_grouped`` helpers bracket the gene axis
-into labelled groups (scanpy ``var_group_labels``). Expression is pulled long
+mirroring ``sc.pl.tracksplot``. The ``*_grouped`` helpers split the gene axis
+into one labelled facet panel per group, where scanpy draws
+``var_group_labels`` brackets. Expression is pulled long
 through annplyr's ``to_tidy``. (The violin family lives in ``distributions``.)
 """
 
@@ -84,7 +85,7 @@ def _expand_occurrences(data: pd.DataFrame, occ: list, *, label_col: str) -> pd.
 
 
 def _add_gene_group_facet(plot, gene_groups: dict):
-    """Bracket the gene axis into labelled groups via a ``gene_group`` facet column.
+    """Split the gene axis into one labelled facet panel per group (``gene_group``).
 
     ``gene_groups`` maps a label -> list of genes; the panels appear in dict order.
     A gene listed under several labels is drawn once in each panel, labelled by its
@@ -108,7 +109,7 @@ def _add_gene_group_facet(plot, gene_groups: dict):
 
 @accepts_groupby
 def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Draw a dotplot with genes bracketed into labelled groups.
+    """Draw a dotplot with one facet panel per gene group (not Scanpy brackets).
 
     Parameters
     ----------
@@ -149,7 +150,7 @@ def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
 
 @accepts_groupby
 def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Draw a matrixplot with genes bracketed into labelled groups.
+    """Draw a matrixplot with one facet panel per gene group (not Scanpy brackets).
 
     Parameters
     ----------

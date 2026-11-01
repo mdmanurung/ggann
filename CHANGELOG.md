@@ -285,3 +285,5 @@ Check these before re-running a figure made with a pre-release build.
 - `compose` and `tag_panels` raise `TypeError` for non-plot panels.
 - The Matplotlib dotplot/matrixplot left margin is measured from the rendered y labels (and re-measured at export
   size) instead of a character-count estimate.
+- `plot_volcano` marks a gene significant when `pvals_adj < padj` (was `<=`),
+  the same strict rule as `plot_ma`.

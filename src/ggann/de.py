@@ -472,7 +472,7 @@ def plot_volcano(
         float(np.min(positive)) / 10 if len(positive) else np.finfo(float).tiny,
     )
     fold_change = np.asarray(cast(pd.Series, df.loc[:, "logfoldchanges"]), dtype=float)
-    significant = (pvalues <= padj) & (np.abs(fold_change) >= lfc)
+    significant = (pvalues < padj) & (np.abs(fold_change) >= lfc)
     direction = np.select(
         [significant & (fold_change < 0), significant & (fold_change > 0)],
         ["down", "up"],
