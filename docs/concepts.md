@@ -53,9 +53,78 @@ The equivalent string forms are useful in configuration files:
 Typed selectors raise source-specific errors when a requested source is absent.
 They are preferable to bare strings in reusable code.
 
-Only fields referenced by `aes(...)` are added to the plot data. If a later
-facet or layer needs another observation column, include it in the mapping—for
-example `group=obs("condition")` before adding `facet_wrap("condition")`.
+Only fields referenced by `aes(...)` are added to the plot data.
+
+### Late fields
+
+`gganndata` returns a `GGAnnPlot`, a `plotnine.ggplot` subclass. Fields named
+after construction are read from the same AnnData, so a facet or layer no
+longer needs the column in the first mapping:
+
+```python
+from plotnine import facet_wrap, geom_point
+
+plot = (
+    gganndata(adata, aes(x=obsm("umap", 0), y=obsm("umap", 1)))
+    + geom_point(aes(color="louvain"))
+    + facet_wrap("louvain")
+)
+```
+
+- A bare `+ aes(...)`, a layer with its own `aes` and no `data=`, and a facet
+  request fields. Themes, scales, labels and layers with their own `data=`
+  request nothing.
+- Fields are read when the component is added, not when the plot was created.
+  Editing values in the AnnData in between is not detected. Removing or
+  reordering cells raises `ValueError`.
+- Late fields count against the original `max_matrix_values` budget; the
+  budget is shared, not renewed. Observation columns are free.
+- `+` returns a new plot; the original and the AnnData are unchanged.
+- This works only on `gganndata` plots. The data of `plot_*` helper outputs is
+  sorted, long or aggregated, so a per-cell field cannot be joined to it. Use
+  the helper's `split_by=` instead.
+
+### Expressions in `aes`
+
+An `aes` string may be an expression. ggann parses it with `ast` and never
+evaluates it; plotnine evaluates it against the plot data. The supported subset
+is names, numbers, strings, operators, calls and attribute access, for example
+`"np.log1p(n_counts) / 2"` or `"factor(louvain)"`.
+
+- A name is a field unless it is called (`factor(...)`) or is the base of an
+  attribute (`np.log1p`). `np` works when the calling module imported it.
+- A whole string that is itself a field is kept whole: `"CD3D"`,
+  `"HLA-DRA"`, `"gene:CD3D"`.
+- A gene whose name is not a Python identifier is written `Q("HLA-DRA")` inside
+  an expression, or `gene("HLA-DRA")` as the whole value:
+
+```python
+import numpy as np
+
+plot = gganndata(
+    adata,
+    aes("louvain", 'np.log1p(Q("HLA-DRA"))'),
+)
+```
+
+Any column of any `obsm` array resolves by name (`PC_5`) or with
+`obsm("X_pca", 4)`.
+
+### Colours in the grammar
+
+`gganndata` adds no default colour scale. Add `+ scale_color_obs(adata, key)`
+to use the colours stored in `adata.uns["<key>_colors"]`. A default scale would
+make plotnine print "Scale for 'color' is already present" every time you add
+your own. The `plot_*` helpers apply stored palettes themselves.
+
+Without stored colours, `scale_color_obs` and the helpers use Scanpy's default
+palette (20, 28 or 102 colours) and plotnine hues beyond that. `adata.uns` is
+never modified.
+
+For continuous colour the order is: an explicit `cmap`, then the style's
+sequential map inside `style_context`, then the family default. The helpers take
+`cmap=None` to mean "use that order". `plot_embedding`'s `low`/`high` drive only
+the legacy two-colour gradient and are ignored inside a style context.
 
 ## `.X`, `.raw`, and layers
 
@@ -117,7 +186,9 @@ ag.plot_dotplot(
 - Grouped distribution and per-cell heatmap helpers cap cells within each
   group.
 - `random_state=0` gives deterministic sampling. Pass another integer for a
-  different reproducible sample, or `None` for a fresh sample.
+  different reproducible sample, or `None` for a fresh sample. In `plot_box`,
+  `plot_violin` and `plot_sina` the same seed (0 included) also fixes the point
+  jitter and spread, so every draw and export places points identically.
 - A non-positive or non-integer `downsample` value raises `ValueError`.
 
 Aggregated helpers such as dotplot and matrixplot summarize all cells unless
@@ -168,6 +239,18 @@ supported by the projected paths covered in the compatibility suite. Backed
 plotting necessarily materializes the requested plotting table in memory; it
 does not load unrelated expression columns.
 
+## Limits of the helpers
+
+- `plot_ridge` raises above `MAX_RIDGE_GROUPS = 100` groups.
+  `plot_embedding_density` raises, and `plot_dotplot` and `plot_matrixplot`
+  warn, when `group_by` has more than 100 levels. A numeric column counts one
+  level per distinct value.
+- `plot_correlation` correlates group-mean gene profiles by default. Scanpy
+  correlates PCA-space group means; `use_rep="X_pca"` reproduces that.
+- `plot_sina` on integer-valued data (raw counts) shows heights that are not
+  the data: plotnine's `stat_sina` adds jitter when every value in a panel is an
+  integer. Plot a normalised layer instead.
+
 ## Ownership and mutation
 
 Plot construction does not mutate the input `AnnData`. Downsampling uses a
@@ -178,10 +261,17 @@ output.
 
 Two operations affect state outside `AnnData`:
 
-- `set_theme(...)` changes plotnine's process-wide default theme;
+- `set_theme(...)` changes plotnine's process-wide default theme and
+  `ggann.sizes`;
 - saving or drawing a plot creates renderer state and output files.
 
-Call `reset_theme()` to restore plotnine's default theme.
+`set_theme(base_size=...)` is the counterpart of Scanpy's
+`sc.set_figure_params(fontsize=...)`; ggann has no `set_figure_params`. It
+applies to plots built afterwards. `style_context` overrides it inside a block
+and restores the previous theme, `sizes` and rcParams on exit.
+
+`reset_theme()` installs `theme_gray` and resets `sizes`. It does not restore an
+earlier custom theme; use `style_context` for that.
 
 ## Return and composition boundary
 
