@@ -42,6 +42,10 @@ plain plotnine code; none has been filed yet.
 - **Dict `genes` needs the plotnine backend.** The Matplotlib backend raises for
   `{marker group: [genes]}`.
 - **`coord_flip()` reverses the category order.** Use `swap_axes=True`.
+- **Tracksplot labels crowd for small groups.** Group names at block centres
+  overlap when a group has few cells, and per-track y tick labels can touch.
+  Save the figure wider, or hide the y labels with
+  `+ theme(axis_text_y=element_blank())`.
 
 ## Rank-genes and differential expression
 
