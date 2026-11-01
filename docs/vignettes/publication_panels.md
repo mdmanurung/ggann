@@ -91,6 +91,31 @@ The same helpers work without the context for exploration. A custom theme,
 scale, layer, facet, coordinate system, or annotation added after a helper still
 wins normally.
 
+Export notes for this workflow:
+
+- `save_publication` takes any positive integer `dpi`. Use `dpi=150` for drafts;
+  the style presets stay at 300 or 600. The raster size is
+  `floor(size_in_inches * dpi)` pixels.
+- A stem keeps its dots: `"pbmc.v2"` writes `pbmc.v2.svg`, `.pdf` and `.png`.
+  Only an svg, pdf, png, tiff or tif suffix counts as a format, and it must
+  agree with `formats=`. `height` is required.
+- The call warns when text, a legend or a colourbar is cut off at the final
+  size. It never resizes the canvas, so shorten the label or change the layout
+  and export again.
+- `compose(...).save(path, width=, height=, units="mm", dpi=150)` also accepts
+  `dpi=150`. Panel letters come from `compose(tag_levels=)`; plotnine-extra's
+  `plot_annotation` has no tag option. With `guides="collect"`, the remaining
+  legend stays inside its panel.
+- If Arial is not installed, ggann warns once and Matplotlib uses DejaVu Sans.
+  The SVG keeps editable text that names Arial; the PDF embeds DejaVu Sans.
+- The six lineage colours are inside the measured set of eight, so they are
+  CVD-checked. A figure with more than eight categories is not. Colours follow
+  category order.
+- `rasterized=True` rasterizes the points only. Labels stay vector text.
+- A `plot_clustermap` panel cannot join `compose`. Create its figure at the
+  export size first, as {doc}`../publication` explains, and export it on its
+  own.
+
 ## Reproduce and retain the evidence
 
 From a source checkout:

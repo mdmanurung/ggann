@@ -35,7 +35,7 @@ Cite these only when you use the helper.
 | `pseudobulk` | decoupler | Badia-i-Mompel P et al. decoupleR: ensemble of computational methods to infer biological activities from omics data. *Bioinformatics Advances* 2, vbac016 (2022). doi:10.1093/bioadv/vbac016 |
 | `plot_clustermap` | PyComplexHeatmap | Ding W, Goldberg D, Zhou W. PyComplexHeatmap: a Python package to visualize multimodal genomics data. *iMeta* 2, e115 (2023). doi:10.1002/imt2.115 |
 | `plot_density` | Nebulosa (via pynebulosa) | Alquicira-Hernandez J, Powell JE. Nebulosa recovers single-cell gene expression signals by kernel density estimation. *Bioinformatics* 37, 2485–2487 (2021). doi:10.1093/bioinformatics/btab003 |
-| `plot_upset` | Marsilea | See the citation on the Marsilea documentation site. |
+| `plot_upset` | Marsilea | Zheng Y, Zheng Z, Rendeiro AF, Cheung E. Marsilea: an intuitive generalized paradigm for composable visualizations. *Genome Biol* 26, 5 (2025). doi:10.1186/s13059-024-03469-3 |
 
 ## What to report in methods
 
