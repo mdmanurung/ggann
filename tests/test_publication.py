@@ -145,8 +145,8 @@ def test_save_publication_exact_canvas_editable_text_and_no_figure_leak(tmp_path
 def test_save_publication_suffix_and_validation(tmp_path):
     paths = ag.save_publication(_plot(), tmp_path / "single.tiff", height=70, width=89, dpi=600)
     assert paths == (tmp_path / "single.tiff",)
-    with pytest.raises(ValueError, match="300 or 600"):
-        ag.save_publication(_plot(), tmp_path / "bad.png", height=70, dpi=150)
+    with pytest.raises(ValueError, match="positive integer"):
+        ag.save_publication(_plot(), tmp_path / "bad.png", height=70, dpi=0)
     with pytest.raises(ValueError, match="background"):
         ag.save_publication(_plot(), tmp_path / "bad.png", height=70, background="not-a-colour")
     with pytest.raises(ValueError, match="sequence"):

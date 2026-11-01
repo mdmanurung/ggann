@@ -59,7 +59,7 @@ def plot_density(
     adjust: float = 1.0,
     size: float = 1.5,
     alpha: float = 0.9,
-    cmap: str = "magma",
+    cmap: str | None = None,
     ncol: int | None = None,
     rasterized: bool = False,
     show_axes: bool | None = None,
@@ -100,8 +100,9 @@ def plot_density(
         Bandwidth multiplier.
     size, alpha : float
         Point size and opacity.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses ``"magma"`` (or the active
+        publication style's sequential map); an explicit name always wins.
     ncol : int, optional
         Facet columns.
     rasterized : bool, default=False
@@ -203,7 +204,7 @@ def plot_density(
         ggplot(long, aes(xcol, ycol, color="density"))
         + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + _continuous_scale("color", long["density"], cmap, signed=False)
+        + _continuous_scale("color", long["density"], cmap, signed=False, default="magma")
         + labs(color="density\n(scaled)")
         + _embedding_style(show_axes, equal_aspect)
     )

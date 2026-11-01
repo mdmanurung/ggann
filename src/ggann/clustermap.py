@@ -152,7 +152,16 @@ def plot_clustermap(
             is_numeric = pd.api.types.is_numeric_dtype(ann_df[col])
             if not is_numeric or pd.api.types.is_bool_dtype(ann_df[col]):
                 ann_df[col] = ann_df[col].astype("category")
-        top_annotation = pch.HeatmapAnnotation(df=ann_df, axis=1, plot_legend=True)
+        # Reuse stored/publication category colours (adata.uns is not modified).
+        from ._palette import annotation_colors
+
+        stored = annotation_colors(adata, ann_df)
+        top_annotation = pch.HeatmapAnnotation(
+            df=ann_df,
+            axis=1,
+            plot_legend=True,
+            **({"colors": stored} if stored else {}),
+        )
 
     result = pch.ClusterMapPlotter(
         data=matrix,
