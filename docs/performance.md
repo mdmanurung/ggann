@@ -19,11 +19,11 @@ cells, 74 s at 30k) is still unmet for the exact method.
 
 ## Measured after the readiness changes
 
-Each number has its fixture and host. The change notes do not record the host
-beyond "same host before and after" (tracksplot) and "machine under load"
-(density), so none of these is a quiet-machine benchmark. The matched Scanpy
-benchmark host (24-core Xeon E5-2690 v3) was not used. Compare a before and
-after pair only within its own row.
+All numbers in this section come from one cluster node, `res-hpc-exe048`
+(Intel Xeon E5-2690 v3, 24 CPUs, 8 allotted to the job), on 2026-11-01. Four
+development jobs shared the node at the time, so none of these is a
+quiet-machine benchmark. Compare a before and after pair only within its own
+row.
 
 ### Tracksplot drawing
 
@@ -55,7 +55,7 @@ fixture is synthetic, so the PBMC row is the only one on real data.
 ### Publication export
 
 `save_publication` on a 700-cell embedding (the size of `pbmc68k_reduced`), 89 × 70 mm,
-300 dpi, best of three. Host not recorded.
+300 dpi, best of three, same node.
 
 | Output | Time |
 |---|---:|

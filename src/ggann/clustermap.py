@@ -80,8 +80,12 @@ def plot_clustermap(
     PyComplexHeatmap lays the figure out at the size of the current matplotlib
     figure when it is constructed, not at export size. For a publication
     export, create the figure at the target size first (for example
-    ``plt.figure(figsize=(89 / 25.4, 70 / 25.4))``) and then call this
-    function; resizing afterwards clips dendrograms, colourbars and bottom rows.
+    ``plt.figure(figsize=(183 / 25.4, 120 / 25.4))``) and then call this
+    function; resizing afterwards clips more. This reduces clipping but does
+    not remove it: on ``pbmc68k_reduced`` at 183 x 120 mm, rotated column names
+    and the legend still overflow. ``plot_legend=False, show_colnames=False``
+    leaves only the annotation title outside. ``save_publication`` warns about
+    anything clipped.
 
     Parameters
     ----------
