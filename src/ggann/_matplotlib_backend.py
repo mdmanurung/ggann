@@ -24,7 +24,7 @@ from mizani.palettes import area_pal, hue_pal
 from plotnine import ggplot
 
 from ._annotation import _CellText, _relative_luminance
-from .publication import PublicationStyle, _style_rcparams
+from .publication import PublicationStyle, _style_rcparams, fit_left_labels
 
 
 @dataclass(frozen=True)
@@ -445,6 +445,8 @@ def _set_discrete_axes(
     axis.set_ylim(-0.5, len(y_levels) - 0.5)
     axis.set_xlabel("")
     axis.set_ylabel("")
+    # Measured, not estimated: widen the left margin until the y labels fit.
+    fit_left_labels(axis.figure, axis)
 
 
 def _discrete_left_margin(levels: list[Any]) -> float:

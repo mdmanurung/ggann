@@ -199,7 +199,7 @@ def annotation_colors(adata, ann_df: pd.DataFrame) -> dict[str, dict] | None:
         mapping = _obs_mapping(adata, adata.obs[col], col)
         if mapping is None:
             return None
-        values = pd.unique(ann_df[col].dropna())
+        values = ann_df[col].dropna().unique()
         if any(value not in mapping for value in values):
             return None
         result[col] = {value: mapping[value] for value in values}
