@@ -169,6 +169,8 @@ Check these before re-running a figure made with a pre-release build.
   `sort_subsets` raise. No set-size axis title is added (marsilea draws counts).
 - Examples compute a fresh DE result into `rank_wilcoxon` and pass `key=`; the
   bundled `rank_genes_groups` is no longer overwritten.
+- `plot_volcano` marks a gene significant when `pvals_adj < padj` (was `<=`),
+  the same strict rule as `plot_ma`.
 
 ### Distributions, markers and density
 
@@ -285,5 +287,3 @@ Check these before re-running a figure made with a pre-release build.
 - `compose` and `tag_panels` raise `TypeError` for non-plot panels.
 - The Matplotlib dotplot/matrixplot left margin is measured from the rendered y labels (and re-measured at export
   size) instead of a character-count estimate.
-- `plot_volcano` marks a gene significant when `pvals_adj < padj` (was `<=`),
-  the same strict rule as `plot_ma`.
