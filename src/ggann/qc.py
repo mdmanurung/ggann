@@ -28,6 +28,7 @@ from plotnine import (
 
 from ._expression import densify_frame as _densify
 from ._expression import resolve_source, source_label, source_matrix
+from ._grouping import _drop_missing_groups
 from ._palette import scale_fill_obs
 from .publication import _family_theme
 
@@ -52,6 +53,10 @@ _DEFAULT_METRICS = [
 
 def _resolve_metrics(adata, metrics):
     if metrics is not None:
+        if isinstance(metrics, str):
+            metrics = [metrics]
+        if len(metrics) == 0:
+            raise ValueError("No QC metrics requested; pass at least one obs column.")
         missing = [m for m in metrics if m not in adata.obs]
         if missing:
             raise KeyError(f"QC metrics not in adata.obs: {missing}")
@@ -239,6 +244,7 @@ def plot_qc_violin(
     --------
     >>> p = plot_qc_violin(adata, metrics=["total_counts", "pct_counts_mt"])
     """
+    adata = _drop_missing_groups(adata, group_by)
     metrics = _resolve_metrics(adata, metrics)
     cols = ([group_by] if group_by else []) + metrics
     df = _densify(adata.ap.to_df(obs=cols))

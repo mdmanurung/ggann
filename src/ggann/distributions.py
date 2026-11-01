@@ -36,7 +36,7 @@ from plotnine import (
 
 from ._aggregate import tidy_expression
 from ._expression import ordered_unique
-from ._grouping import _downsample_cells, _group_categories, _order_groups
+from ._grouping import _downsample_cells, _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_color_obs, scale_fill_obs
 from ._resolve import plain_name, resolve_frame
 from .plots import (
@@ -153,6 +153,7 @@ def plot_box(
     --------
     >>> p = plot_box(adata, ["CD3D"], group_by="cell_type", jitter=False)
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
@@ -256,6 +257,7 @@ def plot_sina(
     --------
     >>> p = plot_sina(adata, ["CD3D"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     genes = ordered_unique(genes)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     extra = [split_by] if split_by else []
@@ -367,6 +369,7 @@ def plot_expression_bar(
     --------
     >>> p = plot_expression_bar(adata, ["CD3D"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw, extra_obs=extra)
@@ -455,7 +458,10 @@ def plot_expression_line(
     --------
     >>> p = plot_expression_line(adata, ["CD3D"], x="time", group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     genes = ordered_unique(genes)
+    if not genes:
+        raise ValueError("No genes requested; pass at least one gene name.")
     xname = plain_name(adata, x)
     gname = plain_name(adata, group_by) if group_by is not None else None
 
@@ -469,7 +475,9 @@ def plot_expression_line(
         )
 
     cols = [x] + ([group_by] if group_by is not None else []) + list(genes)
-    frame = resolve_frame(adata, cols, layer=layer, use_raw=use_raw)  # already densified
+    frame = resolve_frame(
+        adata, cols, layer=layer, use_raw=use_raw, strict=True
+    )  # already densified
     long = frame.melt(
         id_vars=id_vars, value_vars=gene_names, var_name="feature", value_name="value"
     )
@@ -593,6 +601,7 @@ def plot_violin(
     --------
     >>> p = plot_violin(adata, ["CD3D"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     genes = ordered_unique(genes)
     extra = [split_by] if split_by else []
@@ -677,6 +686,7 @@ def plot_stacked_violin(
     --------
     >>> p = plot_stacked_violin(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
@@ -769,6 +779,7 @@ def plot_ridge(
     --------
     >>> p = plot_ridge(adata, ["CD3D"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
     if categories_order is None:

@@ -62,7 +62,12 @@ def source_matrix(adata, kind: str, layer: str | None):
 
 
 def ordered_unique(values: Iterable[str]) -> list[str]:
-    """Return values in first-seen order, with duplicates removed."""
+    """Return values in first-seen order, with duplicates removed.
+
+    A bare string is one name, never an iterable of characters.
+    """
+    if isinstance(values, str):
+        values = [values]
     return list(dict.fromkeys(values))
 
 
@@ -121,7 +126,14 @@ def _validated_gene_positions(
     missing = [gene for gene, position in zip(genes, positions) if position < 0]
     if missing:
         quoted = ", ".join(repr(gene) for gene in missing)
-        raise KeyError(f"Gene(s) not found in {source_label(kind, layer)}: {quoted}.")
+        hint = ""
+        if kind == "raw":
+            other, flag = adata.var_names, False
+        else:
+            other, flag = (adata.raw.var_names if adata.raw is not None else None), True
+        if other is not None and all(gene in other for gene in missing):
+            hint = f" They are in {'.raw' if flag else '.X'}; pass use_raw={flag}."
+        raise KeyError(f"Gene(s) not found in {source_label(kind, layer)}: {quoted}.{hint}")
     return genes, positions.astype(np.intp, copy=False)
 
 

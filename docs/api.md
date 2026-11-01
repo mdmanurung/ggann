@@ -9,7 +9,7 @@
 | Concept | Rule |
 |---|---|
 | `genes` and `features` | `genes` selects expression variables. `features` may also select numeric observation columns where documented. Repeated sequence entries are removed in first-seen order; grouped marker maps reject a gene assigned to multiple labels. |
-| `group_by` and `split_by` | `group_by` defines the primary summary or colour groups. `split_by` adds a within-group split or facet. Missing group values are omitted from grouped summaries. |
+| `group_by` and `split_by` | `group_by` defines the primary summary or colour groups. `split_by` adds a within-group split or facet. Cells with a missing `group_by` or `split_by` value are dropped from every grouped plot and statistic, with a warning that gives the count; proportions use the kept cells. |
 | Expression source | `layer=` and `use_raw=True` are mutually exclusive. With neither set, expression uses `adata.raw` when present and otherwise `adata.X`. A source set on `gene(...)` overrides the plot-wide source. |
 | Ordering | Categorical observation order is preserved. An explicit `categories_order` must include every observed, non-missing group; unused requested levels are dropped. |
 | Downsampling | `downsample=` caps total cells for embedding/feature panels and cells per group for grouped distributions and heatmaps. `random_state=0` is deterministic; `None` draws a fresh sample. |

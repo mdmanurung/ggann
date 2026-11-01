@@ -151,7 +151,7 @@ def plot_density(
     xcol, ycol = coords.columns[:2]
     xy = coords.iloc[:, :2].to_numpy(dtype=float)
 
-    values = resolve_frame(adata, features, layer=layer, use_raw=use_raw)
+    values = resolve_frame(adata, features, layer=layer, use_raw=use_raw, strict=True)
     names = [plain_name(adata, f) for f in features]
     missing = [f for f, n in zip(features, names) if n not in values.columns]
     if missing:

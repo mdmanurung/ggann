@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable
 
 import numpy as np
@@ -14,6 +15,26 @@ def _group_categories(adata, group_by: str) -> list | None:
     if isinstance(col.dtype, pd.CategoricalDtype):
         return list(col.cat.categories)
     return None
+
+
+def _drop_missing_groups(adata, *fields):
+    """Drop cells whose grouping field is missing, warning with the count.
+
+    ``fields`` that are ``None`` or not ``obs`` columns are ignored, so callers
+    can pass ``group_by`` and ``split_by`` unconditionally.
+    """
+    fields = [f for f in dict.fromkeys(fields) if isinstance(f, str) and f in adata.obs]
+    if not fields:
+        return adata
+    missing = adata.obs[fields].isna().any(axis=1).to_numpy()
+    n = int(missing.sum())
+    if not n:
+        return adata
+    names = ", ".join(repr(f) for f in fields)
+    warnings.warn(
+        f"dropped {n} of {adata.n_obs} cells with missing {names}", UserWarning, stacklevel=3
+    )
+    return adata[~missing]
 
 
 def _resolve_group_order(

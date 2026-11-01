@@ -24,7 +24,7 @@ from plotnine import (
 
 from ._aggregate import tidy_expression
 from ._expression import ordered_unique
-from ._grouping import _group_categories, _order_groups
+from ._grouping import _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_fill_obs
 from .plots import (
     _cell_rank,
@@ -197,6 +197,7 @@ def plot_tracksplot(
     --------
     >>> p = plot_tracksplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
     if categories_order is None:

@@ -98,14 +98,16 @@ def test_empty_categories_order_is_not_treated_as_none(adata, markers, group_key
         builder(adata, markers, group_key)
 
 
-def test_missing_group_values_are_preserved_for_plotnine_to_drop(adata, markers, group_key):
+def test_missing_group_values_are_dropped_with_a_count(adata, markers, group_key):
+    # decisions.md #0: missing groups are dropped before plotting, with a warning
     ad = adata.copy()
     ad.obs[group_key] = ad.obs[group_key].astype(object)
     ad.obs.iloc[0, ad.obs.columns.get_loc(group_key)] = None
 
-    plot = ag.plot_violin(ad, markers[:1], group_key)
+    with pytest.warns(UserWarning, match="dropped 1 of"):
+        plot = ag.plot_violin(ad, markers[:1], group_key)
 
-    assert plot.data[group_key].isna().sum() == 1
+    assert plot.data[group_key].isna().sum() == 0
 
 
 def test_partial_categories_order_raises(adata, markers, group_key):

@@ -21,6 +21,7 @@ from plotnine import (
     scale_y_continuous,
 )
 
+from ._grouping import _drop_missing_groups
 from .publication import _family_theme
 
 __all__ = ["plot_dendrogram"]
@@ -77,6 +78,7 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
     --------
     >>> p = plot_dendrogram(adata, group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     if orientation not in {"top", "left"}:
         raise ValueError("orientation must be 'top' or 'left'.")
     info = _dendrogram_info(adata, group_by, key)

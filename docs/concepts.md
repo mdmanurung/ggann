@@ -83,9 +83,12 @@ facet where the helper supports it.
   comparable; otherwise first-seen order is retained.
 - `categories_order=` overrides the primary order. It must contain every
   observed non-missing group; unused requested levels are dropped.
-- Grouped summaries omit missing grouping values. Per-cell plots keep them in
-  the prepared table and plotnine applies the selected geom's missing-value
-  behavior.
+- Cells whose `group_by` or `split_by` value is missing are dropped before
+  aggregation, plotting and statistics, in grouped summaries and per-cell
+  plots alike. One `UserWarning` names the field and the dropped count;
+  nothing is printed when no cell is dropped. Proportions use the kept cells
+  as the denominator. An embedding's `color=` field is not a grouping: its
+  missing cells stay in the plot under the `NA` label, as in Scanpy.
 
 Use a pandas categorical when one order should apply across every figure:
 

@@ -23,8 +23,10 @@ def test_highest_expr_warns_on_scaled_matrix(adata):
 def test_highest_expr_on_raw_is_clean(adata):
     import warnings
 
+    # .raw (log-norm) must NOT trigger the scaled warning; third-party
+    # deprecations (e.g. pandas 3.1 inside plotnine) are out of scope here.
     with warnings.catch_warnings():
-        warnings.simplefilter("error")  # .raw (log-norm) must NOT trigger the scaled warning
+        warnings.filterwarnings("error", message=".*scaled.*")
         _build(ag.plot_highest_expr_genes(adata, n=10, use_raw=True))
 
 

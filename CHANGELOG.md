@@ -66,3 +66,18 @@ Initial public release.
   multi-version Python release checks.
 
 [0.1.0]: https://github.com/mdmanurung/ggann/releases/tag/v0.1.0
+
+### Data-handling contracts
+
+- Cells whose `group_by` or `split_by` value is missing are dropped from every
+  grouped plot, statistic and `pseudobulk` call, with one `UserWarning` giving
+  the dropped count. Proportions use the kept cells as the denominator.
+  Previously per-cell plots kept them and heatmaps crashed at draw.
+- A bare string gene, feature or QC metric is one name; it was split into
+  characters. Empty requests raise `ValueError` at the call.
+- Helper-requested fields that resolve to nothing raise `KeyError` at the
+  call instead of being skipped or failing at draw; the error names the other
+  expression source when the gene lives there.
+- `plot_features` rejects categorical features by name instead of dropping
+  them silently.
+- Boolean observation columns colour embeddings with a discrete scale.

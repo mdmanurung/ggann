@@ -12,7 +12,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, labs
 
-from ._grouping import _group_categories, _order_groups, _resolve_group_order
+from ._grouping import _drop_missing_groups, _group_categories, _order_groups, _resolve_group_order
 from ._palette import scale_color_obs, scale_fill_obs
 from .publication import _family_theme
 
@@ -76,6 +76,7 @@ def plot_proportions(
     --------
     >>> p = plot_proportions(adata, group_by="cell_type", split_by="condition")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     if kind not in ("bar", "area", "trend"):
         raise ValueError(f"kind must be 'bar', 'area' or 'trend', got {kind!r}")
     if kind in ("area", "trend") and split_by is None:

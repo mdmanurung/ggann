@@ -30,6 +30,7 @@ from plotnine import (
 from ._aggregate import group_means
 from ._annotation import annotation_threshold, geom_contrast_text
 from ._expression import ordered_unique
+from ._grouping import _drop_missing_groups
 from .publication import _active_style, _family_theme
 
 __all__ = ["plot_correlation"]
@@ -171,6 +172,7 @@ def plot_correlation(
     --------
     >>> p = plot_correlation(adata, group_by="cell_type", genes=["CD3D", "NKG7"])
     """
+    adata = _drop_missing_groups(adata, group_by)
     if genes is None:
         genes = _default_genes(adata)
     genes = ordered_unique(genes)

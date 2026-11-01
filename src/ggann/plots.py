@@ -45,7 +45,7 @@ from ._aggregate import (
 )
 from ._annotation import annotation_threshold, geom_contrast_text
 from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
-from ._grouping import _downsample_cells, _group_categories, _order_groups
+from ._grouping import _downsample_cells, _drop_missing_groups, _group_categories, _order_groups
 from ._matplotlib_backend import categorical_palette, promote_matplotlib_plot
 from ._palette import obs_colors, scale_color_obs
 from ._resolve import (
@@ -71,8 +71,11 @@ __all__ = [
 
 
 def _is_numeric(series: pd.Series) -> bool:
-    return pd.api.types.is_numeric_dtype(series) and not isinstance(
-        series.dtype, pd.CategoricalDtype
+    """True for continuous values; bool and categorical are discrete."""
+    return (
+        pd.api.types.is_numeric_dtype(series)
+        and not pd.api.types.is_bool_dtype(series)
+        and not isinstance(series.dtype, pd.CategoricalDtype)
     )
 
 
@@ -348,6 +351,7 @@ def plot_embedding(
     --------
     >>> p = plot_embedding(adata, "umap", color="cell_type")
     """
+    adata = _drop_missing_groups(adata, split_by)
     _validate_backend(backend)
     if backend == "matplotlib" and (split_by is not None or label):
         raise ValueError(
@@ -377,7 +381,7 @@ def plot_embedding(
             requested.append(color)
         if split_by is not None:
             requested.append(split_by)
-        df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw)
+        df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw, strict=True)
         xcol, ycol = (plain_name(adata, ref) for ref in coordinate_refs)
         native_cname = None
     facet = pe.facet_wrap("~" + split_by) if split_by is not None else None
@@ -503,7 +507,7 @@ def plot_embedding(
         guides(
             color=guide_legend(
                 override_aes={"size": 4},
-                ncol=(2 if _active_style() is not None and df[cname].nunique() > 8 else None),
+                ncol=(2 if _active_style() is not None and int(df[cname].nunique()) > 8 else None),
                 byrow=_active_style() is not None,
             )
         ),
@@ -612,12 +616,16 @@ def plot_features(
         raise ValueError(f"Embedding '{basis}' has fewer than 2 dimensions.")
     xcol, ycol = coords.columns[:2]
 
-    values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw)
-    feats = list(
-        dict.fromkeys(f for f in features if f in values.columns and _is_numeric(values[f]))
-    )
-    if not feats:
+    values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw, strict=True)
+    if not features:
         raise ValueError("plot_features needs at least one numeric feature (gene or metric).")
+    feats = [plain_name(adata, f) for f in features]
+    non_numeric = [f for f in feats if not _is_numeric(values[f])]
+    if non_numeric:
+        raise ValueError(
+            f"plot_features plots numeric features only; {non_numeric} are categorical. "
+            "Use plot_embedding(color=...) for those."
+        )
 
     df = coords.join(values[feats])
     long = df.melt(
@@ -746,6 +754,7 @@ def plot_dotplot(
     --------
     >>> p = plot_dotplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     _validate_backend(backend)
     if backend == "matplotlib" and split_by is not None:
         raise ValueError(
@@ -897,6 +906,7 @@ def plot_matrixplot(
     --------
     >>> p = plot_matrixplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
     _validate_backend(backend)
     if backend == "matplotlib" and split_by is not None:
         raise ValueError(
@@ -1036,6 +1046,7 @@ def plot_embedding_density(
     --------
     >>> p = plot_embedding_density(adata, "umap", group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     import numpy as np
     from scipy.stats import gaussian_kde
 
@@ -1156,6 +1167,7 @@ def plot_heatmap(
     --------
     >>> p = plot_heatmap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
     genes = ordered_unique(genes)
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
@@ -1176,7 +1188,7 @@ def plot_heatmap(
             tidy["value"] = (tidy["value"] - centre) / spread
         else:
             lo = g.transform("min")
-            rng = (g.transform("max") - lo).replace(0, 1)
+            rng = (g.transform("max") - lo).replace(0, 1)  # pyright: ignore[reportOperatorIssue]
             tidy["value"] = (tidy["value"] - lo) / rng
         fill_lab = "scaled expr."
     else:

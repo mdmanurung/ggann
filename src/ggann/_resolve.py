@@ -389,8 +389,12 @@ def resolve_frame(
     use_raw: bool | None = None,
     warn_collisions: bool = True,
     max_matrix_values: int | None = None,
+    strict: bool = False,
 ) -> pd.DataFrame:
     """Build a per-cell DataFrame with one column per requested ``name``.
+
+    With ``strict=True`` (used by the plotting helpers, whose requests are
+    always field names) any name that resolves to nothing raises ``KeyError``.
 
     ``names`` may contain plain strings or :class:`Ref` objects (from
     :func:`gene`/:func:`obs`). Names that resolve to nothing are silently
@@ -463,15 +467,22 @@ def resolve_frame(
             key, idx = emb[name]
             obsm_specs.append((name, key, idx))
         elif name in other_set:
-            warnings.warn(
+            message = (
                 f"'{name}' is a gene in "
                 f"{_source_label('raw' if default_kind != 'raw' else 'x', default_layer)} "
                 f"but not in the active expression source "
                 f"({_source_label(default_kind, default_layer)}); "
-                f"pass use_raw={default_kind != 'raw'} to plot it.",
-                stacklevel=2,
+                f"pass use_raw={default_kind != 'raw'} to plot it."
             )
+            if strict:
+                raise KeyError(message)
+            warnings.warn(message, stacklevel=2)
             continue
+        elif strict:
+            raise KeyError(
+                f"'{name}' is not an obs column, a gene in "
+                f"{_source_label(default_kind, default_layer)}, or an embedding coordinate."
+            )
         else:
             continue  # computed / literal aesthetic -- leave to plotnine
         order.append(name)

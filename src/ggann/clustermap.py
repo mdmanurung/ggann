@@ -19,6 +19,7 @@ import pandas as pd
 from ._aggregate import _standardize, group_means
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source
+from ._grouping import _drop_missing_groups
 from .publication import _active_style
 
 __all__ = ["plot_clustermap"]
@@ -116,6 +117,7 @@ def plot_clustermap(
     --------
     >>> cm = plot_clustermap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     if standard_scale is not None and z_score is not None:
         raise ValueError(
             "standard_scale and z_score are mutually exclusive (both normalize the "

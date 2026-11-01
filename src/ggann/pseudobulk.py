@@ -15,6 +15,7 @@ decoupler is an optional dependency (``ggann[pseudobulk]``).
 from __future__ import annotations
 
 from ._compat import renamed_keyword
+from ._grouping import _drop_missing_groups
 
 __all__ = ["pseudobulk"]
 
@@ -91,6 +92,7 @@ def pseudobulk(
     --------
     >>> pb = pseudobulk(adata, sample_col="donor", group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, sample_col, group_by)
     use_raw = renamed_keyword(
         use_raw,
         raw,
