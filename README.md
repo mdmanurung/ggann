@@ -166,6 +166,10 @@ against Scanpy. The [performance guide](docs/performance.md) defines the timing,
 memory, equivalence, and acceptance criteria; it deliberately does not substitute
 microbenchmarks for end-to-end results.
 
+## Citing
+
+See [Citing ggann](docs/citing.md) for how to cite ggann and the tools behind each figure.
+
 ## Development checks
 
 ```bash

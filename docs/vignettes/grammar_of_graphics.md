@@ -36,9 +36,13 @@ grammar interface:
 3. `facet_wrap` separates lymphoid and myeloid cells;
 4. `theme_classic` replaces the default theme.
 
-`compartment` is included as a `group` aesthetic so it is present in the
-resolved table when the facet evaluates it. `add_theme=False` leaves the theme
-decision to the final grammar. The executable check computes compartment means
+`compartment` is mapped to the non-visual `group` aesthetic, which puts it in the
+resolved table from the start. A facet that names a field the first mapping
+omitted would also work: `gganndata` reads late fields when they are added, and
+counts them against `max_matrix_values`. `add_theme=False` leaves the theme
+decision to the final grammar. The plot has no stored-colour scale, because
+`gganndata` adds none; add `+ scale_color_obs(adata, key)` for a categorical
+column with stored colours. The executable check computes compartment means
 from `plot.data` and confirms the lymphoid excess (0.63 versus 0.20 mean
 log-normalized `NKG7`) before rendering. The figure shows where that excess
 sits: one bright island of NK and CD8 T cells, not a diffuse lymphoid shift.
