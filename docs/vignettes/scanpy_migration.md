@@ -20,9 +20,14 @@ did not survive highly-variable-gene selection, so the marker calls pass
 | `sc.pl.matrixplot(adata, genes, groupby=...)` | `ag.plot_matrixplot(adata, genes, group_by=...)` |
 | `sc.pl.violin(adata, genes, groupby=...)` | `ag.plot_violin(adata, genes, group_by=...)` |
 
-`group_by` is spelled consistently across ggann helpers. `show=` and
+`group_by` is spelled consistently across ggann helpers, and Scanpy's
+`groupby=` works as an alias in every helper that has `group_by=`. `show=` and
 `return_fig=` are unnecessary because construction and rendering are separate:
-every call below returns the plot without drawing it.
+every call below returns the plot without drawing it. `save=` and `ax=` have no
+counterpart either; use `plot.save(...)`, `ag.save_publication` and
+`ag.compose`. Defaults follow Scanpy, so the dotplot and matrixplot draw the
+first category at the top and the matrixplot shows raw group means. See
+{doc}`../scanpy_parity` for the supported keywords of each call.
 
 ```python
 sc.pl.embedding(

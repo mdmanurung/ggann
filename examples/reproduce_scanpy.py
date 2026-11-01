@@ -53,8 +53,8 @@ def _save_scanpy(fn, path):
     plt.close("all")
 
 
-def _save_ggann(plot, path):
-    plot.save(path, width=5.5, height=4, dpi=80, verbose=False)
+def _save_ggann(plot, path, width=5.5):
+    plot.save(path, width=width, height=4, dpi=80, verbose=False)
 
 
 def pairs(adata):
@@ -73,10 +73,12 @@ def pairs(adata):
         ),
         "matrixplot": (
             lambda: sc.pl.matrixplot(adata, MARKERS, groupby=GROUP, show=False),
-            lambda: ag.plot_matrixplot(adata, MARKERS, GROUP, standard_scale="var"),
+            lambda: ag.plot_matrixplot(adata, MARKERS, GROUP),
         ),
         "stacked_violin": (
-            lambda: sc.pl.stacked_violin(adata, MARKERS, groupby=GROUP, show=False),
+            # Scanpy 1.12 puts groups on rows by default; swap_axes=True gives
+            # ggann's layout (genes as rows, groups along x).
+            lambda: sc.pl.stacked_violin(adata, MARKERS, groupby=GROUP, swap_axes=True, show=False),
             lambda: ag.plot_stacked_violin(adata, MARKERS, GROUP),
         ),
         "violin": (
@@ -89,7 +91,7 @@ def pairs(adata):
         ),
         "correlation": (
             lambda: sc.pl.correlation_matrix(adata, groupby=GROUP, show=False),
-            lambda: ag.plot_correlation(adata, GROUP),
+            lambda: ag.plot_correlation(adata, GROUP, use_rep="X_pca"),
         ),
         "highest_expr_genes": (
             lambda: sc.pl.highest_expr_genes(adata, n_top=15, show=False),
@@ -110,7 +112,9 @@ def main():
     for name, (scfn, ggfn) in pairs(adata).items():
         try:
             _save_scanpy(scfn, os.path.join(out, f"{name}_scanpy.png"))
-            _save_ggann(ggfn(), os.path.join(out, f"{name}_ggann.png"))
+            # eight group labels overlap less when the tracks are wider
+            width = 8 if name == "tracksplot" else 5.5
+            _save_ggann(ggfn(), os.path.join(out, f"{name}_ggann.png"), width)
             print("wrote", name)
         except Exception as error:
             failures.append((name, error))
