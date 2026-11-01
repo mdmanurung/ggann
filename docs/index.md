@@ -106,4 +106,5 @@ performance
 :hidden:
 
 api
+citing
 ```
