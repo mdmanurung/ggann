@@ -570,3 +570,21 @@ def test_VERIFY4_tracksplot_missing_group_not_visible(adata):
     legend_text = " ".join(t.get_text() for t in fig.findobj(lambda o: hasattr(o, "get_text")))
     assert "nan" not in legend_text.lower().split()
     plt.close(fig)
+
+
+def test_stacked_violin_first_x_label_inside_canvas(adata):
+    # hidden y labels must not take away the space the first rotated x label needs
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    genes = ["CD3D", "NKG7", "CST3"]
+    fig = ag.plot_stacked_violin(adata, genes, "bulk_labels", use_raw=True).draw()  # default 90
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()
+    renderer = canvas.get_renderer()
+    left = min(
+        t.get_window_extent(renderer).x0
+        for ax in fig.axes
+        for t in ax.get_xticklabels()
+        if t.get_visible() and t.get_text()
+    )
+    assert left >= 0

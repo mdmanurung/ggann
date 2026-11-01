@@ -896,16 +896,17 @@ def plot_stacked_violin(
     downsample: int | None = None,
     random_state: int | None = 0,
     log: bool = False,
-    rotation: float = 45,
+    rotation: float = 90,
     stripplot: bool = False,
     yticklabels: bool = False,
     cmap: str = "Blues",
 ):
     """Compact genes-as-rows violin grid across groups (``sc.pl.stacked_violin``).
 
-    Matches scanpy's encoding: genes are rows, groups run along x, and each violin
-    is filled by that group's **median** expression of the gene (``cmap``, shared
-    colour bar). Each row has its own y range and no y tick labels (``yticklabels``
+    Genes are rows and groups run along x, the layout of
+    ``sc.pl.stacked_violin(..., swap_axes=True)`` (Scanpy's default puts groups
+    as rows). As in Scanpy, each violin is filled by that group's **median**
+    expression of the gene (``cmap``, shared colour bar). Each row has its own y range and no y tick labels (``yticklabels``
     restores them), so many genes stay readable. ``downsample`` caps cells per
     group before the KDE; ``random_state`` controls which cells are retained and
     seeds the ``stripplot`` jitter.
@@ -932,8 +933,9 @@ def plot_stacked_violin(
         Downsampling and jitter seed; ``None`` is nondeterministic.
     log : bool
         Plot ``log1p(expression)``; zeros stay at zero.
-    rotation : float
-        Group-label angle in degrees.
+    rotation : float, default=90
+        Group-label angle in degrees. Vertical labels, as in Scanpy, never
+        hang past the left edge; at smaller angles a long first label can.
     stripplot : bool
         Overlay the individual cells as jitter.
     yticklabels : bool

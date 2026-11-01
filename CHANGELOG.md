@@ -91,8 +91,8 @@ Check these before re-running a figure made with a pre-release build.
 - Defaults follow Scanpy: rank-genes `n_genes=10`, rank matrixplot
   `standard_scale=None`, `plot_variance_ratio(n_pcs=30, log=False)`,
   `plot_highest_expr_genes` 30 genes.
-- `plot_stacked_violin` fills each violin by group median expression and uses
-  Scanpy's orientation.
+- `plot_stacked_violin` fills each violin by group median expression, draws
+  genes as rows (Scanpy's `swap_axes=True` layout) and labels groups at 90°.
 - Without stored `adata.uns["<key>_colors"]`, discrete scales use Scanpy's
   default palette instead of plotnine hues.
 - Inside `style_context`, `plot_features` and `plot_density` default to the
