@@ -37,6 +37,30 @@ def _drop_missing_groups(adata, *fields):
     return adata[~missing]
 
 
+def _check_group_cardinality(adata, field: str | None, limit: int, *, action: str) -> int:
+    """Count the non-missing levels of ``field``; ``action`` is 'raise' or 'warn'.
+
+    Guards helpers whose cost or readability grows with the number of groups
+    (a numeric column such as a cell index has one level per cell).
+    """
+    if field is None or field not in adata.obs:
+        return 0
+    col = adata.obs[field]
+    n = len(col.cat.categories) if isinstance(col.dtype, pd.CategoricalDtype) else col.nunique()
+    n = int(min(n, col.nunique()))
+    if n <= limit:
+        return n
+    kind = "numeric " if pd.api.types.is_numeric_dtype(col) else ""
+    message = (
+        f"{kind}group field {field!r} has {n} levels (limit {limit}); "
+        "bin or convert it to a categorical with fewer levels first"
+    )
+    if action == "raise":
+        raise ValueError(message)
+    warnings.warn(message, UserWarning, stacklevel=3)
+    return n
+
+
 def _resolve_group_order(
     frame: pd.DataFrame,
     group_by: str,

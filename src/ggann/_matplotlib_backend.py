@@ -53,6 +53,10 @@ class _RenderSpec:
     signed: bool = False
     annotation_min_cell_pt: float | None = None
     annotation_format: str = "{:.2g}"
+    vmin: float | None = None
+    vmax: float | None = None
+    symmetric: bool = False  # zero-centred colour limits (z-scores)
+    dot_limits: tuple[float, float] | None = None
 
 
 class MatplotlibGGPlot(ggplot):
@@ -395,7 +399,12 @@ def _spec_cmap(spec: _RenderSpec):
 
 def _spec_norm(spec: _RenderSpec, values: np.ndarray) -> Normalize | None:
     """Use a symmetric zero-centred normalization for signed publication data."""
-    if spec.publication_style is None or not spec.signed:
+    if spec.vmin is not None or spec.vmax is not None:
+        finite = values[np.isfinite(values)]
+        low = spec.vmin if spec.vmin is not None else float(finite.min())
+        high = spec.vmax if spec.vmax is not None else float(finite.max())
+        return Normalize(vmin=low, vmax=high, clip=True)
+    if not spec.symmetric and (spec.publication_style is None or not spec.signed):
         return None
     finite = values[np.isfinite(values)]
     limit = float(np.abs(finite).max()) if len(finite) else 1.0
@@ -442,7 +451,8 @@ def _set_discrete_axes(
     axis.set_yticks(np.arange(len(y_levels)), [str(value) for value in y_levels])
     axis.tick_params(axis="both", labelsize=style.axis_text_size if style else 9)
     axis.set_xlim(-0.5, len(x_levels) - 0.5)
-    axis.set_ylim(-0.5, len(y_levels) - 0.5)
+    # first category on top, as in scanpy; levels keep their semantic order
+    axis.set_ylim(len(y_levels) - 0.5, -0.5)
     axis.set_xlabel("")
     axis.set_ylabel("")
     # Measured, not estimated: widen the left margin until the y labels fit.
@@ -459,7 +469,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     y_levels = _axis_categories(spec.data[spec.y])
     figure, axis = _new_figure(
         left=_discrete_left_margin(y_levels),
-        right=0.82,
+        right=0.79,
         bottom=0.14,
         top=0.97,
         style=spec.publication_style,
@@ -475,7 +485,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     collection = axis.scatter(
         x,
         y,
-        s=_dot_sizes(fractions, spec.size_range),
+        s=_dot_sizes(fractions, spec.size_range, limits=spec.dot_limits),
         c=values,
         cmap=cmap,
         norm=norm,
@@ -483,14 +493,15 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         rasterized=spec.rasterized,
     )
     _add_direct_annotations(axis, x, y, values, collection, spec)
-    colorbar_axis = figure.add_axes((0.85, 0.58, 0.035, 0.29))
+    colorbar_axis = figure.add_axes((0.82, 0.58, 0.035, 0.29))
     colorbar = figure.colorbar(collection, cax=colorbar_axis)
     _configure_colorbar(colorbar, spec.value_label, values, spec.publication_style)
     fraction_ticks = np.linspace(0, 1, 5) if spec.publication_style else _scale_breaks(fractions)
     proxy_sizes = _dot_sizes(
         fraction_ticks,
         spec.size_range,
-        limits=(0, 1) if spec.publication_style else _numeric_limits(fractions),
+        limits=spec.dot_limits
+        or ((0, 1) if spec.publication_style else _numeric_limits(fractions)),
     )
     handles = [
         Line2D(
@@ -508,7 +519,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         handles=handles,
         title=spec.fraction_label,
         loc="upper left",
-        bbox_to_anchor=(0.84, 0.45),
+        bbox_to_anchor=(0.81, 0.45),
         bbox_transform=figure.transFigure,
         borderaxespad=0,
         frameon=False,
@@ -524,7 +535,7 @@ def _draw_matrixplot(spec: _RenderSpec) -> Figure:
     y_levels = _axis_categories(spec.data[spec.y])
     figure, axis = _new_figure(
         left=_discrete_left_margin(y_levels),
-        right=0.82,
+        right=0.79,
         bottom=0.14,
         top=0.97,
         style=spec.publication_style,
@@ -554,7 +565,7 @@ def _draw_matrixplot(spec: _RenderSpec) -> Figure:
         mesh,
         spec,
     )
-    colorbar_axis = figure.add_axes((0.85, 0.39, 0.035, 0.43))
+    colorbar_axis = figure.add_axes((0.82, 0.39, 0.035, 0.43))
     colorbar = figure.colorbar(mesh, cax=colorbar_axis)
     _configure_colorbar(colorbar, spec.value_label, matrix.ravel(), spec.publication_style)
     _set_discrete_axes(axis, x_levels, y_levels, spec.publication_style)
