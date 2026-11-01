@@ -173,7 +173,11 @@ def categorical_palette(
     if stored is not None:
         colors = [stored[category] for category in categories]
     else:
-        colors = [str(color) for color in hue_pal()(len(categories))]
+        from ._palette import _scanpy_default_colors
+
+        colors = _scanpy_default_colors(len(categories)) or [
+            str(color) for color in hue_pal()(len(categories))
+        ]
     return tuple(categories), tuple(colors)
 
 
@@ -383,12 +387,7 @@ def _spec_cmap(spec: _RenderSpec):
             "ggann_diverging", spec.publication_style.diverging
         )
     else:
-        name = (
-            spec.publication_style.sequential_cmap
-            if spec.publication_style is not None and spec.cmap == "Reds"
-            else spec.cmap
-        )
-        cmap = colormaps[name]
+        cmap = colormaps[spec.cmap]
     return cmap.with_extremes(
         bad=(spec.publication_style.missing_color if spec.publication_style else "#7F7F7F")
     )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import math
 from collections.abc import Sequence
+from functools import lru_cache
 
 import numpy as np
 from matplotlib.colors import to_rgb
@@ -144,4 +145,22 @@ def palette_accessibility_report(colours: Sequence[str]) -> dict[str, object]:
     }
 
 
-__all__ = ["ciede2000", "palette_accessibility_report", "simulate_cvd"]
+#: Minimum CIEDE2000 separation under colour-vision simulation that the reviewed
+#: core-eight vocabulary meets (see tests/test_palette_accessibility.py).
+CVD_MIN_SEPARATION = 5.0
+
+
+@lru_cache(maxsize=64)
+def cvd_shortfalls(colours: tuple[str, ...], threshold: float = CVD_MIN_SEPARATION):
+    """Return ``{simulation: min separation}`` for simulations below ``threshold``."""
+    if len(colours) < 2:
+        return {}
+    measured = palette_accessibility_report(colours)["minimum_ciede2000"]
+    return {
+        name: float(value)
+        for name, value in measured.items()
+        if name != "normal" and value < threshold
+    }
+
+
+__all__ = ["ciede2000", "cvd_shortfalls", "palette_accessibility_report", "simulate_cvd"]

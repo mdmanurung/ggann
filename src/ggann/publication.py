@@ -8,6 +8,7 @@ copying implementation from, that project.
 
 from __future__ import annotations
 
+import colorsys
 import math
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -71,6 +72,35 @@ _QUALITATIVE_EXTENDED = _QUALITATIVE + (
     "#6699CC",
     "#AA4466",
 )
+
+_GOLDEN = 0.6180339887498949
+_EXT_LIGHTNESS = (0.45, 0.62, 0.52)
+_EXT_SATURATION = (0.70, 0.75, 0.55)
+
+
+def _extension_colour(index: int) -> str:
+    """The ``index``-th colour of the fixed sequence used past the vocabulary.
+
+    A pure function of ``index`` (golden-ratio hue steps, cycling lightness), so a
+    palette of ``n + 1`` colours always begins with the palette of ``n``.
+    """
+    hue = (_GOLDEN * (index + 1)) % 1.0
+    lightness = _EXT_LIGHTNESS[index % 3]
+    saturation = _EXT_SATURATION[index % 3]
+    return to_hex(colorsys.hls_to_rgb(hue, lightness, saturation), keep_alpha=False)
+
+
+def _extend_palette(base: Sequence[str], n: int) -> tuple[str, ...]:
+    """Prefix-stable extension of ``base`` to ``n`` distinct colours."""
+    colours = [to_hex(colour, keep_alpha=False) for colour in base]
+    index = 0
+    while len(colours) < n:
+        candidate = _extension_colour(index)
+        index += 1
+        if candidate not in colours:
+            colours.append(candidate)
+    return tuple(colours[:n])
+
 
 _FONT_FALLBACK = ("Arial", "Helvetica", "DejaVu Sans", "sans-serif")
 _MISSING_COLOR = "#B3B3B3"
@@ -567,14 +597,10 @@ def publication_palette(
     n = int(n)
 
     if kind == "qualitative":
-        base = resolved.qualitative
-        if n <= len(base):
-            colours = tuple(to_hex(colour, keep_alpha=False) for colour in base[:n])
-        else:
-            # Deterministic extension for large vocabularies. These require
-            # visual review or redundant encodings, as documented.
-            cmap = mpl.colormaps["turbo"].resampled(n)
-            colours = tuple(to_hex(cmap(i), keep_alpha=False) for i in range(n))
+        # Past the vocabulary, extend from a fixed sequence so growing a category
+        # list never recolours earlier categories. Separation is measured only for
+        # the reviewed vocabulary; larger sets need a redundant encoding.
+        colours = _extend_palette(resolved.qualitative[:n], n)
     elif kind == "sequential":
         cmap = mpl.colormaps[resolved.sequential_cmap].resampled(n)
         colours = tuple(to_hex(cmap(i), keep_alpha=False) for i in range(n))
