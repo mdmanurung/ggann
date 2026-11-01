@@ -503,3 +503,17 @@ def test_V4_draw_order_is_low_to_high(adata):
     assert plotnine.data["n_counts"].is_monotonic_increasing
     assert ag.plot_features(adata, GENES, use_raw=True).data["expression"].is_monotonic_increasing
     assert ag.plot_embedding_density(adata, "umap", GROUP).data["density"].is_monotonic_increasing
+
+
+def test_G1_plus_never_copies_the_anndata(adata):
+    from plotnine import geom_point
+
+    class Tripwire:
+        def __deepcopy__(self, memo):
+            raise AssertionError("the AnnData was deep-copied by +")
+
+    a = adata.copy()
+    a.uns["tripwire"] = Tripwire()
+    base = ag.gganndata(a, ag.aes("UMAP_1", "UMAP_2"))
+    plot = base + geom_point() + ag.aes(color=GROUP)
+    assert plot._ggann_source.adata is a

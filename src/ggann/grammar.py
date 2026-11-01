@@ -11,11 +11,11 @@ geoms, stats, scales, facets, and themes compose without adapters.
 from __future__ import annotations
 
 import ast
+import sys
 from copy import copy
 from dataclasses import dataclass, replace
 
 import pandas as pd
-from patsy.builtins import Q
 from plotnine import aes, ggplot
 from plotnine.mapping._env import Environment
 
@@ -28,6 +28,16 @@ __all__ = ["gganndata", "aes"]
 # --------------------------------------------------------------------------- #
 # Which AnnData fields does an aes value need?
 # --------------------------------------------------------------------------- #
+def Q(name: str):
+    """Look ``name`` up among the plot's columns inside an aes expression.
+
+    ``Q("HLA-DRA")`` reaches a column whose name is not a Python identifier.
+    plotnine evaluates the expression with the plot data as the local namespace,
+    which is what the calling frame exposes.
+    """
+    return sys._getframe(1).f_locals[name]
+
+
 def _identifiers(expression: str) -> list[str]:
     """Field identifiers of an aes expression (the supported subset).
 
@@ -139,9 +149,11 @@ class GGAnnPlot(ggplot):
     _ggann_source: _Source | None = None
 
     def __deepcopy__(self, memo):
-        result = super().__deepcopy__(memo)
-        result.__dict__["_ggann_source"] = self.__dict__.get("_ggann_source")
-        return result
+        # the AnnData is shared by reference, never copied, by every ``+``
+        source = self.__dict__.get("_ggann_source")
+        if source is not None:
+            memo[id(source)] = source
+        return super().__deepcopy__(memo)
 
     def __iadd__(self, other):
         source = self.__dict__.get("_ggann_source")
