@@ -517,3 +517,18 @@ def test_G1_plus_never_copies_the_anndata(adata):
     base = ag.gganndata(a, ag.aes("UMAP_1", "UMAP_2"))
     plot = base + geom_point() + ag.aes(color=GROUP)
     assert plot._ggann_source.adata is a
+
+
+def test_A3_explicit_cmap_zscore_is_zero_centred_in_both_backends_in_a_style(adata):
+    with ag.style_context():
+        fig = ag.plot_matrixplot(
+            adata,
+            GENES,
+            GROUP,
+            use_raw=True,
+            standard_scale="zscore",
+            cmap="PuOr",
+            backend="matplotlib",
+        ).draw()
+    norm = fig.axes[0].collections[0].norm
+    assert norm.vmin == -norm.vmax

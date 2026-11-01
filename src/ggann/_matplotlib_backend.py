@@ -24,7 +24,7 @@ from mizani.palettes import area_pal, hue_pal
 from plotnine import ggplot
 
 from ._annotation import _CellText, _relative_luminance
-from .publication import PublicationStyle, _style_rcparams
+from .publication import PublicationStyle, _style_rcparams, fit_left_labels
 
 
 @dataclass(frozen=True)
@@ -177,7 +177,11 @@ def categorical_palette(
     if stored is not None:
         colors = [stored[category] for category in categories]
     else:
-        colors = [str(color) for color in hue_pal()(len(categories))]
+        from ._palette import _scanpy_default_colors
+
+        colors = _scanpy_default_colors(len(categories)) or [
+            str(color) for color in hue_pal()(len(categories))
+        ]
     return tuple(categories), tuple(colors)
 
 
@@ -387,12 +391,7 @@ def _spec_cmap(spec: _RenderSpec):
             "ggann_diverging", spec.publication_style.diverging
         )
     else:
-        name = (
-            spec.publication_style.sequential_cmap
-            if spec.publication_style is not None and spec.cmap == "Reds"
-            else spec.cmap
-        )
-        cmap = colormaps[name]
+        cmap = colormaps[spec.cmap]
     return cmap.with_extremes(
         bad=(spec.publication_style.missing_color if spec.publication_style else "#7F7F7F")
     )
@@ -456,6 +455,8 @@ def _set_discrete_axes(
     axis.set_ylim(len(y_levels) - 0.5, -0.5)
     axis.set_xlabel("")
     axis.set_ylabel("")
+    # Measured, not estimated: widen the left margin until the y labels fit.
+    fit_left_labels(axis.figure, axis)
 
 
 def _discrete_left_margin(levels: list[Any]) -> float:
@@ -468,7 +469,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
     y_levels = _axis_categories(spec.data[spec.y])
     figure, axis = _new_figure(
         left=_discrete_left_margin(y_levels),
-        right=0.82,
+        right=0.79,
         bottom=0.14,
         top=0.97,
         style=spec.publication_style,
@@ -492,7 +493,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         rasterized=spec.rasterized,
     )
     _add_direct_annotations(axis, x, y, values, collection, spec)
-    colorbar_axis = figure.add_axes((0.85, 0.58, 0.035, 0.29))
+    colorbar_axis = figure.add_axes((0.82, 0.58, 0.035, 0.29))
     colorbar = figure.colorbar(collection, cax=colorbar_axis)
     _configure_colorbar(colorbar, spec.value_label, values, spec.publication_style)
     fraction_ticks = np.linspace(0, 1, 5) if spec.publication_style else _scale_breaks(fractions)
@@ -518,7 +519,7 @@ def _draw_dotplot(spec: _RenderSpec) -> Figure:
         handles=handles,
         title=spec.fraction_label,
         loc="upper left",
-        bbox_to_anchor=(0.84, 0.45),
+        bbox_to_anchor=(0.81, 0.45),
         bbox_transform=figure.transFigure,
         borderaxespad=0,
         frameon=False,
@@ -534,7 +535,7 @@ def _draw_matrixplot(spec: _RenderSpec) -> Figure:
     y_levels = _axis_categories(spec.data[spec.y])
     figure, axis = _new_figure(
         left=_discrete_left_margin(y_levels),
-        right=0.82,
+        right=0.79,
         bottom=0.14,
         top=0.97,
         style=spec.publication_style,
@@ -564,7 +565,7 @@ def _draw_matrixplot(spec: _RenderSpec) -> Figure:
         mesh,
         spec,
     )
-    colorbar_axis = figure.add_axes((0.85, 0.39, 0.035, 0.43))
+    colorbar_axis = figure.add_axes((0.82, 0.39, 0.035, 0.43))
     colorbar = figure.colorbar(mesh, cax=colorbar_axis)
     _configure_colorbar(colorbar, spec.value_label, matrix.ravel(), spec.publication_style)
     _set_discrete_axes(axis, x_levels, y_levels, spec.publication_style)
