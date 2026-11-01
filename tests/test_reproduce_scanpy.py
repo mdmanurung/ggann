@@ -19,7 +19,7 @@ def de_adata(adata):
     import scanpy as sc
 
     ad = adata.copy()  # isolate: don't mutate the shared session fixture
-    sc.tl.rank_genes_groups(ad, "bulk_labels", method="wilcoxon", n_genes=50)
+    sc.tl.rank_genes_groups(ad, "bulk_labels", method="wilcoxon", n_genes=50, key_added=rs.DE_KEY)
     sc.tl.dendrogram(ad, groupby="bulk_labels")
     return ad
 

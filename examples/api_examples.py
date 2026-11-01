@@ -25,6 +25,9 @@ import ggann as ag
 from ggann import aes, gganndata
 
 GROUP = "louvain"
+# Fresh wilcoxon result in its own key: the bundled "rank_genes_groups" has no
+# logfoldchanges and is left untouched.
+DE_KEY = "rank_wilcoxon"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 GENE_GROUPS = {
     "T": ["CD3D", "CD8A"],
@@ -50,7 +53,7 @@ def _adata():
     # pbmc3k_processed.X is already restricted to the highly variable genes, so
     # flagging them makes plot_correlation's default gene selection explicit.
     adata.var["highly_variable"] = True
-    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
+    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50, key_added=DE_KEY)
     return adata
 
 
@@ -62,7 +65,7 @@ def _ma_frame(adata, group="NK cells"):
     raw = adata.raw.to_adata() if adata.raw is not None else adata
     means = np.asarray(raw.X.mean(axis=0)).ravel()
     mean_by_gene = dict(zip(raw.var_names, means))
-    df = ag.rank_genes_df(adata, group=group).rename(
+    df = ag.rank_genes_df(adata, group=group, key=DE_KEY).rename(
         columns={"logfoldchanges": "log2FoldChange", "pvals_adj": "padj"}
     )
     df["baseMean"] = df["names"].map(mean_by_gene)
@@ -70,7 +73,7 @@ def _ma_frame(adata, group="NK cells"):
 
 
 def _examples(adata):
-    de = ag.rank_genes_df(adata)
+    de = ag.rank_genes_df(adata, key=DE_KEY)
     sel = ["CD14+ Monocytes", "B cells", "NK cells", "Dendritic cells"]
     marker_sets = {g: list(de[de["group"] == g].head(20)["names"]) for g in sel}
     return {
@@ -107,9 +110,13 @@ def _examples(adata):
         ),
         "ggann.plot_proportions": lambda: ag.plot_proportions(adata, GROUP, split_by="depth"),
         "ggann.plot_correlation": lambda: ag.plot_correlation(adata, GROUP),
-        "ggann.plot_rank_genes_dotplot": lambda: ag.plot_rank_genes_dotplot(adata, n_genes=3),
-        "ggann.plot_rank_genes_matrixplot": lambda: ag.plot_rank_genes_matrixplot(adata, n_genes=3),
-        "ggann.plot_volcano": lambda: ag.plot_volcano(adata, group="NK cells"),
+        "ggann.plot_rank_genes_dotplot": lambda: ag.plot_rank_genes_dotplot(
+            adata, n_genes=3, key=DE_KEY
+        ),
+        "ggann.plot_rank_genes_matrixplot": lambda: ag.plot_rank_genes_matrixplot(
+            adata, n_genes=3, key=DE_KEY
+        ),
+        "ggann.plot_volcano": lambda: ag.plot_volcano(adata, group="NK cells", key=DE_KEY),
         "ggann.plot_ma": lambda: ag.plot_ma(_ma_frame(adata), label_top=8),
         "ggann.plot_qc_violin": lambda: ag.plot_qc_violin(
             adata, metrics=["n_genes", "percent_mito", "n_counts"], group_by=GROUP

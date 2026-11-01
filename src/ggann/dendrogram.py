@@ -14,7 +14,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
-    geom_line,
+    geom_path,
     ggplot,
     labs,
     scale_x_continuous,
@@ -32,6 +32,25 @@ def _dendrogram_info(adata, group_by: str, key: str | None):
     if key not in adata.uns:
         import scanpy as sc
 
+        if group_by not in adata.obs:
+            raise KeyError(f"{group_by!r} is not a column of adata.obs.")
+        column = adata.obs[group_by]
+        if not isinstance(column.dtype, pd.CategoricalDtype):
+            raise ValueError(
+                f"{group_by!r} must be a categorical obs column; "
+                f"convert it with adata.obs[{group_by!r}].astype('category')."
+            )
+        observed = column.cat.remove_unused_categories()
+        if len(observed.cat.categories) < 2:
+            raise ValueError(
+                f"{group_by!r} has {len(observed.cat.categories)} observed categories; "
+                "a dendrogram needs at least 2."
+            )
+        if len(observed.cat.categories) < len(column.cat.categories):
+            # scanpy fails on unused categories; compute on a copy without them
+            adata = adata.copy()
+            adata.obs[group_by] = observed
+
         result = sc.tl.dendrogram(adata, groupby=group_by, key_added=key, inplace=False)
         if result is None:
             raise RuntimeError("scanpy did not return dendrogram coordinates.")
@@ -43,8 +62,10 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
     """Hierarchical tree relating the categories of ``group_by`` (``sc.pl.dendrogram``).
 
     Reuses coordinates stored by ``sc.tl.dendrogram``. If they are absent, the
-    coordinates are computed without modifying ``adata``. ``orientation='top'``
-    draws leaves along the x axis; ``orientation='left'`` draws them along y.
+    coordinates are computed without modifying ``adata``; categories with no
+    cells are ignored. A ``key`` that is not in ``adata.uns`` is not an error: the
+    tree is recomputed and the key is not stored. ``orientation='top'`` draws
+    leaves along the x axis; ``orientation='left'`` draws them along y.
 
     Parameters
     ----------
@@ -65,9 +86,10 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
     Raises
     ------
     KeyError
-        If grouping data or the requested stored result is missing.
+        If ``group_by`` is not an ``obs`` column and no stored result is used.
     ValueError
-        If ``orientation`` is unsupported or scanpy rejects grouping data.
+        If ``orientation`` is unsupported, ``group_by`` is not categorical, or
+        fewer than two categories have cells.
 
     Notes
     -----
@@ -97,7 +119,7 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
     if orientation == "top":
         return (
             ggplot(seg, aes("pos", "height", group="link"))
-            + geom_line()
+            + geom_path()
             + scale_x_continuous(breaks=leaf_pos, labels=list(ivl))
             + labs(x="", y="distance")
             + _family_theme("matrix")
@@ -107,7 +129,7 @@ def plot_dendrogram(adata, group_by: str, *, key: str | None = None, orientation
     # 'left' -- swap axes so leaves run down the y axis
     return (
         ggplot(seg, aes("height", "pos", group="link"))
-        + geom_line()
+        + geom_path()
         + scale_y_continuous(breaks=leaf_pos, labels=list(ivl))
         + labs(x="distance", y="")
         + _family_theme("matrix")
