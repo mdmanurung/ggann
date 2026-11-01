@@ -13,6 +13,7 @@ by indexing ``adata.X`` directly, keeping the one-extraction-layer contract.
 
 from __future__ import annotations
 
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -21,6 +22,7 @@ import plotnine_extra as pe
 from plotnine import aes, geom_point, ggplot, labs
 
 from ._expression import ordered_unique
+from ._grouping import _downsample_cells
 from ._resolve import embedding_coords, plain_name, resolve_frame
 from .plots import _continuous_scale, _embedding_style
 
@@ -64,6 +66,8 @@ def plot_density(
     rasterized: bool = False,
     show_axes: bool | None = None,
     equal_aspect: bool | None = None,
+    downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Gene-weighted density over an embedding, one faceted panel per feature.
 
@@ -79,8 +83,16 @@ def plot_density(
     Each panel's colour is the density min-max scaled to ``[0, 1]`` so panels
     stay legible under plotnine's shared facet scale (raw density magnitudes
     differ by orders of magnitude across genes). The scaling is monotonic, so the
-    within-panel ordering is unchanged; for raw-magnitude colourbars, compose
-    separate ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+    within-panel ordering is unchanged, but it **hides absolute density**: a faint
+    gene and a strong gene both reach 1 in their own panel, so compare panels by
+    pattern, not colour. For raw-magnitude colourbars, compose separate
+    ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+    ``joint=True`` needs two or more features; with one it warns and draws the
+    single panel.
+
+    ``downsample=N`` keeps at most ``N`` cells (drawn without replacement, seeded by
+    ``random_state``) before the KDE, which is the slow step on large data; the
+    density is then estimated from, and drawn at, the kept cells only.
 
     Parameters
     ----------
@@ -112,6 +124,10 @@ def plot_density(
         legacy or publication default.
     equal_aspect : bool, optional
         Force equal x/y data units; ``None`` enables it in publication mode.
+    downsample : int, optional
+        Maximum number of cells (total, not per group) used for the density.
+    random_state : int, optional
+        Seed for ``downsample``.
 
     Returns
     -------
@@ -139,6 +155,7 @@ def plot_density(
     >>> p = plot_density(adata, ["CD3D", "NKG7"], joint=True)
     """
     calculate_density = _require_pynebulosa()
+    adata = _downsample_cells(adata, None, downsample, random_state=random_state)
 
     if isinstance(features, str):
         features = [features]
@@ -180,6 +197,12 @@ def plot_density(
         for name in panels
     }
     panel_density = dict(raw_density)
+    if joint and len(panels) < 2:
+        warnings.warn(
+            "joint=True needs at least two features; drawing the single feature panel.",
+            UserWarning,
+            stacklevel=2,
+        )
     if joint and len(panels) > 1:
         joint_label = " + ".join(panels)
         panel_density[joint_label] = np.prod([raw_density[n] for n in panels], axis=0)

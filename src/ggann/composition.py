@@ -34,6 +34,8 @@ def plot_proportions(
 
     Parameters
     ----------
+    adata
+        Annotated data matrix.
     group_by
         The categorical whose composition is shown (the bar segments / fill).
     split_by
@@ -52,9 +54,6 @@ def plot_proportions(
         Explicit orders for the group and split columns. ``None`` uses the order
         stored on categorical ``obs`` columns, then observed values.
 
-    adata
-        Annotated data matrix.
-
     Returns
     -------
     plotnine.ggplot
@@ -65,7 +64,8 @@ def plot_proportions(
     KeyError
         If ``group_by`` or ``split_by`` is absent.
     ValueError
-        If ``kind`` or ordering is invalid, or area/trend lacks ``split_by``.
+        If ``kind`` or ordering is invalid, area/trend lacks ``split_by``, or
+        ``split_by`` is the same column as ``group_by``.
 
     Notes
     -----
@@ -77,6 +77,11 @@ def plot_proportions(
     >>> p = plot_proportions(adata, group_by="cell_type", split_by="condition")
     """
     adata = _drop_missing_groups(adata, group_by, split_by)
+    if split_by is not None and split_by == group_by:
+        raise ValueError(
+            f"split_by and group_by are both {group_by!r}; composition of a column "
+            "within itself is trivially 1. Pass a different split_by."
+        )
     if kind not in ("bar", "area", "trend"):
         raise ValueError(f"kind must be 'bar', 'area' or 'trend', got {kind!r}")
     if kind in ("area", "trend") and split_by is None:
