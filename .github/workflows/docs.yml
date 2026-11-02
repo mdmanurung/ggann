@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/annplyr
-          ref: cadb0e77eeb4ce9eef6a47deb9a51b93e6abf617
+          ref: 6aef6823c903082ffbc9640bfcd93adbad3e221b
           path: vendor/annplyr
       - uses: actions/checkout@v4
         with:
