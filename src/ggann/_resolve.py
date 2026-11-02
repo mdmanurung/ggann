@@ -32,6 +32,7 @@ from ._expression import (
     expression_frame,
     resolve_source,
     source_var_names,
+    to_wide,
     validate_materialization_budget,
 )
 from ._expression import (
@@ -347,7 +348,8 @@ def _embedding_frame(
     if not indices:
         return pd.DataFrame(index=adata.obs_names)
     selectors = _embedding_selectors(adata, key, indices)
-    frame = adata.ap.to_df(
+    frame = to_wide(
+        adata,
         obsm={key: selectors},
         max_matrix_values=max_matrix_values,
     )
@@ -567,7 +569,8 @@ def resolve_frame(
             layout.append(([name for name, _ in cols], len(cols)))
 
         combined = _densify(
-            adata.ap.to_df(
+            to_wide(
+                adata,
                 **call_kwargs,
                 max_matrix_values=max_matrix_values,
             )
@@ -580,7 +583,7 @@ def resolve_frame(
             cursor += width
     else:
         if obs_names:
-            frames.append(_densify(adata.ap.to_df(obs=obs_names)))
+            frames.append(_densify(to_wide(adata, obs=obs_names)))
         for key, cols in by_key.items():
             indices = [index for _, index in cols]
             coords = _embedding_frame(

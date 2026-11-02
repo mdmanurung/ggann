@@ -124,7 +124,8 @@ Raw results: `benchmarks/results/rerun-2026-11-02-*`.
 `pip install ggann` cannot resolve until both first-party dependencies are on
 PyPI at the declared versions. In order:
 
-1. Publish `annplyr` 0.3.x to PyPI.
+1. Publish `annplyr` 0.5.0 to PyPI. ggann now requires `annplyr>=0.5,<0.6`
+   (the 0.3 pin was widened on 2026-11-02 after porting to annplyr's 0.5 API).
 2. Publish `plotnine-extra` 0.3.1 from a commit that exports `DimPlot`,
    `FeatureDimPlot` and `ggvolcano` (not the stale `v0.3.1` tag).
 3. Install `ggann[heatmap,density,upset,pseudobulk]` from TestPyPI in a clean

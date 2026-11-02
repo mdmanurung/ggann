@@ -12,15 +12,17 @@ summary compares mean CST3 expression between shallowly and deeply sequenced
 cells within each PBMC3K cluster, then keeps a standard marker dotplot beside
 that custom summary.
 
-`adata.ap.to_df(...)` below projects exactly two genes. Its cumulative budget is
+`adata.ap.to_wide(...)` below projects exactly two genes. Its cumulative budget is
 `2 × n_obs`; annplyr rejects an over-budget plan before reading any requested
 matrix source. The grouped summary requests one gene and groups by both
 `louvain` and `depth`:
 
 ```python
+from annplyr.data import X, obs
+
 summary = adata.ap.summarize(
-    x={"mean_CST3": ap.mean(ap.col("CST3"))},
-    by=["louvain", "depth"],
+    mean_CST3=ap.mean(X.CST3),
+    by=(obs.louvain, obs.depth),
     max_matrix_values=adata.n_obs,
 )
 
@@ -51,7 +53,7 @@ workflow modifies the input.
 :linenos:
 ```
 
-Prefer `to_df` for one-row-per-cell tables and `to_tidy` for long
-observation-by-feature tables. Always select features explicitly for large
+Prefer `to_wide` for one-row-per-cell tables and `join_features(..., shape="long")`
+for long observation-by-feature tables. Always select features explicitly for large
 objects; use `max_matrix_values=` when exceeding a known memory boundary must be
 an error rather than a performance surprise.

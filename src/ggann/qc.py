@@ -29,7 +29,7 @@ from plotnine import (
 
 from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import densify_frame as _densify
-from ._expression import resolve_source, source_label, source_matrix
+from ._expression import resolve_source, source_label, source_matrix, to_wide
 from ._grouping import _drop_missing_groups
 from ._palette import scale_fill_obs
 from .publication import _family_theme
@@ -270,7 +270,7 @@ def plot_qc_violin(
     adata = _drop_missing_groups(adata, group_by)
     metrics = _resolve_metrics(adata, metrics)
     cols = ([group_by] if group_by else []) + metrics
-    df = _densify(adata.ap.to_df(obs=cols))
+    df = _densify(to_wide(adata, obs=cols))
     id_vars = [group_by] if group_by else []
     long = df.melt(id_vars=id_vars, value_vars=metrics, var_name="metric", value_name="value")
     if log:

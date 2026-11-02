@@ -152,7 +152,7 @@ overrides the plot-wide source for that gene.
 `ggann` delegates AnnData-to-table extraction to `annplyr` and projects only the
 requested expression columns before conversion. Grammar users can set
 `gganndata(..., max_matrix_values=...)` to bound cumulative expression and
-`obsm` reads. Use `adata.ap.to_df(...)` or `adata.ap.to_tidy(...)` directly when
+`obsm` reads. Use `adata.ap.to_wide(...)` or `adata.ap.join_features(...)` directly when
 preparing a custom table with the same annplyr budget.
 
 See the executable [annplyr vignette](docs/vignettes/annplyr_interop.md) and the

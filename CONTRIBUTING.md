@@ -14,7 +14,7 @@ uv venv .venv --python 3.12
 uv pip install --python .venv/bin/python -e ".[dev]"
 ```
 
-Until annplyr 0.3 and plotnine-extra 0.3.1 are available from the configured
+Until annplyr 0.5 and plotnine-extra 0.3.1 are available from the configured
 package index, install their local sibling checkouts first:
 
 ```bash
