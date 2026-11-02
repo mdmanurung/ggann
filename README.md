@@ -149,11 +149,36 @@ overrides the plot-wide source for that gene.
 
 ## annplyr interoperability
 
-`ggann` delegates AnnData-to-table extraction to `annplyr` and projects only the
-requested expression columns before conversion. Grammar users can set
-`gganndata(..., max_matrix_values=...)` to bound cumulative expression and
-`obsm` reads. Use `adata.ap.to_wide(...)` or `adata.ap.join_features(...)` directly when
-preparing a custom table with the same annplyr budget.
+`ggann` depends on `annplyr` 0.5 and reads `AnnData` through it. An annplyr
+result plots without an adapter: `ap.tidy(adata)` returns a `TidyAnnData`
+(an `AnnData` subclass), and `gganndata` and every `plot_*` helper accept it.
+
+```python
+import annplyr as ap
+from annplyr.data import X_umap, obs, raw
+from plotnine import aes, geom_point, ggplot
+
+import ggann as ag
+
+adata = ap.tidy(adata)
+scored = adata.filter(obs.percent_mito < 0.05).mutate(b_score=(raw.MS4A1 + raw.CD79A) / 2)
+
+scored.pipe(ag.plot_embedding, color="b_score")  # helper, chained
+ag.gganndata(scored, aes("UMAP_1", "UMAP_2", color="b_score")) + geom_point()  # grammar
+
+table = adata.to_wide(obs.louvain, X_umap)  # columns: louvain, UMAP_1, UMAP_2
+ggplot(table, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.theme_ggann()
+```
+
+Tables from `to_wide`, `join_features`, `summarize` and `count` are DataFrames that
+plotnine draws directly. One caveat: `join_features(..., shape="long")` returns
+`.abundance_*` with a pandas sparse dtype, so call `.sparse.to_dense()` on it
+before `geom_boxplot`. `ap.store_palette` colours are the ones `plot_embedding` and
+`scale_color_obs` draw.
+
+`ggann` projects only the requested expression columns before conversion. Use
+`gganndata(..., max_matrix_values=...)` or the same keyword on an annplyr verb to
+bound what is read.
 
 See the executable [annplyr vignette](docs/vignettes/annplyr_interop.md) and the
 [API concepts guide](docs/concepts.md) for source, ownership, sparse, backed,
