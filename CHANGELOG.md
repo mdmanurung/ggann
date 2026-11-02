@@ -4,6 +4,27 @@ All notable changes to ggann are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `tidy_heatmap` and `TidyHeatmap`: a port of the tidyHeatmap verbs
+  (`annotation_*`, `layer_*`, `split_rows`/`split_columns`, `get_heatmap_data`,
+  `+`, `as_ComplexHeatmap`, `save`) on PyComplexHeatmap, for long tables,
+  `DataFrameGroupBy` input and `AnnData`. `annotation_numeric` and
+  `show_group_name=False` are partial; see `docs/tidy_heatmap.md`.
+- The colour bar names any `transform` and `scale`, e.g. `log1p(mean)` over
+  `z-score by row`, so a scaled matrix is never labelled as raw values.
+
+### Fixed
+
+- `save_publication` (and so `TidyHeatmap.save` and exports of `plot_clustermap`)
+  now fits PyComplexHeatmap figures to the exact canvas. It measures the tick
+  labels, axis labels, legends and colourbars, then shrinks the heatmap body
+  (dendrograms, annotations and legends follow it) until nothing is cut off.
+  The canvas and dpi never change. If the body would drop below 20 mm, the
+  overflow warning stays and says so.
+
 ## [0.1.0] - Unreleased
 
 Initial public release.

@@ -253,9 +253,23 @@ The same exporter accepts the objects returned by `plot_clustermap` and
 `plot_upset`, even though those two documented exceptions are not plotnine
 objects. Both export to SVG, PDF and PNG.
 
-Size a clustermap at construction. PyComplexHeatmap lays out in millimetres at
-the size of the current Matplotlib figure, so create that figure at the export
-size first, then call `plot_clustermap`:
+A clustermap is fitted to the canvas at export. PyComplexHeatmap lays out the
+body, dendrograms, annotations and legends for the figure size at construction
+and leaves no room for tick labels or its own legends, so `save_publication`
+measures them and shrinks the heatmap body until every label, legend and
+colourbar is inside. Dendrograms, annotations and legends keep their size and
+follow the body. The canvas and dpi are not changed. This also applies to
+`TidyHeatmap.save`.
+
+Fitting stops when the body would be smaller than 20 mm. The overflow warning
+then stays, and says the heatmap was shrunk to its minimum body size. On
+`pbmc68k_reduced` with six genes, 183 × 120 mm now fits with nothing cut off
+(it cut off 39 items, by up to 32 mm, before). At 89 × 70 mm the ten long group
+names and the two-column legend do not fit, so it warns. Shorten the labels or
+pass `plot_legend=False`.
+
+Construct the clustermap at the export size when you can, so the proportions of
+the annotations and dendrograms start right:
 
 ```python
 import matplotlib.pyplot as plt
@@ -265,12 +279,8 @@ heatmap = ag.plot_clustermap(adata, genes, group_by="cell_type")
 ag.save_publication(heatmap, "clustermap", width="single-column", height=70)
 ```
 
-A clustermap built at its own size and resized at export loses its
-dendrograms, colourbar and bottom rows. Building at the export size is not
-enough when the labels and legend are larger than the canvas: with ten long
-group names on `pbmc68k_reduced` at 183 × 120 mm, the rotated column names and
-the legend were still reported as cut off. Use shorter labels, or pass
-`show_colnames=False` and `plot_legend=False`, and read the warning.
+A clustermap built at its own size and resized at export has distorted
+annotation and dendrogram proportions, even though nothing is cut off.
 
 A Matplotlib dotplot or matrixplot measures its left margin from the rendered
 y labels, at export size, and its legend fits the 89 mm column on

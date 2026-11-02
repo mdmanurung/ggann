@@ -114,10 +114,12 @@ plain plotnine code; none has been filed yet.
 
 ## Publication export and style
 
-- **Clustermap size.** A `plot_clustermap` figure must be created at the export
-  size first. Even then, long column names or a legend wider than the canvas are
-  cut off; `save_publication` warns and does not fix it. Shorten the labels, or
-  pass `show_colnames=False` and `plot_legend=False`.
+- **Clustermap size.** `save_publication` shrinks the heatmap body so labels and
+  legends fit the canvas (also for `TidyHeatmap.save`). It stops at a 20 mm body.
+  Below that, for example ten long group names and a two-column legend at
+  89 mm, it warns and the overflow stays. Shorten the labels, or pass
+  `show_colnames=False` and `plot_legend=False`. Build the figure at the export
+  size first to keep annotation proportions. `TidyHeatmapSet` (`+`) is not fitted.
 - **Clustermap and compose.** `compose` rejects a clustermap or UpSet result
   (`TypeError`). Export those on their own and combine the files outside ggann.
 - **Narrow Matplotlib dotplots.** The legend fits an 89 mm canvas on
@@ -125,7 +127,7 @@ plain plotnine code; none has been filed yet.
   a 70 mm canvas by about 2 mm. `save_publication` reports it. Widen the canvas
   or use the plotnine backend.
 - **Overflow is reported, not fixed.** `save_publication` never crops or enlarges
-  the canvas.
+  the canvas. Only PyComplexHeatmap figures are re-laid out; elsewhere it warns.
 - **Eight CVD-measured colours.** Only the first eight qualitative colours are
   measured under colour-vision simulation. Larger palettes keep earlier colours
   fixed, but separation is not guaranteed; ggann warns from 10 categories. Add

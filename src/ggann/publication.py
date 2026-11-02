@@ -794,6 +794,8 @@ def _figure_from_object(plot, width_in: float, height_in: float, dpi: int):
         working._apply_publication_gap(figure)
     for axis in list(getattr(figure, "_ggann_fit_left", ())):
         fit_left_labels(figure, axis)
+    if hasattr(working, "ax_heatmap"):  # a PyComplexHeatmap ClusterMapPlotter
+        fit_clustermap_to_canvas(working, figure)
     return figure
 
 
@@ -821,13 +823,109 @@ def fit_left_labels(figure, axis, *, pad_mm: float = 1.0, min_axes_fraction: flo
     axis.set_position((pos.x1 - width, pos.y0, width, pos.height))
 
 
-def _overflow_report(figure, tolerance_px: float = 0.5) -> list[str]:
-    """Describe text, legends and colourbars that leave the canvas or are clipped.
+def fit_clustermap_to_canvas(
+    plotter,
+    figure,
+    *,
+    pad_mm: float = 1.0,
+    min_body_mm: float = 20.0,
+    max_iter: int = 8,
+) -> bool:
+    """Shrink a drawn PyComplexHeatmap layout until all its text and legends fit ``figure``.
 
-    Draws the figure once at its final physical size. Reports items beyond the
-    canvas edge and texts cut by their own axes clip box. Nothing is cropped or
-    resized.
+    PyComplexHeatmap sizes the body, dendrograms and annotations for the figure it was
+    created on and leaves no room for tick labels, axis labels or legends. This measures
+    every text, legend and colourbar, then pulls the body's edges (``ax_heatmap``) inward
+    by the measured overflow on each side and repeats, at most ``max_iter`` times.
+    Dendrograms, annotations and tick labels keep their size and follow the nearest
+    body edge; the legend column moves rigidly with the body's top right corner. The
+    canvas is never changed. The body is never made smaller than ``min_body_mm`` in
+    either direction. Returns ``True`` when
+    nothing overflows afterwards; otherwise the figure is left at that minimum layout
+    and :func:`save_publication` reports what is still cut off.
     """
+    from matplotlib.transforms import Bbox
+
+    # cbars holds colourbars (``.ax``) and matplotlib legends (drawn on ``legend_axes``)
+    legend_axes = [
+        *getattr(plotter, "legend_axes", ()),
+        *(c.ax for c in getattr(plotter, "cbars", ()) if hasattr(c, "ax")),
+    ]
+    # matplotlib legends are anchored in figure fractions, so they move on their own
+    legends = [c for c in getattr(plotter, "cbars", ()) if hasattr(c, "get_bbox_to_anchor")]
+    legend_parts = {id(p) for lg in legends for p in (lg, lg.get_title(), *lg.get_texts())}
+    block = [a for a in figure.axes if a not in legend_axes]
+    body = plotter.ax_heatmap
+    dpi = figure.dpi
+    figure.set_dpi(min(dpi, 100))  # the layout is in figure fractions, so measure cheaply
+    fitted = False
+    try:
+        for step in range(max_iter + 1):
+            canvas = figure.bbox
+            pad = pad_mm / 25.4 * figure.dpi if step else 0.0  # trigger on real overflow only
+            over = dict.fromkeys(("left", "right", "bottom", "top"), 0.0)
+            for artist, _, box in _artist_boxes(figure):
+                sides = _sides_beyond(box, canvas, pad)
+                if id(artist) in legend_parts or getattr(artist, "axes", None) in legend_axes:
+                    sides = {"right": sides["right"]}  # legends only follow the right edge
+                for side, value in sides.items():
+                    over[side] = max(over[side], value)
+            if max(over.values()) <= 0.5:
+                fitted = True
+                break
+            if step == max_iter:
+                break
+            if not step:  # real overflow found: from here on fit to the padded canvas
+                continue
+            width, height = canvas.width, canvas.height
+            b = body.get_position()
+            # New body edges: the overflow comes off each side, but the body keeps min_body_mm.
+            min_w = min(min_body_mm / 25.4 * figure.dpi / width, b.width)
+            min_h = min(min_body_mm / 25.4 * figure.dpi / height, b.height)
+            nx0 = b.x0 + over["left"] / width
+            nx1 = nx0 + max(b.width - (over["left"] + over["right"]) / width, min_w)
+            # at the minimum the top stays inside, so the column names are cut off, not the header
+            ny1 = b.y1 - over["top"] / height
+            ny0 = ny1 - max(b.height - (over["bottom"] + over["top"]) / height, min_h)
+            if (nx0, nx1, ny0, ny1) == (b.x0, b.x1, b.y0, b.y1):
+                break
+
+            def warp(p, lo, hi, new_lo, new_hi):
+                # the body stretches; everything outside it (dendrograms, annotations,
+                # tick labels' axes) keeps its size and follows the nearest body edge
+                if p <= lo:
+                    return new_lo - (lo - p)
+                if p >= hi:
+                    return new_hi + (p - hi)
+                return new_lo + (p - lo) * (new_hi - new_lo) / (hi - lo)
+
+            def fx(p):
+                return warp(p, b.x0, b.x1, nx0, nx1)
+
+            def fy(p):
+                return warp(p, b.y0, b.y1, ny0, ny1)
+
+            dx, dy = nx1 - b.x1, ny1 - b.y1  # the legend column follows the body's top right
+            for axis in legend_axes:
+                p = axis.get_position()
+                axis.set_position(Bbox.from_extents(p.x0 + dx, p.y0 + dy, p.x1 + dx, p.y1 + dy))
+            for lg in legends:
+                a = lg.get_bbox_to_anchor().transformed(figure.transFigure.inverted())
+                lg.set_bbox_to_anchor(
+                    Bbox.from_extents(a.x0 + dx, a.y0 + dy, a.x1 + dx, a.y1 + dy),
+                    transform=figure.transFigure,
+                )
+            for axis in block:
+                p = axis.get_position()
+                axis.set_position(Bbox.from_extents(fx(p.x0), fy(p.y0), fx(p.x1), fy(p.y1)))
+    finally:
+        figure.set_dpi(dpi)
+    figure._ggann_fit_exhausted = not fitted
+    return fitted
+
+
+def _artist_boxes(figure):
+    """Draw ``figure`` once; yield ``(artist, name, box)`` for visible text, legends, colourbars."""
     from matplotlib.legend import Legend
     from matplotlib.offsetbox import AnchoredOffsetbox
     from matplotlib.text import Text
@@ -836,22 +934,6 @@ def _overflow_report(figure, tolerance_px: float = 0.5) -> list[str]:
     # plotnine figure already carries leaves artists at stale positions.
     FigureCanvasAgg(figure).draw()
     renderer = figure._get_renderer()
-    canvas = figure.bbox
-    mm_per_px = 25.4 / figure.dpi
-    found: list[str] = []
-
-    def beyond(box) -> str | None:
-        sides = {
-            "left": canvas.x0 - box.x0,
-            "right": box.x1 - canvas.x1,
-            "bottom": canvas.y0 - box.y0,
-            "top": box.y1 - canvas.y1,
-        }
-        worst = max(sides, key=lambda side: sides[side])
-        if sides[worst] <= tolerance_px:
-            return None
-        return f"{worst} by {sides[worst] * mm_per_px:.1f} mm"
-
     for artist in figure.findobj(lambda a: isinstance(a, (Text, Legend, AnchoredOffsetbox))):
         if not artist.get_visible():
             continue
@@ -862,11 +944,37 @@ def _overflow_report(figure, tolerance_px: float = 0.5) -> list[str]:
         else:
             name = "legend" if isinstance(artist, Legend) else "legend or colourbar"
         box = artist.get_window_extent(renderer)
-        if not (box.width > 0 and box.height > 0):
-            continue
-        message = beyond(box)
-        if message:
-            found.append(f"{name} ({message})")
+        if box.width > 0 and box.height > 0:
+            yield artist, name, box
+
+
+def _sides_beyond(box, canvas, inset_px: float = 0.0) -> dict[str, float]:
+    """Pixels by which ``box`` leaves ``canvas`` (shrunk by ``inset_px``) on each side."""
+    return {
+        "left": canvas.x0 + inset_px - box.x0,
+        "right": box.x1 - canvas.x1 + inset_px,
+        "bottom": canvas.y0 + inset_px - box.y0,
+        "top": box.y1 - canvas.y1 + inset_px,
+    }
+
+
+def _overflow_report(figure, tolerance_px: float = 0.5) -> list[str]:
+    """Describe text, legends and colourbars that leave the canvas or are clipped.
+
+    Draws the figure once at its final physical size. Reports items beyond the
+    canvas edge and texts cut by their own axes clip box. Nothing is cropped or
+    resized.
+    """
+    from matplotlib.text import Text
+
+    canvas = figure.bbox
+    mm_per_px = 25.4 / figure.dpi
+    found: list[str] = []
+    for artist, name, box in _artist_boxes(figure):
+        sides = _sides_beyond(box, canvas)
+        worst = max(sides, key=lambda side: sides[side])
+        if sides[worst] > tolerance_px:
+            found.append(f"{name} ({worst} by {sides[worst] * mm_per_px:.1f} mm)")
             continue
         if isinstance(artist, Text) and artist.get_clip_on():
             clip = artist.get_clip_box()
@@ -894,8 +1002,13 @@ def _warn_overflow(figure, width_mm: float, height_mm: float) -> None:
     shown = "; ".join(found[:4]) + (f"; and {len(found) - 4} more" if len(found) > 4 else "")
     warnings.warn(
         f"save_publication: {len(found)} item(s) are cut off at the {width_mm:.0f} x "
-        f"{height_mm:.0f} mm canvas: {shown}. The canvas was not changed; shorten labels, "
-        "reduce font sizes or enlarge the figure.",
+        f"{height_mm:.0f} mm canvas: {shown}. The canvas was not changed"
+        + (
+            "; the heatmap was already shrunk to its minimum body size"
+            if getattr(figure, "_ggann_fit_exhausted", False)
+            else ""
+        )
+        + "; shorten labels, reduce font sizes or enlarge the figure.",
         UserWarning,
         skip_file_prefixes=SKIP_GGANN_FRAMES,
     )

@@ -184,8 +184,12 @@ convenience.
    plot_stacked_violin
    plot_tracksplot
    plot_clustermap
+   tidy_heatmap
+   TidyHeatmap
    plot_dendrogram
 ```
+
+`tidy_heatmap` and its `TidyHeatmap` verbs are described in {doc}`tidy_heatmap`.
 
 ## Distributions
 

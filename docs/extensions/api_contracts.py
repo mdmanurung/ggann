@@ -258,6 +258,17 @@ plot = ag.plot_ma(results)""",
                 ")"
             ),
         ),
+        "ggann.tidy_heatmap": _contract(
+            "A ``TidyHeatmap``; chain verbs, then ``draw()`` or ``save()``.",
+            "Duplicated row/column pairs, missing values without an ``na`` policy, or an "
+            "invalid ``scale`` or ``palette_value`` raise ``ValueError``. A non-callable "
+            "``transform`` raises ``TypeError``.",
+            _pbmc(
+                "heatmap = ag.tidy_heatmap(\n"
+                '    adata, genes=["CD3D", "NKG7"], group_by="bulk_labels", scale="row"\n'
+                ').annotation_tile("bulk_labels")'
+            ),
+        ),
         "ggann.plot_upset": _contract(
             "A marsilea ``Upset`` object, rendered immediately by default.",
             "Raises ``ImportError`` when the ``upset`` extra is unavailable, "
