@@ -6,7 +6,7 @@ and styling that is omitted from these compact constructions.
 
 ``gganndata(adata, aes(...))`` does the name resolution and returns a real
 ``plotnine.ggplot`` whose ``.data`` is the tidy frame the layers draw from; for
-grouped summaries the annplyr accessor (``adata.ap.summarize``) does the
+grouped summaries annplyr (``ap.tidy(adata).summarize``) does the
 aggregation. From there it is ordinary plotnine (``+ geom_* + scale_* + theme``).
 
 ``HELPERS`` maps each name to the corresponding convenience call so ``main()``
@@ -149,8 +149,9 @@ def _first_group_on_top(long, group):
 def _grouped_means(adata, genes, group, cutoff=0.0):
     """Group-by-gene mean expression and fraction expressing, via annplyr."""
     by = sources.obs[group]
-    mean = adata.ap.summarize({g: ap.mean(sources.raw[g]) for g in genes}, by=by)
-    frac = adata.ap.summarize({g: ap.mean(sources.raw[g] > cutoff) for g in genes}, by=by)
+    tidy = ap.tidy(adata)
+    mean = tidy.summarize({g: ap.mean(sources.raw[g]) for g in genes}, by=by)
+    frac = tidy.summarize({g: ap.mean(sources.raw[g] > cutoff) for g in genes}, by=by)
     mean = mean.set_index(group)[genes].astype(float)
     frac = frac.set_index(group)[genes].astype(float)
     long = (
@@ -277,7 +278,7 @@ def correlation_grammar(adata, group=GROUP, n_genes=None):
         genes = genes[:n_genes]
     # Match plot_correlation's default source: raw when present, otherwise X.
     source = sources.raw if adata.raw is not None else sources.X
-    means = adata.ap.summarize(
+    means = ap.tidy(adata).summarize(
         {g: ap.mean(source[g]) for g in genes},
         by=sources.obs[group],
     )
