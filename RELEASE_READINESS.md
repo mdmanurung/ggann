@@ -10,7 +10,7 @@ first (see [Release blockers](#release-blockers)).
 
 | Area | Result | Evidence |
 |---|:---:|---|
-| Test suite | **PASS** | 686 tests, Python 3.12.13, `pytest -n 8` |
+| Test suite | **PASS** | 755 tests, Python 3.12.13, `python -m pytest -q` |
 | Backlog | **PASS** | All 96 evaluation rows completed, documented or deferred with a reason |
 | Static quality | **PASS** | ruff check and format clean; pyright 0 errors over `src/ggann` |
 | Documentation | **PASS** | Offline `sphinx-build -W --keep-going` exits 0 and executes every vignette |
@@ -24,7 +24,7 @@ first (see [Release blockers](#release-blockers)).
 
 Python 3.12.13 in `.venv-rc`, locked in `plans/evaluation/env-rc.lock`.
 First-party dependencies come from pinned commits, as in CI: annplyr
-`cadb0e77` (0.3.0) and plotnine-extra `fcbd88f6` (0.3.1).
+`8e4c0a5` (0.5.0) and plotnine-extra `fcbd88f6` (0.3.1).
 
 | Package | Version |
 |---|---|

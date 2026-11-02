@@ -544,9 +544,9 @@ def resolve_frame(
 
     exported_names = list(obs_names)
     for (k, _lyr), gnames in fused_source_items:
-        exported_names.extend(f"raw_{name}" if k == "raw" else name for name in gnames)
-    for key, selectors in obsm_requests.items():
-        exported_names.extend(f"{key}_{selector}" for selector in selectors)
+        exported_names.extend(gnames)
+    for cols in by_key.values():
+        exported_names.extend(name for name, _ in cols)
     can_fuse = bool(obs_names or fused_source_items or obsm_requests) and len(
         exported_names
     ) == len(set(exported_names))
@@ -578,7 +578,7 @@ def resolve_frame(
         cursor = 0
         for names, width in layout:
             piece = combined.iloc[:, cursor : cursor + width].copy(deep=False)
-            piece.columns = names
+            piece.columns = names  # DataFrame obsm keeps its own names in annplyr
             frames.append(piece)
             cursor += width
     else:
