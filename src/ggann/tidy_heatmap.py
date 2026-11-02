@@ -116,6 +116,7 @@ class _Spec:
     row_split: int | None = None
     col_split: int | None = None
     default_show_colnames: bool = True
+    value_label: str | None = None  # colour-bar title: names transform and scale
 
 
 # --------------------------------------------------------------------------- build
@@ -424,7 +425,13 @@ def tidy_heatmap(
         )
     groups = parts.pop("groups", [])
     _value_cmap(palette_value)  # fail early on a bad palette
+    label = str(parts["value"])
+    if transform is not None:
+        label = f"{getattr(transform, '__name__', 'transform')}({label})"
+    if scale != "none":
+        label += "\nz-score by " + {"both": "row and column"}.get(scale, scale)
     spec = _Spec(
+        value_label=label,
         palette_value=palette_value,
         kwargs=kwargs,
         palette_grouping=tuple(tuple(p) for p in (palette_grouping or ())),
@@ -781,7 +788,7 @@ def _plotter(spec: _Spec, *, plot: bool, defaults: Mapping[str, Any] | None = No
         "cmap": _value_cmap(spec.palette_value),
         "vmin": lo,
         "vmax": hi,
-        "label": spec.value,
+        "label": spec.value_label or spec.value,
         "xlabel": spec.column,
         "ylabel": spec.row,
         "row_cluster_method": "complete",

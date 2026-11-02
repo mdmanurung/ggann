@@ -603,3 +603,18 @@ def test_save_of_a_composition(long_df, tmp_path):
         warnings.simplefilter("ignore", UserWarning)
         (path,) = both.save(tmp_path / "two.png", width=183, height=80, dpi=100)
     assert path.exists()
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "label"),
+    [
+        ({}, "mean"),
+        ({"scale": "row"}, "mean\nz-score by row"),
+        ({"scale": "both", "transform": np.log1p}, "log1p(mean)\nz-score by row and column"),
+    ],
+)
+def test_colour_bar_names_transform_and_scale(long_df, kwargs, label):
+    # a z-scored matrix must not be labelled as raw values
+    plotter = _hm(long_df, **kwargs).as_ComplexHeatmap()
+    assert plotter.label == label
+    plt.close("all")
