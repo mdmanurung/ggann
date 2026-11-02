@@ -1,6 +1,6 @@
 # ggann 0.1.0 verification record
 
-Assessment date: 2026-11-02. Branch `release/0.1.0-readiness`.
+Assessment date: 2026-11-02 (gate re-run included). Branch `release/0.1.0-readiness`.
 
 The package source is ready for release. Publication to PyPI is blocked on
 two upstream packages, `annplyr` and `plotnine-extra`, which must reach PyPI
@@ -10,13 +10,14 @@ first (see [Release blockers](#release-blockers)).
 
 | Area | Result | Evidence |
 |---|:---:|---|
-| Test suite | **PASS** | 680 tests, Python 3.12.13, `pytest -n 8` |
+| Test suite | **PASS** | 686 tests, Python 3.12.13, `pytest -n 8` |
 | Backlog | **PASS** | All 96 evaluation rows completed, documented or deferred with a reason |
 | Static quality | **PASS** | ruff check and format clean; pyright 0 errors over `src/ggann` |
 | Documentation | **PASS** | Offline `sphinx-build -W --keep-going` exits 0 and executes every vignette |
 | Scanpy agreement | **PASS** | Dotplot/matrixplot means and fractions match Scanpy within `atol=rtol=1e-6` (max 3e-7) |
 | Statistics | **PASS** | `stat_cor`, `stat_regline_equation`, `stat_compare_means` match SciPy on the same inputs |
 | Distribution | **PASS** | sdist and wheel build; `twine check --strict`; wheel imports outside the checkout; `pip check` clean |
+| Self-regression | **PASS** (claim stages) | Preparation and end-to-end within 5% of frozen `30e3359` across two counterbalanced passes; embedding construction +12% (diagnostic stage), explained below |
 | Public install | **BLOCKED** | `annplyr` 404 and `plotnine-extra` only 0.2.0 on PyPI |
 
 ## Runtime
@@ -93,6 +94,31 @@ Numbers measured on `res-hpc-exe048` (Xeon E5-2690 v3, 8 of 24 CPUs) on
   27 s exact, with Spearman 1.0000 and max normalized error 0.016.
 - The exact-method target (under 5 s at 30,000 cells) is still unmet.
 
+### Self-regression gate against frozen `30e3359`
+
+Re-run on 2026-11-02 with the 2026-08-09 settings (synthetic extended CSR
+fixture, seed 20260809, 7 repeats, one BLAS thread), both trees in
+`.venv-rc`. The node carried load 4 to 13 from other jobs, so the run was
+counterbalanced: frozen, candidate, frozen, candidate. Ratios below are the sum
+of the two candidate medians over the sum of the two frozen medians.
+
+| Workload | Preparation | Construction | Render | End to end |
+|---|---:|---:|---:|---:|
+| Embedding | 1.045 | **1.121** | 1.031 | 1.041 |
+| Dotplot | 0.996 | 1.035 | 1.016 | 1.015 |
+| Matrixplot | 1.024 | 1.036 | 1.006 | 1.022 |
+
+Memory (end-to-end peak and retained RSS) is within 5% in every workload.
+
+The first pass alone failed 7 checks while load rose from 10 to 13; the
+reversed pass shows that most of it was drift. Embedding construction is a real
++1.5 ms per plot (+12%) in both passes. A profile traces it to the new
+colour-scale path: stored-palette reuse, Scanpy's default palette as the
+fallback and numeric-to-continuous dispatch (rows D3 and B5), about 2,200
+extra small calls per plot. The harness treats construction as a diagnostic
+stage; only preparation and end-to-end support speed claims, and both pass.
+Raw results: `benchmarks/results/rerun-2026-11-02-*`.
+
 ## Release blockers
 
 `pip install ggann` cannot resolve until both first-party dependencies are on
@@ -126,7 +152,7 @@ twine check --strict dist/*
 
 The earlier record reported 386 tests on Python 3.12, 3.13 and 3.14,
 pixel-identical legacy rendering against frozen commit `30e3359`, and a 5%
-performance-regression gate on a 20,000 × 10,000 fixture. Those checks predate
-the changes above and were not re-run as such; deliberate default changes
+performance-regression gate on a 20,000 × 10,000 fixture. The timing gate was re-run
+on 2026-11-02 (see Performance). The pixel comparisons were not: deliberate default changes
 (category order, palettes, stacked violin) now alter several of the compared
 images. The raw results stay in `benchmarks/results/`.
