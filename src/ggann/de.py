@@ -505,7 +505,7 @@ def plot_volcano(
         + labs(
             x="log2 fold change",
             y="-log10(adjusted p-value)",
-            color=f"adjusted p ≤ {padj:g}\n|log2FC| ≥ {lfc:g}",
+            color=f"adjusted p < {padj:g}\n|log2FC| ≥ {lfc:g}",
         )
         + _family_theme("standard")
     )
