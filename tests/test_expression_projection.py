@@ -12,6 +12,7 @@ from ggann._aggregate import aggregate_expression, group_means, tidy_expression
 from ggann._expression import (
     densify_frame,
     expression_frame,
+    expression_with_obs_frame,
     project_expression,
     resolve_source,
 )
@@ -554,6 +555,31 @@ def test_group_means_supports_obs_gene_name_collisions():
 
     assert list(result.columns) == ["gene_1"]
     assert len(result) == 4
+
+
+@pytest.mark.parametrize("use_raw", [False, True])
+def test_gene_named_like_obs_column_does_not_hit_annplyr_duplicate_name(use_raw):
+    # annplyr 0.5 exports bare gene names, so one fused call would raise
+    # DuplicateNameError; ggann falls back to separate reads and keeps the gene.
+    adata = _adata("dense")
+    adata.obs["gene_1"] = 99.0
+    source = adata.raw.X if use_raw else adata.X
+    expected = np.asarray(source[:, adata.var_names.get_loc("gene_1")]).ravel()
+
+    expression, observations, _ = expression_with_obs_frame(
+        adata, ["gene_1"], ["group", "gene_1"], kind="raw" if use_raw else "x", layer=None
+    )
+    frame = resolve_frame(adata, ["gene:gene_1@raw" if use_raw else "gene:gene_1@X", "group"])
+
+    assert np.array_equal(expression["gene_1"].to_numpy(), expected)
+    assert (observations["gene_1"] == 99.0).all()
+    assert np.array_equal(frame["gene_1"].to_numpy(), expected)
+
+
+def test_same_gene_from_x_and_raw_in_one_request_resolves():
+    adata = _adata("dense")
+    frame = resolve_frame(adata, ["gene:gene_1@X", "gene:gene_1@raw", "group"])
+    assert list(frame.columns) == ["gene_1", "group"]
 
 
 def test_densify_frame_preserves_sparse_numeric_dtype():
