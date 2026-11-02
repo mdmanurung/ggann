@@ -896,7 +896,7 @@ def plot_stacked_violin(
     downsample: int | None = None,
     random_state: int | None = 0,
     log: bool = False,
-    rotation: float | None = None,
+    rotation: float = 90,
     swap_axes: bool = False,
     stripplot: bool = False,
     yticklabels: bool = False,
@@ -934,10 +934,10 @@ def plot_stacked_violin(
         Downsampling and jitter seed; ``None`` is nondeterministic.
     log : bool
         Plot ``log1p(expression)``; zeros stay at zero.
-    rotation : float, optional
-        X-label angle in degrees. Default 45 for gene labels and 90 for group
-        labels (``swap_axes=True``). Vertical labels, as in Scanpy, never hang
-        past the left edge; at smaller angles a long first label can.
+    rotation : float, default=90
+        X-label angle in degrees (gene labels, or group labels with
+        ``swap_axes=True``). Vertical labels, as in Scanpy, never hang past the
+        left edge; at smaller angles a long first label can.
     swap_axes : bool, default=False
         Genes as rows and groups along x (Scanpy's ``swap_axes=True`` layout).
     stripplot : bool
@@ -999,7 +999,7 @@ def plot_stacked_violin(
         + labs(x="", y="", fill="median\n" + ("log1p(expr)" if log else "expression"))
         + _family_theme("distribution")
         + theme(strip_text_y=element_text(angle=0))
-        + pe.rotate_x_text((90 if swap_axes else 45) if rotation is None else rotation)
+        + pe.rotate_x_text(rotation)
     )
     if not yticklabels:
         plot = plot + theme(axis_text_y=element_blank(), axis_ticks_major_y=element_blank())

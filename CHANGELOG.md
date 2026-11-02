@@ -92,7 +92,7 @@ Check these before re-running a figure made with a pre-release build.
   `standard_scale=None`, `plot_variance_ratio(n_pcs=30, log=False)`,
   `plot_highest_expr_genes` 30 genes.
 - `plot_stacked_violin` fills each violin by group median expression and draws
-  groups as rows with genes along x (labels at 45°), as Scanpy does by default.
+  groups as rows with genes along x (vertical gene labels), as Scanpy does by default.
   Pass `swap_axes=True` for the earlier layout: genes as rows, groups along x
   with labels at 90°.
 - Without stored `adata.uns["<key>_colors"]`, discrete scales use Scanpy's
