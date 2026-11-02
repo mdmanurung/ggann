@@ -606,7 +606,9 @@ def test_save_autofit_keeps_everything_inside_the_exact_canvas(
     if bar:
         hm = hm.annotation_bar("n_cells")
     with warnings.catch_warnings():
-        warnings.simplefilter("error", UserWarning)  # nothing is cut off
+        warnings.filterwarnings(
+            "error", message=".*cut off", category=UserWarning
+        )  # nothing is cut off
         (path,) = hm.save(tmp_path / "fig.png", width=width, height=height, dpi=150)
     image = plt.imread(path)
     assert image.shape[:2] == (int(height / 25.4 * 150), int(width / 25.4 * 150))

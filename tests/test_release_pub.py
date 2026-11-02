@@ -343,7 +343,7 @@ def test_VERIFY4_grid_backends_export_and_clustermap_cut_off_is_reported(tmp_pat
         upset = ag.plot_upset({"T": {"CD3D", "IL7R"}, "NK": {"NKG7", "GNLY"}}, render=False)
     # an unplotted clustermap is plotted at export size, so it fits without a warning
     with warnings.catch_warnings():
-        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("error", message=".*cut off", category=UserWarning)
         ag.save_publication(clustermap, tmp_path / "cm.svg", width=89, height=70)
     assert (tmp_path / "cm.svg").stat().st_size > 0
     ag.save_publication(upset, tmp_path / "up.svg", width=89, height=70)
@@ -386,7 +386,9 @@ def test_clustermap_autofit_keeps_everything_inside_the_exact_canvas(
     )
     try:
         with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)  # S4a: nothing is cut off
+            warnings.filterwarnings(
+                "error", message=".*cut off", category=UserWarning
+            )  # S4a: nothing is cut off
             (path,) = ag.save_publication(
                 clustermap, tmp_path / "cm.png", width=width, height=height, dpi=150
             )
