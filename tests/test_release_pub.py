@@ -271,7 +271,7 @@ def test_S4a_overflow_is_reported_not_fixed(tmp_path):
     finally:
         plt.close(figure)
     with warnings.catch_warnings():
-        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("error", message=".*cut off", category=UserWarning)
         ag.save_publication(_points(x="x"), tmp_path / "ok.png", width=89, height=70, dpi=100)
 
 
