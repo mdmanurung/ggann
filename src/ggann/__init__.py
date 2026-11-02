@@ -3,8 +3,8 @@
 The core grammar *is* plotnine. ``gganndata(adata) + aes(...) + geom_*()`` returns
 a real :class:`plotnine.ggplot`, with aesthetics resolved from ``AnnData`` through
 annplyr. High-level ``plot_*`` helpers reproduce scanpy's core figures, and
-``plot_clustermap`` is a separate escape hatch for clustered heatmaps via
-PyComplexHeatmap.
+``plot_clustermap`` and the tidyHeatmap-style ``tidy_heatmap`` are separate escape
+hatches for clustered heatmaps via PyComplexHeatmap.
 """
 
 from __future__ import annotations
@@ -97,6 +97,7 @@ from .theme import (
     sizes,
     theme_ggann,
 )
+from .tidy_heatmap import TidyHeatmap, tidy_heatmap
 from .upset import plot_upset
 
 try:
@@ -122,6 +123,8 @@ __all__ = [
     "plot_sina",
     "plot_ridge",
     "plot_clustermap",
+    "tidy_heatmap",
+    "TidyHeatmap",
     "plot_dendrogram",
     "plot_proportions",
     "plot_variance_ratio",

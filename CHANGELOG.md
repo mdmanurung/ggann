@@ -4,6 +4,16 @@ All notable changes to ggann are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `tidy_heatmap` and `TidyHeatmap`: a port of the tidyHeatmap verbs
+  (`annotation_*`, `layer_*`, `split_rows`/`split_columns`, `get_heatmap_data`,
+  `+`, `as_ComplexHeatmap`, `save`) on PyComplexHeatmap, for long tables,
+  `DataFrameGroupBy` input and `AnnData`. `annotation_numeric` and
+  `show_group_name=False` are partial; see `docs/tidy_heatmap.md`.
+
 ## [0.1.0] - Unreleased
 
 Initial public release.

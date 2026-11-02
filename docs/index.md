@@ -89,6 +89,7 @@ vignettes/index
 scanpy_parity
 scplotter_parity
 stats_pseudobulk
+tidy_heatmap
 ```
 
 ```{toctree}
