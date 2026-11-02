@@ -8,6 +8,8 @@ through the shared ``adata`` fixture.
 
 from __future__ import annotations
 
+import copy
+
 import annplyr as ap
 import numpy as np
 import pandas as pd
@@ -16,6 +18,13 @@ from annplyr.data import X, X_umap, obs, raw
 from plotnine import aes, geom_boxplot, geom_col, geom_point, ggplot
 
 import ggann as ag
+
+
+def _layer_data(plot, i=0):
+    # plotnine<0.16 has no ggplot.layer_data; build a copy and read the layer
+    built = copy.deepcopy(plot)
+    built._build()
+    return built.layers[i].data
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +61,7 @@ def test_mutate_column_in_aes_and_color(adata, tidy):
     # a mutate column also works on the y axis of a grammar plot
     by_group = ag.gganndata(scored, aes("louvain", "b_score")) + geom_boxplot()
     by_group._build()
-    assert by_group.layer_data(0)["ymax"].max() <= expected.max() + 1e-6
+    assert _layer_data(by_group)["ymax"].max() <= expected.max() + 1e-6
 
 
 def test_rename_result_is_a_plain_obs_column(tidy):
@@ -86,7 +95,7 @@ def test_pipe_chain_returns_a_plot(tidy):
     plot = tidy.filter(obs.n_counts > 3333).pipe(ag.plot_embedding, color="louvain")
     assert isinstance(plot, ggplot)
     plot._build()
-    assert plot.layer_data(0)["x"].notna().all()
+    assert _layer_data(plot)["x"].notna().all()
 
 
 @pytest.mark.parametrize(
@@ -112,7 +121,7 @@ def test_to_wide_umap_names_draw_with_plain_plotnine(tidy):
     assert list(wide.columns) == ["louvain", "UMAP_1", "UMAP_2"]
     plot = ggplot(wide, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.theme_ggann()
     plot._build()
-    np.testing.assert_allclose(plot.layer_data(0)["x"], tidy.obsm["X_umap"][:, 0])
+    np.testing.assert_allclose(_layer_data(plot)["x"], tidy.obsm["X_umap"][:, 0])
 
 
 def test_to_wide_names_match_the_embedding_ggann_resolves(tidy):
@@ -135,7 +144,7 @@ def test_join_features_long_boxplot_needs_dense_abundance(adata, tidy):
     plot._build()
     cst3 = dense.loc[dense[".feature"] == "CST3", ".abundance_raw"].to_numpy()
     np.testing.assert_allclose(cst3, raw_gene(adata, "CST3"), rtol=1e-6)
-    assert plot.layer_data(0)["ymax"].max() <= dense[".abundance_raw"].max() + 1e-6
+    assert _layer_data(plot)["ymax"].max() <= dense[".abundance_raw"].max() + 1e-6
 
 
 def test_wide_join_features_puts_genes_in_obs_for_grammar(adata, tidy):
@@ -159,14 +168,14 @@ def test_store_palette_colours_reach_the_drawn_points(tidy):
     assert ag.obs_colors(painted, "louvain") == palette
     plot = ag.plot_embedding(painted, color="louvain")
     plot._build()
-    drawn = plot.layer_data(0)["color"].to_numpy()
+    drawn = _layer_data(plot)["color"].to_numpy()
     expected = painted.obs["louvain"].astype(str).map(palette).to_numpy()
     assert (drawn == expected).all()
     # the same colours come from a grammar plot with scale_color_obs
     grammar = ag.gganndata(painted, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point()
     grammar = grammar + ag.scale_color_obs(painted, "louvain")
     grammar._build()
-    assert (grammar.layer_data(0)["color"].to_numpy() == expected).all()
+    assert (_layer_data(grammar)["color"].to_numpy() == expected).all()
 
 
 def test_filter_keeps_used_levels_in_order_and_colours_keyed_by_label(tidy):
@@ -177,7 +186,7 @@ def test_filter_keeps_used_levels_in_order_and_colours_keyed_by_label(tidy):
     plot = ag.plot_embedding(kept, color="louvain")
     plot._build()
     expected = kept.obs["louvain"].astype(str).map(original).to_numpy()
-    assert (plot.layer_data(0)["color"].to_numpy() == expected).all()
+    assert (_layer_data(plot)["color"].to_numpy() == expected).all()
 
 
 # ---- count and summarize key order ------------------------------------------
@@ -200,7 +209,7 @@ def test_summarize_feeds_a_bar_plot_in_level_order(tidy):
     plot._build()
     levels = list(tidy.obs["louvain"].cat.categories)
     assert list(summary["louvain"].astype(str)) == levels
-    np.testing.assert_array_equal(plot.layer_data(0)["y"], summary["n"])
+    np.testing.assert_array_equal(_layer_data(plot)["y"], summary["n"])
 
 
 def test_input_is_not_mutated_by_plotting(adata, tidy):
