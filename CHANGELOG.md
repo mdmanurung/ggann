@@ -173,6 +173,9 @@ Check these before re-running a figure made with a pre-release build.
   bundled `rank_genes_groups` is no longer overwritten.
 - `plot_volcano` marks a gene significant when `pvals_adj < padj` (was `<=`),
   the same strict rule as `plot_ma`.
+- `plot_clustermap`'s colour bar names its values and any scaling (for example
+  `mean expression` over `scaled 0-1 per gene`) instead of PyComplexHeatmap's
+  default `heatmap`. Pass `label=` to override.
 
 ### Distributions, markers and density
 

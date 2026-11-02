@@ -199,6 +199,17 @@ def plot_clustermap(
             **({"colors": stored} if stored else {}),
         )
 
+    # colour-bar title: what the values are, including any scaling (backend default is "heatmap")
+    column_unit = "group" if group_by is not None else "cell"
+    scaling = {
+        "var": "scaled 0-1 per gene",
+        "group": f"scaled 0-1 per {column_unit}",
+        "zscore": "z-score per gene",
+    }.get(standard_scale or "") or {0: "z-score per gene", 1: f"z-score per {column_unit}"}.get(
+        z_score, ""
+    )
+    label = "mean expression" if group_by is not None else "expression"
+    kwargs.setdefault("label", f"{label}\n{scaling}" if scaling else label)
     kwargs.setdefault("verbose", 0)  # PyComplexHeatmap prints progress at verbose=1
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Clustering large matrix with scipy")

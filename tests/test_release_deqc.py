@@ -562,3 +562,19 @@ def test_D9_volcano_threshold_is_strict_like_ma(small_de):
     at_cut = ag.plot_volcano(small_de, group, key=KEY, lfc=0, padj=cut).data
     at_cut = at_cut.loc[at_cut["pvals_adj"] == cut, "_significance"].astype(str)
     assert len(at_cut) and set(at_cut) == {"not significant"}
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "label"),
+    [
+        ({}, "mean expression"),
+        ({"standard_scale": "var"}, "mean expression\nscaled 0-1 per gene"),
+        ({"z_score": 1}, "mean expression\nz-score per group"),
+        ({"label": "custom"}, "custom"),
+    ],
+)
+def test_clustermap_colour_bar_names_values_and_scaling(adata, kwargs, label):
+    # PyComplexHeatmap's default title is "heatmap"; scaled values must say so
+    plotter = ag.plot_clustermap(adata, ["CD3D", "NKG7", "CST3"], GROUP, use_raw=True, **kwargs)
+    assert plotter.label == label
+    plt.close("all")
