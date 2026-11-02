@@ -266,7 +266,7 @@ plot = ag.plot_ma(results)""",
             _pbmc(
                 "heatmap = ag.tidy_heatmap(\n"
                 '    adata, genes=["CD3D", "NKG7"], group_by="bulk_labels", scale="row"\n'
-                ").annotation_tile(\"bulk_labels\")"
+                ').annotation_tile("bulk_labels")'
             ),
         ),
         "ggann.plot_upset": _contract(
