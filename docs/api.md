@@ -83,7 +83,7 @@ plotnine's default `theme_gray`. See {doc}`concepts`.
 - `plot_tracksplot` accepts a `{label: [genes]}` dict; tracks are titled
   `gene [label]`.
 - `plot_stacked_violin` fills each violin by group median expression
-  (`cmap="Blues"`), puts genes in rows, and has no y tick labels unless
+  (`cmap="Blues"`), puts groups in rows and genes along x (`swap_axes=True` transposes it), and has no y tick labels unless
   `yticklabels=True`.
 - `plot_clustermap` draws no dendrogram unless you pass `row_dendrogram=True`
   or `col_dendrogram=True`. PyComplexHeatmap sizes the figure when the plot is

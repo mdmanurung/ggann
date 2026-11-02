@@ -101,7 +101,7 @@ statistic.
 | `plot_matrixplot_grouped` | Matrix table plus gene-set labels | Matrix recipe plus grouped x-axis facets |
 | `plot_heatmap` | Per-cell long expression table | `ggplot + geom_tile` |
 | `plot_violin` | Per-cell long expression table | `ggplot + geom_violin + facet_wrap` |
-| `plot_stacked_violin` | Per-cell long expression table | Violin recipe with one row per feature, filled by group median |
+| `plot_stacked_violin` | Per-cell long expression table | Violin recipe with one row per group (per feature with `swap_axes`), filled by group median |
 | `plot_tracksplot` | Per-cell long expression ordered by group | `ggplot + geom_rect + facet_grid` |
 | `plot_box` | Per-cell long expression table | `ggplot + geom_boxplot` and optional points |
 | `plot_sina` | Per-cell long expression table | `ggplot + plotnine_extra.geom_sina` |
