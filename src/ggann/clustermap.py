@@ -201,13 +201,15 @@ def plot_clustermap(
 
     # colour-bar title: what the values are, including any scaling (backend default is "heatmap")
     column_unit = "group" if group_by is not None else "cell"
-    scaling = {
-        "var": "scaled 0-1 per gene",
-        "group": f"scaled 0-1 per {column_unit}",
-        "zscore": "z-score per gene",
-    }.get(standard_scale or "") or {0: "z-score per gene", 1: f"z-score per {column_unit}"}.get(
-        z_score, ""
-    )
+    scaling = ""
+    if standard_scale == "var":
+        scaling = "scaled 0-1 per gene"
+    elif standard_scale == "group":
+        scaling = f"scaled 0-1 per {column_unit}"
+    elif standard_scale == "zscore" or z_score == 0:
+        scaling = "z-score per gene"
+    elif z_score == 1:
+        scaling = f"z-score per {column_unit}"
     label = "mean expression" if group_by is not None else "expression"
     kwargs.setdefault("label", f"{label}\n{scaling}" if scaling else label)
     kwargs.setdefault("verbose", 0)  # PyComplexHeatmap prints progress at verbose=1
