@@ -31,8 +31,10 @@ def to_wide(
     """One projected annplyr read: the single place ggann calls ``ap.to_wide``.
 
     ``x`` names features of ``layer`` when given, else of ``.X``. annplyr returns
-    columns grouped as obs, X/layer, raw (``raw_`` prefix), then obsm
-    (``<key>_<selector>``), whatever the argument order.
+    columns grouped as obs, X/layer, raw, then obsm, whatever the argument
+    order. Features keep their own names and embeddings are named ``UMAP_1``,
+    ``PC_1`` (see ``_embedding_prefix`` in ``_resolve``); a repeated name raises
+    annplyr's ``DuplicateNameError``.
     """
     selectors = [_sources.obs[name] for name in obs or ()]
     if x:
@@ -244,10 +246,6 @@ def expression_frame(
         **kwargs,
         max_matrix_values=max_matrix_values,
     )
-    # ``to_wide`` prefixes raw columns (``raw_<gene>``) to disambiguate mixed X/raw exports.
-    # This single-source boundary is already unambiguous, so restore the public
-    # feature names positionally rather than parsing names such as ``raw_raw_x``.
-    frame.columns = genes
     return frame, genes
 
 
@@ -263,15 +261,12 @@ def expression_with_obs_frame(
     """Project expression and grouping metadata in one public annplyr call.
 
     The two returned frames are split by position, so duplicate or reordered
-    observation names remain safe.  A rare exported-name collision falls back
-    to separate public calls, preserving the pre-existing behavior rather than
-    exposing annplyr's combined-frame name-repair error.
+    observation names remain safe.  A gene named like an obs column falls back
+    to separate public calls rather than raising annplyr's ``DuplicateNameError``.
     """
     genes = _validate_genes(adata, genes, kind=kind, layer=layer)
     obs = tuple(ordered_unique(obs))
-    exported_genes = [f"raw_{gene}" for gene in genes] if kind == "raw" else genes
-    exported_names = [*obs, *exported_genes]
-    can_fuse = len(exported_names) == len(set(exported_names))
+    can_fuse = not set(obs) & set(genes)
 
     if can_fuse:
         frame = to_wide(
@@ -283,7 +278,6 @@ def expression_with_obs_frame(
         split = len(obs)
         observations = frame.iloc[:, :split].copy(deep=False)
         expression = frame.iloc[:, split:].copy(deep=False)
-        expression.columns = genes
         return expression, observations, genes
 
     expression, genes = expression_frame(
