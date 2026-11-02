@@ -57,11 +57,10 @@ def main() -> None:
     ).draw()
 
     # ------------------------------------------------------------------ #
-    # join_features(shape="long") keeps .abundance_* as a pandas sparse column.
-    # plotnine cannot take box statistics on it; densify the one column.
+    # join_features(shape="long") gives one row per cell and feature, with a
+    # dense .abundance_* column that plotnine draws directly.
     # ------------------------------------------------------------------ #
     long = adata.join_features(raw.CST3, raw.NKG7, shape="long")
-    long[".abundance_raw"] = long[".abundance_raw"].sparse.to_dense()
     (
         ggplot(long, aes("louvain", ".abundance_raw", fill=".feature"))
         + geom_boxplot(outlier_alpha=0.2)

@@ -9,7 +9,7 @@ build:
   # PyPI; pyproject.toml remains the authoritative runtime contract.
   jobs:
     pre_install:
-      - python -m pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@8e4c0a586743148d6026987826fb0a38b10433cd"
+      - python -m pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@ae2db5402c8b1c714bb12906ff82a40fbb0d8de2"
       - python -m pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8"
 
 sphinx:

@@ -48,13 +48,11 @@ ggplot(table, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.them
 ```
 
 `join_features(..., shape="long")` gives one row per cell and feature, with
-`.cell`, `.feature` and `.abundance_raw`. That column has a pandas sparse dtype
-and plotnine cannot compute box statistics on it (`ValueError: Cannot get a null
-value for type: <class 'numpy.float32'>`). Densify the one column first:
+`.cell`, `.feature` and `.abundance_raw`. The value column is dense, in the
+source dtype, so plotnine draws it directly:
 
 ```python
 long = adata.join_features(raw.CST3, raw.NKG7, shape="long")
-long[".abundance_raw"] = long[".abundance_raw"].sparse.to_dense()
 ggplot(long, aes("louvain", ".abundance_raw", fill=".feature")) + geom_boxplot()
 ```
 
