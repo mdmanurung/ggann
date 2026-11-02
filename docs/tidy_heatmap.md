@@ -57,8 +57,9 @@ columns annotate genes and `obs` columns annotate cells (with `group_by`, only
   differ, so give each heatmap the same number of column annotations.
 - Extra keyword arguments go to `ClusterMapPlotter`, for example
   `row_cluster=False` or `show_rownames=False`.
-- Size the figure at export: `.save(...)` draws at the export size. Long labels
-  and legends can still overflow a small canvas; `save_publication` warns.
+- `.save(...)` draws at the export size, then shrinks the heatmap body until
+  labels and legends fit the canvas. If the body would drop below 20 mm,
+  `save_publication` warns. A `+` set is not fitted.
 
 ## Example: a long differential-expression table
 
@@ -109,7 +110,6 @@ heatmap = (
         group_by="bulk_labels",
         scale="row",
         show_colnames=False,  # the tile strip names the groups
-        plot_legend=False,  # legends overflow a 183 mm canvas; draw them separately
     )
     .annotation_tile("bulk_labels")
     .annotation_bar("n_cells")

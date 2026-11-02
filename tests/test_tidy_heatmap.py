@@ -597,6 +597,21 @@ def test_save_goes_through_save_publication(long_df, tmp_path):
         hm.save(tmp_path / "bad", height=-1)
 
 
+@pytest.mark.parametrize(("width", "height", "bar"), [(89, 70, False), (183, 120, True)])
+def test_save_autofit_keeps_everything_inside_the_exact_canvas(
+    long_df, tmp_path, width, height, bar
+):
+    # at 89 x 70 mm a second annotation legend forces a second legend column that cannot fit
+    hm = _hm(long_df, show_colnames=True).annotation_tile("lineage").layer_point("padj < 0.2")
+    if bar:
+        hm = hm.annotation_bar("n_cells")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)  # nothing is cut off
+        (path,) = hm.save(tmp_path / "fig.png", width=width, height=height, dpi=150)
+    image = plt.imread(path)
+    assert image.shape[:2] == (int(height / 25.4 * 150), int(width / 25.4 * 150))
+
+
 def test_save_of_a_composition(long_df, tmp_path):
     both = _hm(long_df) + _hm(long_df)
     with warnings.catch_warnings():

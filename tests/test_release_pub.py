@@ -341,11 +341,84 @@ def test_VERIFY4_grid_backends_export_and_clustermap_cut_off_is_reported(tmp_pat
             adata, ["CD3D", "NKG7", "CST3"], group_by="bulk_labels", use_raw=True, plot=False
         )
         upset = ag.plot_upset({"T": {"CD3D", "IL7R"}, "NK": {"NKG7", "GNLY"}}, render=False)
-    with pytest.warns(UserWarning, match="cut off at the 89 x 70 mm canvas"):
+    # an unplotted clustermap is plotted at export size, so it fits without a warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
         ag.save_publication(clustermap, tmp_path / "cm.svg", width=89, height=70)
     assert (tmp_path / "cm.svg").stat().st_size > 0
     ag.save_publication(upset, tmp_path / "up.svg", width=89, height=70)
     assert (tmp_path / "up.svg").stat().st_size > 0
+
+
+def _short_group_adata():
+    import anndata as ad
+
+    names = [f"T{i}" for i in range(6)]
+    rng = np.random.default_rng(0)
+    adata = ad.AnnData(
+        rng.random((60, 6)).astype("float32"),
+        obs=pd.DataFrame({"g": pd.Categorical(np.repeat(names, 10), categories=names)}),
+        var=pd.DataFrame(index=[f"G{i}" for i in range(6)]),
+    )
+    adata.obs_names = [f"c{i}" for i in range(60)]
+    return adata
+
+
+@pytest.mark.parametrize(("case", "width", "height"), [("short", 89, 70), ("pbmc", 183, 120)])
+def test_clustermap_autofit_keeps_everything_inside_the_exact_canvas(
+    tmp_path, adata, case, width, height
+):
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(width / 25.4, height / 25.4))  # PyComplexHeatmap lays out at this size
+    if case == "short":
+        data, genes, group = _short_group_adata(), [f"G{i}" for i in range(6)], "g"
+    else:
+        data, group = adata, "bulk_labels"
+        genes = ["CD3D", "NKG7", "CST3", "GNLY", "MS4A1", "FCGR3A"]
+    clustermap = ag.plot_clustermap(
+        data,
+        genes,
+        group_by=group,
+        use_raw=case == "pbmc",
+        row_dendrogram=True,
+        col_dendrogram=True,
+    )
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)  # S4a: nothing is cut off
+            (path,) = ag.save_publication(
+                clustermap, tmp_path / "cm.png", width=width, height=height, dpi=150
+            )
+    finally:
+        plt.close("all")
+    with Image.open(path) as image:
+        assert image.size == (int(width / 25.4 * 150), int(height / 25.4 * 150))
+
+
+def test_clustermap_autofit_warns_when_the_labels_cannot_fit(tmp_path):
+    import anndata as ad
+    import matplotlib.pyplot as plt
+
+    names = [f"a very long group name number {i}" for i in range(40)]
+    rng = np.random.default_rng(0)
+    adata = ad.AnnData(
+        rng.random((80, 5)).astype("float32"),
+        obs=pd.DataFrame({"g": pd.Categorical(np.repeat(names, 2), categories=names)}),
+        var=pd.DataFrame(index=[f"G{i}" for i in range(5)]),
+    )
+    adata.obs_names = [f"c{i}" for i in range(80)]
+    plt.figure(figsize=(30 / 25.4, 30 / 25.4))
+    clustermap = ag.plot_clustermap(adata, list(adata.var_names), group_by="g")
+    try:
+        with pytest.warns(UserWarning, match="cut off at the 30 x 30 mm.*minimum body size"):
+            (path,) = ag.save_publication(
+                clustermap, tmp_path / "x.png", width=30, height=30, dpi=100
+            )
+    finally:
+        plt.close("all")
+    with Image.open(path) as image:
+        assert image.size == (int(30 / 25.4 * 100),) * 2
 
 
 def test_A1_resolve_alias():

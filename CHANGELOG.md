@@ -16,6 +16,15 @@ All notable changes to ggann are recorded here. The format follows
 - The colour bar names any `transform` and `scale`, e.g. `log1p(mean)` over
   `z-score by row`, so a scaled matrix is never labelled as raw values.
 
+### Fixed
+
+- `save_publication` (and so `TidyHeatmap.save` and exports of `plot_clustermap`)
+  now fits PyComplexHeatmap figures to the exact canvas. It measures the tick
+  labels, axis labels, legends and colourbars, then shrinks the heatmap body
+  (dendrograms, annotations and legends follow it) until nothing is cut off.
+  The canvas and dpi never change. If the body would drop below 20 mm, the
+  overflow warning stays and says so.
+
 ## [0.1.0] - Unreleased
 
 Initial public release.
