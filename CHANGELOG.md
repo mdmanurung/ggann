@@ -91,8 +91,10 @@ Check these before re-running a figure made with a pre-release build.
 - Defaults follow Scanpy: rank-genes `n_genes=10`, rank matrixplot
   `standard_scale=None`, `plot_variance_ratio(n_pcs=30, log=False)`,
   `plot_highest_expr_genes` 30 genes.
-- `plot_stacked_violin` fills each violin by group median expression, draws
-  genes as rows (Scanpy's `swap_axes=True` layout) and labels groups at 90°.
+- `plot_stacked_violin` fills each violin by group median expression and draws
+  groups as rows with genes along x (labels at 45°), as Scanpy does by default.
+  Pass `swap_axes=True` for the earlier layout: genes as rows, groups along x
+  with labels at 90°.
 - Without stored `adata.uns["<key>_colors"]`, discrete scales use Scanpy's
   default palette instead of plotnine hues.
 - Inside `style_context`, `plot_features` and `plot_density` default to the
@@ -176,7 +178,7 @@ Check these before re-running a figure made with a pre-release build.
 
 - `plot_violin`, `plot_box`, `plot_sina`, `plot_stacked_violin`, `plot_ridge`, `plot_expression_bar` accept numeric `adata.obs` columns in `genes` (bare name, `ggann.obs("x")` or `"obs:x"`). A bare name that is also a gene stays a gene.
 - New `log=True` (violin, box, sina, stacked): plots `log1p(expression)`, zeros kept, axis labelled `log1p(expression)`. Values <= -1 raise.
-- New `order=` (subset and order of groups) and `rotation=` on violin, box, sina, stacked violin. `plot_violin` gains `jitter_size`/`jitter_alpha`; `plot_stacked_violin` gains `stripplot`, `yticklabels`, `cmap`.
+- New `order=` (subset and order of groups) and `rotation=` on violin, box, sina, stacked violin. `plot_violin` gains `jitter_size`/`jitter_alpha`; `plot_stacked_violin` gains `stripplot`, `yticklabels`, `cmap`, `swap_axes`.
 - `plot_stacked_violin` now fills each violin by group median expression (shared colour bar, `cmap="Blues"`), as scanpy does. Rows have no y tick labels by default. The group palette fill is gone.
 - Grouped marker helpers: a gene under several labels is drawn once per label (no more ValueError); values come from one computation per gene. `plot_tracksplot` accepts a `{label: [genes]}` dict (tracks titled `gene [label]`). Non-dict `gene_groups` raises TypeError.
 - `plot_tracksplot` draws `geom_rect` (about 12x to 23x faster, identical rectangles) and labels groups on the x axis.

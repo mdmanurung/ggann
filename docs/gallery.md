@@ -82,10 +82,10 @@ add a joint panel.
 The panels show `plot_dotplot`, `plot_stacked_violin`, `plot_box`, and
 `plot_expression_bar`. The dotplot draws the first category at the top, as
 Scanpy does; use `swap_axes=True` to transpose it, not `coord_flip()`. The
-stacked violin has genes as rows, fills each violin by the group's median
+stacked violin has groups as rows and genes along x (`swap_axes=True` transposes it), fills each violin by the group's median
 expression, and hides the y tick labels (`yticklabels=True` restores them).
 `order=`, `log=True` and `rotation=` select groups, plot `log1p(expression)`
-and turn the group labels.
+and turn the x labels.
 
 ## Differential expression
 

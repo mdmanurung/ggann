@@ -146,13 +146,24 @@ def test_A4_log_rejects_scaled_negative_values(adata):
 
 
 def test_A4_stacked_violin_scanpy_orientation_and_median_fill(adata):
+    # default = Scanpy's default: groups on the facet rows, genes along x
     plot = ag.plot_stacked_violin(adata, GENES, GROUP, use_raw=True)
-    assert type(plot.facet).__name__ == "facet_grid" and plot.facet.rows == ["feature"]
+    assert type(plot.facet).__name__ == "facet_grid" and plot.facet.rows == [GROUP]
     d = plot.data
     med = d.groupby(["feature", GROUP], observed=True)["value"].median()
     got = d.groupby(["feature", GROUP], observed=True)["median"].first()
     assert np.allclose(med.to_numpy(), got.to_numpy())
+    assert plot.mapping["x"] == "feature" and plot.mapping["fill"] == "median"
+    fig = plot.draw()
+    assert len(fig.axes) >= adata.obs[GROUP].nunique()  # one row per group
+
+
+def test_stacked_violin_swap_axes_is_the_genes_as_rows_layout(adata):
+    plot = ag.plot_stacked_violin(adata, GENES, GROUP, use_raw=True, swap_axes=True)
+    assert plot.facet.rows == ["feature"]
     assert plot.mapping["x"] == GROUP and plot.mapping["fill"] == "median"
+    same = ag.plot_stacked_violin(adata, GENES, GROUP, use_raw=True).data
+    pd.testing.assert_frame_equal(plot.data, same)  # only the layout differs
     fig = plot.draw()
     assert len(fig.axes) >= len(GENES)  # one row per gene
 
@@ -472,13 +483,13 @@ def test_Q12_ridge_warns_for_constant_gene_and_bandwidth_changes_curve(adata):
 
 def test_Q12_stacked_violin_hides_crowded_y_labels_by_default(adata):
     genes = list(adata.raw.var_names[:10])
-    plot = ag.plot_stacked_violin(adata, genes, GROUP, use_raw=True)
-    fig = plot.draw()
-    assert all(
-        not [t for t in ax.get_yticklabels() if t.get_text()] for ax in fig.axes[: len(genes)]
-    )
-    shown = ag.plot_stacked_violin(adata, genes[:2], GROUP, use_raw=True, yticklabels=True).draw()
-    assert any(t.get_text() for ax in shown.axes for t in ax.get_yticklabels())
+    for swap in (False, True):
+        plot = ag.plot_stacked_violin(adata, genes, GROUP, use_raw=True, swap_axes=swap)
+        fig = plot.draw()
+        assert all(not [t for t in ax.get_yticklabels() if t.get_text()] for ax in fig.axes)
+        kw = dict(use_raw=True, yticklabels=True, swap_axes=swap)
+        shown = ag.plot_stacked_violin(adata, genes[:2], GROUP, **kw).draw()
+        assert any(t.get_text() for ax in shown.axes for t in ax.get_yticklabels())
 
 
 # --------------------------------------------------------------------------- #
@@ -572,12 +583,14 @@ def test_VERIFY4_tracksplot_missing_group_not_visible(adata):
     plt.close(fig)
 
 
-def test_stacked_violin_first_x_label_inside_canvas(adata):
+@pytest.mark.parametrize("swap", [False, True])
+def test_stacked_violin_first_x_label_inside_canvas(adata, swap):
     # hidden y labels must not take away the space the first rotated x label needs
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     genes = ["CD3D", "NKG7", "CST3"]
-    fig = ag.plot_stacked_violin(adata, genes, "bulk_labels", use_raw=True).draw()  # default 90
+    plot = ag.plot_stacked_violin(adata, genes, "bulk_labels", use_raw=True, swap_axes=swap)
+    fig = plot.draw()  # default rotation: 45 for genes, 90 for groups
     canvas = FigureCanvasAgg(fig)
     canvas.draw()
     renderer = canvas.get_renderer()

@@ -140,15 +140,15 @@ does not materialize expression.
 ```python
 # Scanpy
 sc.pl.stacked_violin(
-    adata, genes, groupby="louvain", use_raw=True, swap_axes=True, show=False
+    adata, genes, groupby="louvain", use_raw=True, show=False
 )
 
 # ggann
 stacked = ag.plot_stacked_violin(adata, genes, group_by="louvain", use_raw=True)
 ```
 
-ggann draws genes as rows and groups along x. Scanpy 1.12 draws the transpose by
-default, so pass `swap_axes=True` to Scanpy for the same layout. Each violin is
+Both draw groups as rows and genes along x. Pass `swap_axes=True` to either
+for genes as rows. Each violin is
 filled by the group's median expression with one shared colour bar
 (`cmap="Blues"`), as in Scanpy. Rows have no y tick labels; pass
 `yticklabels=True` to show them.

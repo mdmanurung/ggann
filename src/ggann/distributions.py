@@ -896,18 +896,19 @@ def plot_stacked_violin(
     downsample: int | None = None,
     random_state: int | None = 0,
     log: bool = False,
-    rotation: float = 90,
+    rotation: float | None = None,
+    swap_axes: bool = False,
     stripplot: bool = False,
     yticklabels: bool = False,
     cmap: str = "Blues",
 ):
-    """Compact genes-as-rows violin grid across groups (``sc.pl.stacked_violin``).
+    """Compact violin grid across groups (``sc.pl.stacked_violin``).
 
-    Genes are rows and groups run along x, the layout of
-    ``sc.pl.stacked_violin(..., swap_axes=True)`` (Scanpy's default puts groups
-    as rows). As in Scanpy, each violin is filled by that group's **median**
+    Groups are rows and genes run along x, Scanpy's default layout.
+    ``swap_axes=True`` puts genes on rows and groups along x instead. As in
+    Scanpy, each violin is filled by that group's **median**
     expression of the gene (``cmap``, shared colour bar). Each row has its own y range and no y tick labels (``yticklabels``
-    restores them), so many genes stay readable. ``downsample`` caps cells per
+    restores them), so many rows stay readable. ``downsample`` caps cells per
     group before the KDE; ``random_state`` controls which cells are retained and
     seeds the ``stripplot`` jitter.
 
@@ -916,9 +917,9 @@ def plot_stacked_violin(
     adata
         Annotated data matrix.
     genes : sequence of str
-        Genes (or numeric obs columns) shown as rows.
+        Genes (or numeric obs columns), along x (rows with ``swap_axes``).
     group_by : str
-        Observation grouping column.
+        Observation grouping column, shown as rows (along x with ``swap_axes``).
     layer, use_raw : optional
         Mutually exclusive expression source.
     scale : str
@@ -933,9 +934,12 @@ def plot_stacked_violin(
         Downsampling and jitter seed; ``None`` is nondeterministic.
     log : bool
         Plot ``log1p(expression)``; zeros stay at zero.
-    rotation : float, default=90
-        Group-label angle in degrees. Vertical labels, as in Scanpy, never
-        hang past the left edge; at smaller angles a long first label can.
+    rotation : float, optional
+        X-label angle in degrees. Default 45 for gene labels and 90 for group
+        labels (``swap_axes=True``). Vertical labels, as in Scanpy, never hang
+        past the left edge; at smaller angles a long first label can.
+    swap_axes : bool, default=False
+        Genes as rows and groups along x (Scanpy's ``swap_axes=True`` layout).
     stripplot : bool
         Overlay the individual cells as jitter.
     yticklabels : bool
@@ -973,10 +977,11 @@ def plot_stacked_violin(
         categories_order = _group_categories(adata, group_by)
     tidy = _order_groups(tidy, group_by, categories_order)
     tidy["median"] = tidy.groupby(["feature", group_by], observed=True)["value"].transform("median")
+    xcol, row = (group_by, "feature") if swap_axes else ("feature", group_by)
     plot = (
-        ggplot(tidy, aes(group_by, "value", fill="median"))
+        ggplot(tidy, aes(xcol, "value", fill="median"))
         + geom_violin(scale=scale)
-        + facet_grid("feature ~ .", scales="free_y")
+        + facet_grid(f"{row} ~ .", scales="free_y")
     )
     if stripplot:
         plot = plot + geom_jitter(
@@ -994,7 +999,7 @@ def plot_stacked_violin(
         + labs(x="", y="", fill="median\n" + ("log1p(expr)" if log else "expression"))
         + _family_theme("distribution")
         + theme(strip_text_y=element_text(angle=0))
-        + pe.rotate_x_text(rotation)
+        + pe.rotate_x_text((90 if swap_axes else 45) if rotation is None else rotation)
     )
     if not yticklabels:
         plot = plot + theme(axis_text_y=element_blank(), axis_ticks_major_y=element_blank())

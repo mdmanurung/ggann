@@ -76,9 +76,7 @@ def pairs(adata):
             lambda: ag.plot_matrixplot(adata, MARKERS, GROUP),
         ),
         "stacked_violin": (
-            # Scanpy 1.12 puts groups on rows by default; swap_axes=True gives
-            # ggann's layout (genes as rows, groups along x).
-            lambda: sc.pl.stacked_violin(adata, MARKERS, groupby=GROUP, swap_axes=True, show=False),
+            lambda: sc.pl.stacked_violin(adata, MARKERS, groupby=GROUP, show=False),
             lambda: ag.plot_stacked_violin(adata, MARKERS, GROUP),
         ),
         "violin": (
