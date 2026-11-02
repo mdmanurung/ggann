@@ -171,9 +171,7 @@ ggplot(table, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.them
 ```
 
 Tables from `to_wide`, `join_features`, `summarize` and `count` are DataFrames that
-plotnine draws directly. One caveat: `join_features(..., shape="long")` returns
-`.abundance_*` with a pandas sparse dtype, so call `.sparse.to_dense()` on it
-before `geom_boxplot`. `ap.store_palette` colours are the ones `plot_embedding` and
+plotnine draws directly. `ap.store_palette` colours are the ones `plot_embedding` and
 `scale_color_obs` draw.
 
 `ggann` projects only the requested expression columns before conversion. Use

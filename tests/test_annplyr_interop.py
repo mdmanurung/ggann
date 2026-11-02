@@ -131,20 +131,22 @@ def test_to_wide_names_match_the_embedding_ggann_resolves(tidy):
     np.testing.assert_allclose(wide["UMAP_2"], plot.data["UMAP_2"])
 
 
-def test_join_features_long_boxplot_needs_dense_abundance(adata, tidy):
+def test_join_features_long_boxplot_draws_directly(adata, tidy):
     long = tidy.join_features(raw.CST3, raw.NKG7, shape="long")
     assert {".cell", ".feature", ".abundance_raw"} <= set(long.columns)
-    assert isinstance(long[".abundance_raw"].dtype, pd.SparseDtype)
-    sparse_plot = ggplot(long, aes("louvain", ".abundance_raw", fill=".feature")) + geom_boxplot()
-    # plotnine cannot compute box statistics on a pandas sparse column
-    with pytest.raises(ValueError, match="null value"):
-        sparse_plot._build()
-    dense = long.assign(**{".abundance_raw": long[".abundance_raw"].sparse.to_dense()})
-    plot = ggplot(dense, aes("louvain", ".abundance_raw", fill=".feature")) + geom_boxplot()
-    plot._build()
-    cst3 = dense.loc[dense[".feature"] == "CST3", ".abundance_raw"].to_numpy()
+    assert not isinstance(long[".abundance_raw"].dtype, pd.SparseDtype)
+    plot = ggplot(long, aes("louvain", ".abundance_raw", fill=".feature")) + geom_boxplot()
+    cst3 = long.loc[long[".feature"] == "CST3", ".abundance_raw"].to_numpy()
     np.testing.assert_allclose(cst3, raw_gene(adata, "CST3"), rtol=1e-6)
-    assert _layer_data(plot)["ymax"].max() <= dense[".abundance_raw"].max() + 1e-6
+    # box medians match the per-cluster medians read from the AnnData
+    boxes = _layer_data(plot)
+    expected = (
+        pd.Series(raw_gene(adata, "CST3"), index=adata.obs["louvain"].to_numpy())
+        .groupby(level=0, observed=True)
+        .median()
+    )
+    cst3_boxes = boxes[boxes["fill"] == boxes["fill"].iloc[0]]
+    np.testing.assert_allclose(np.sort(cst3_boxes["middle"]), np.sort(expected), rtol=1e-5)
 
 
 def test_wide_join_features_puts_genes_in_obs_for_grammar(adata, tidy):
