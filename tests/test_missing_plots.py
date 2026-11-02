@@ -123,7 +123,9 @@ def test_ma_builds_and_flags_significant():
     de = _fake_de()
     plot = ag.plot_ma(de, label_top=5)
     assert isinstance(plot, p9.ggplot)
-    expected = ((de["baseMean"] > 0) & (de["padj"] < 0.05)).sum()
+    expected = (
+        (de["baseMean"] > 0) & (de["padj"] < 0.05) & (de["log2FoldChange"].abs() >= 1.0)
+    ).sum()
     assert plot.data["significant"].sum() == expected
     plot._build()
 

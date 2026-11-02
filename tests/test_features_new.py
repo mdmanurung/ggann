@@ -163,9 +163,9 @@ def test_volcano_requires_pvalues(adata):
         ag.plot_volcano(adata, group="CD4+/CD25 T Reg")
 
 
-def test_gene_in_two_groups_raises(adata, group_key):
-    with pytest.raises(ValueError, match="more than one gene group"):
-        ag.plot_dotplot_grouped(adata, {"A": ["CD3D"], "B": ["CD3D"]}, group_key)
+def test_gene_in_two_groups_is_drawn_once_per_group(adata, group_key):
+    p = ag.plot_dotplot_grouped(adata, {"A": ["CD3D"], "B": ["CD3D"]}, group_key)
+    assert p.data.groupby("gene_group", observed=True)["gene"].nunique().tolist() == [1, 1]
 
 
 def test_rank_genes_matrixplot(de_adata):

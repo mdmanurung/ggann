@@ -29,10 +29,15 @@ from plotnine import (
 
 from ._aggregate import group_means
 from ._annotation import annotation_threshold, geom_contrast_text
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import ordered_unique
+from ._grouping import _drop_missing_groups
 from .publication import _active_style, _family_theme
 
 __all__ = ["plot_correlation"]
+
+
+_WARN_ALL_GENES = 2000
 
 
 def _default_genes(adata) -> list[str]:
@@ -42,11 +47,12 @@ def _default_genes(adata) -> list[str]:
         if len(hv) > 1:
             return list(hv)
     genes = list(adata.var_names)
-    warnings.warn(
-        f"plot_correlation: no 'highly_variable' genes flagged; correlating all "
-        f"{len(genes)} genes. Pass genes=... to restrict (faster on large data).",
-        stacklevel=3,
-    )
+    if len(genes) > _WARN_ALL_GENES:  # a small panel is already a deliberate selection
+        warnings.warn(
+            f"plot_correlation: no 'highly_variable' genes flagged; correlating all "
+            f"{len(genes)} genes. Pass genes=... to restrict (faster on large data).",
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
+        )
     return genes
 
 
@@ -104,6 +110,7 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
 
 
+@accepts_groupby
 def plot_correlation(
     adata,
     group_by: str,
@@ -116,10 +123,19 @@ def plot_correlation(
     annotate: bool | str = False,
     cmap: str | None = None,
     rasterized: bool = False,
+    use_rep: str | None = None,
+    n_pcs: int | None = None,
 ):
     """Correlation heatmap between the mean-expression profiles of each group.
 
-    ``genes`` defaults to the highly-variable set (or all genes, with a warning).
+    By default each group's profile is its mean expression of ``genes``
+    (gene space). Scanpy's ``sc.tl.dendrogram`` and ``sc.pl.correlation_matrix``
+    instead correlate group means of a PCA embedding; pass ``use_rep="X_pca"``
+    (and optionally ``n_pcs``) for that statistic. The two differ, sometimes by
+    a lot, so compare like with like.
+
+    ``genes`` defaults to the highly-variable set (or all genes; a warning is
+    raised above 2000 genes).
     ``method`` is any :meth:`pandas.DataFrame.corr` method (``"pearson"`` /
     ``"spearman"`` / ``"kendall"``). With ``cluster=True`` the axes are reordered by
     hierarchical clustering; ``annotate=True`` prints each correlation in its cell.
@@ -149,6 +165,12 @@ def plot_correlation(
         Explicit Matplotlib colormap.
     rasterized : bool, default=False
         Rasterize the heatmap tiles while retaining vector labels and guides.
+    use_rep : str, optional
+        ``adata.obsm`` key (for example ``"X_pca"``). Correlates group means of
+        its columns instead of gene profiles; cannot be combined with ``genes``,
+        ``layer`` or ``use_raw``.
+    n_pcs : int, optional
+        With ``use_rep``, use only the first ``n_pcs`` columns.
 
     Returns
     -------
@@ -158,9 +180,11 @@ def plot_correlation(
     Raises
     ------
     KeyError
-        If genes, grouping metadata, or a layer are missing.
+        If genes, grouping metadata, a layer, or ``use_rep`` are missing.
     ValueError
-        If fewer than two genes resolve or method/source selection is invalid.
+        If fewer than two genes (or components) resolve, ``n_pcs`` is invalid,
+        ``use_rep`` is combined with gene/source options, or method/source
+        selection is invalid.
 
     Notes
     -----
@@ -171,14 +195,32 @@ def plot_correlation(
     --------
     >>> p = plot_correlation(adata, group_by="cell_type", genes=["CD3D", "NKG7"])
     """
-    if genes is None:
-        genes = _default_genes(adata)
-    genes = ordered_unique(genes)
-    if len(genes) < 2:
-        raise ValueError("plot_correlation needs at least two genes to correlate profiles.")
-
-    profiles = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw).T  # genes x groups
-    corr = profiles.corr(method=method)
+    adata = _drop_missing_groups(adata, group_by)
+    if use_rep is not None:
+        if genes is not None or layer is not None or use_raw is not None:
+            raise ValueError("use_rep cannot be combined with genes, layer or use_raw.")
+        if use_rep not in adata.obsm:
+            raise KeyError(f"use_rep {use_rep!r} not in adata.obsm.")
+        rep = np.asarray(adata.obsm[use_rep])
+        if n_pcs is not None:
+            if isinstance(n_pcs, bool) or not isinstance(n_pcs, (int, np.integer)) or n_pcs < 2:
+                raise ValueError(f"n_pcs must be an integer >= 2, got {n_pcs!r}.")
+            rep = rep[:, :n_pcs]
+        if rep.shape[1] < 2:
+            raise ValueError(f"{use_rep!r} has {rep.shape[1]} column(s); need at least 2.")
+        labels = pd.Categorical(adata.obs[group_by])
+        profiles = pd.DataFrame(rep).groupby(labels, observed=True).mean().T
+        profiles.columns = profiles.columns.astype(str)
+    else:
+        if n_pcs is not None:
+            raise ValueError("n_pcs needs use_rep.")
+        if genes is None:
+            genes = _default_genes(adata)
+        genes = ordered_unique(genes)
+        if len(genes) < 2:
+            raise ValueError("plot_correlation needs at least two genes to correlate profiles.")
+        profiles = group_means(adata, genes, group_by, layer=layer, use_raw=use_raw).T
+    corr = profiles.corr(method=method)  # features x groups -> group x group
 
     order = _cluster_order(corr) if cluster and corr.shape[0] >= 2 else list(corr.columns)
     corr = corr.loc[order, order]

@@ -8,7 +8,9 @@ copying implementation from, that project.
 
 from __future__ import annotations
 
+import colorsys
 import math
+import warnings
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -19,6 +21,7 @@ from pathlib import Path
 from typing import Literal
 
 import matplotlib as mpl
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import LinearSegmentedColormap, is_color_like, to_hex
 from plotnine import (
     element_blank,
@@ -31,7 +34,8 @@ from plotnine import (
 )
 from plotnine.options import get_option, set_option
 
-from .theme import sizes, theme_ggann
+from ._compat import SKIP_GGANN_FRAMES
+from .theme import _resolve_font, sizes, theme_ggann
 
 __all__ = [
     "PublicationStyle",
@@ -71,6 +75,35 @@ _QUALITATIVE_EXTENDED = _QUALITATIVE + (
     "#6699CC",
     "#AA4466",
 )
+
+_GOLDEN = 0.6180339887498949
+_EXT_LIGHTNESS = (0.45, 0.62, 0.52)
+_EXT_SATURATION = (0.70, 0.75, 0.55)
+
+
+def _extension_colour(index: int) -> str:
+    """The ``index``-th colour of the fixed sequence used past the vocabulary.
+
+    A pure function of ``index`` (golden-ratio hue steps, cycling lightness), so a
+    palette of ``n + 1`` colours always begins with the palette of ``n``.
+    """
+    hue = (_GOLDEN * (index + 1)) % 1.0
+    lightness = _EXT_LIGHTNESS[index % 3]
+    saturation = _EXT_SATURATION[index % 3]
+    return to_hex(colorsys.hls_to_rgb(hue, lightness, saturation), keep_alpha=False)
+
+
+def _extend_palette(base: Sequence[str], n: int) -> tuple[str, ...]:
+    """Prefix-stable extension of ``base`` to ``n`` distinct colours."""
+    colours = [to_hex(colour, keep_alpha=False) for colour in base]
+    index = 0
+    while len(colours) < n:
+        candidate = _extension_colour(index)
+        index += 1
+        if candidate not in colours:
+            colours.append(candidate)
+    return tuple(colours[:n])
+
 
 _FONT_FALLBACK = ("Arial", "Helvetica", "DejaVu Sans", "sans-serif")
 _MISSING_COLOR = "#B3B3B3"
@@ -469,6 +502,19 @@ def style_context(
     exceptional exit. Plots retain the theme and direct-backend specification
     captured while they were built.
 
+    Restoring is a full rollback to the state at entry: a :func:`set_theme` call
+    or an ``rcParams`` edit made *inside* the block is discarded on exit, so make
+    such changes before entering the block if they must persist.
+
+    The active style is held in a ``contextvars.ContextVar``, which new threads do
+    not inherit, whereas the plotnine theme, ``sizes`` and ``rcParams`` it swaps
+    are process-global and visible to every thread while the block runs. Behaviour
+    with concurrent threads is therefore unverified; use the context from one
+    thread at a time.
+
+    A requested font family that is not installed (for example Arial) triggers one
+    ``UserWarning`` per process and text falls back to the next installed family.
+
     Examples
     --------
     >>> with style_context("double-column"):
@@ -482,6 +528,7 @@ def style_context(
     previous_theme = get_option("current_theme")
     previous_sizes = dict(vars(sizes))
     previous_rc = deepcopy(dict(mpl.rcParams))
+    _resolve_font(resolved.fonts, context="style_context")
     token = _ACTIVE_STYLE.set(resolved)
     try:
         sizes.update(resolved.base_size)
@@ -535,7 +582,10 @@ def publication_palette(
     Missing observations use :attr:`PublicationStyle.missing_color` in plotting
     scales and are not added as a synthetic category. The core eight qualitative
     colours are accessibility-tested; larger vocabularies need visual review or
-    a redundant encoding.
+    a redundant encoding. Colours are assigned in the order of ``categories``, so
+    reordering categories reassigns colours. Past the style's vocabulary the
+    palette is extended from a fixed sequence, so ``n + 1`` colours always start
+    with the ``n`` colours.
 
     Examples
     --------
@@ -567,14 +617,10 @@ def publication_palette(
     n = int(n)
 
     if kind == "qualitative":
-        base = resolved.qualitative
-        if n <= len(base):
-            colours = tuple(to_hex(colour, keep_alpha=False) for colour in base[:n])
-        else:
-            # Deterministic extension for large vocabularies. These require
-            # visual review or redundant encodings, as documented.
-            cmap = mpl.colormaps["turbo"].resampled(n)
-            colours = tuple(to_hex(cmap(i), keep_alpha=False) for i in range(n))
+        # Past the vocabulary, extend from a fixed sequence so growing a category
+        # list never recolours earlier categories. Separation is measured only for
+        # the reviewed vocabulary; larger sets need a redundant encoding.
+        colours = _extend_palette(resolved.qualitative[:n], n)
     elif kind == "sequential":
         cmap = mpl.colormaps[resolved.sequential_cmap].resampled(n)
         colours = tuple(to_hex(cmap(i), keep_alpha=False) for i in range(n))
@@ -600,21 +646,47 @@ def _normalise_format(value: str) -> str:
     return value
 
 
+_KNOWN_SUFFIXES = _FORMATS | {"tif"}
+_REJECTED_SUFFIXES = {"jpg", "jpeg", "eps", "ps", "gif", "bmp", "webp"}
+
+
 def _output_paths(filename: str | Path, formats: Sequence[str] | None) -> list[tuple[str, Path]]:
+    """Resolve output paths.
+
+    Only a recognised format suffix (svg, pdf, png, tiff, tif) is treated as a
+    suffix. Any other dot stays in the stem, so ``fig1.v2`` writes ``fig1.v2.svg``,
+    ``fig1.v2.pdf`` and ``fig1.v2.png``. A format suffix that disagrees with an
+    explicit ``formats`` raises instead of silently writing another format.
+    """
     path = Path(filename)
     suffix = path.suffix.lower().lstrip(".")
+    if suffix in _REJECTED_SUFFIXES:
+        raise ValueError("formats must contain only SVG, PDF, PNG, or TIFF.")
+    has_format_suffix = suffix in _KNOWN_SUFFIXES
     if formats is None:
-        requested = [_normalise_format(suffix)] if suffix else ["svg", "pdf", "png"]
+        requested = [_normalise_format(suffix)] if has_format_suffix else ["svg", "pdf", "png"]
     else:
         requested = [_normalise_format(value) for value in formats]
         if not requested:
             raise ValueError("formats cannot be empty.")
+        if has_format_suffix and _normalise_format(suffix) not in requested:
+            raise ValueError(
+                f"filename suffix '.{suffix}' disagrees with formats={tuple(formats)!r}; "
+                "drop the suffix or include it in formats."
+            )
     if len(set(requested)) != len(requested):
         raise ValueError("formats cannot contain duplicates.")
-    stem = path.with_suffix("") if path.suffix else path
+    stem = path.stem if has_format_suffix else path.name
     priority = {"svg": 0, "pdf": 1, "png": 2, "tiff": 3}
     requested.sort(key=priority.__getitem__)
-    return [(fmt, stem.with_suffix(f".{fmt}")) for fmt in requested]
+    return [(fmt, path.with_name(f"{stem}.{fmt}")) for fmt in requested]
+
+
+def _validate_dpi(dpi) -> int:
+    """Export DPI: any finite positive integer (style presets stay 300/600)."""
+    if isinstance(dpi, bool) or not isinstance(dpi, Integral) or dpi <= 0:
+        raise ValueError(f"dpi must be a positive integer, got {dpi!r}.")
+    return int(dpi)
 
 
 def _width_in_units(
@@ -720,7 +792,113 @@ def _figure_from_object(plot, width_in: float, height_in: float, dpi: int):
     if hasattr(working, "_apply_publication_gap"):
         figure.canvas.draw()
         working._apply_publication_gap(figure)
+    for axis in list(getattr(figure, "_ggann_fit_left", ())):
+        fit_left_labels(figure, axis)
     return figure
+
+
+def fit_left_labels(figure, axis, *, pad_mm: float = 1.0, min_axes_fraction: float = 0.2) -> None:
+    """Widen ``axis``'s left margin until its y tick labels fit inside the canvas.
+
+    Labels are measured with the figure's renderer at its current physical size,
+    not estimated from character counts. The right edge of the axes stays put and
+    the margin only grows. The axis is remembered on the figure so
+    :func:`save_publication` can repeat the fit after resizing the canvas.
+    """
+    renderer = figure._get_renderer()
+    bbox = axis.yaxis.get_tightbbox(renderer)
+    registered = figure.__dict__.setdefault("_ggann_fit_left", [])
+    if axis not in registered:
+        registered.append(axis)
+    if bbox is None:
+        return
+    pad_px = pad_mm / 25.4 * figure.dpi
+    need = (pad_px - bbox.x0) / figure.bbox.width
+    if need <= 0:
+        return
+    pos = axis.get_position()
+    width = max(pos.width - need, min_axes_fraction)
+    axis.set_position((pos.x1 - width, pos.y0, width, pos.height))
+
+
+def _overflow_report(figure, tolerance_px: float = 0.5) -> list[str]:
+    """Describe text, legends and colourbars that leave the canvas or are clipped.
+
+    Draws the figure once at its final physical size. Reports items beyond the
+    canvas edge and texts cut by their own axes clip box. Nothing is cropped or
+    resized.
+    """
+    from matplotlib.legend import Legend
+    from matplotlib.offsetbox import AnchoredOffsetbox
+    from matplotlib.text import Text
+
+    # A fresh Agg canvas triggers plotnine's layout engine; redrawing the canvas a
+    # plotnine figure already carries leaves artists at stale positions.
+    FigureCanvasAgg(figure).draw()
+    renderer = figure._get_renderer()
+    canvas = figure.bbox
+    mm_per_px = 25.4 / figure.dpi
+    found: list[str] = []
+
+    def beyond(box) -> str | None:
+        sides = {
+            "left": canvas.x0 - box.x0,
+            "right": box.x1 - canvas.x1,
+            "bottom": canvas.y0 - box.y0,
+            "top": box.y1 - canvas.y1,
+        }
+        worst = max(sides, key=lambda side: sides[side])
+        if sides[worst] <= tolerance_px:
+            return None
+        return f"{worst} by {sides[worst] * mm_per_px:.1f} mm"
+
+    for artist in figure.findobj(lambda a: isinstance(a, (Text, Legend, AnchoredOffsetbox))):
+        if not artist.get_visible():
+            continue
+        if isinstance(artist, Text):
+            if not artist.get_text().strip():
+                continue
+            name = repr(artist.get_text().replace("\n", " ")[:30])
+        else:
+            name = "legend" if isinstance(artist, Legend) else "legend or colourbar"
+        box = artist.get_window_extent(renderer)
+        if not (box.width > 0 and box.height > 0):
+            continue
+        message = beyond(box)
+        if message:
+            found.append(f"{name} ({message})")
+            continue
+        if isinstance(artist, Text) and artist.get_clip_on():
+            clip = artist.get_clip_box()
+            if clip is not None and (
+                box.x0 < clip.x0 - tolerance_px
+                or box.x1 > clip.x1 + tolerance_px
+                or box.y0 < clip.y0 - tolerance_px
+                or box.y1 > clip.y1 + tolerance_px
+            ):
+                found.append(f"{name} (clipped by its axes)")
+    return found
+
+
+def _warn_overflow(figure, width_mm: float, height_mm: float) -> None:
+    try:
+        found = _overflow_report(figure)
+    except Exception as exc:  # detection must never block an export
+        warnings.warn(
+            f"save_publication: overflow check skipped ({exc!r}).",
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
+        )
+        return
+    if not found:
+        return
+    shown = "; ".join(found[:4]) + (f"; and {len(found) - 4} more" if len(found) > 4 else "")
+    warnings.warn(
+        f"save_publication: {len(found)} item(s) are cut off at the {width_mm:.0f} x "
+        f"{height_mm:.0f} mm canvas: {shown}. The canvas was not changed; shorten labels, "
+        "reduce font sizes or enlarge the figure.",
+        UserWarning,
+        skip_file_prefixes=SKIP_GGANN_FRAMES,
+    )
 
 
 def save_publication(
@@ -742,18 +920,25 @@ def save_publication(
         Plotnine plot/composition, Matplotlib figure, or a result returned by
         :func:`plot_clustermap` or :func:`plot_upset`.
     filename : str or pathlib.Path
-        Output path or suffixless stem.
+        Output path or stem. Only an SVG, PDF, PNG, TIFF or TIF suffix counts as
+        a format; any other dot stays in the stem, so ``fig1.v2`` writes
+        ``fig1.v2.svg``, ``fig1.v2.pdf`` and ``fig1.v2.png``.
     width : float or {"single-column", "double-column"}
         Canvas width in ``units`` or a generic physical-width preset.
     height : float
-        Positive canvas height in ``units``.
+        Positive canvas height in ``units``. Required: no default height is
+        guessed from the width.
     units : {"mm", "cm", "in"}, default="mm"
         Units for numeric dimensions.
     formats : sequence of str, optional
-        Any of SVG, PDF, PNG, or TIFF. A suffixless stem defaults to SVG, PDF,
-        and PNG; a suffixed filename defaults to that one format.
-    dpi : {300, 600}, default=600
-        Resolution for PNG and TIFF. Vector dimensions are physical.
+        Any of SVG, PDF, PNG, or TIFF. A stem without a format suffix defaults to
+        SVG, PDF, and PNG; a filename with a format suffix defaults to that one
+        format. A suffix that is not in ``formats`` raises ``ValueError``.
+    dpi : int, default=600
+        Any finite positive integer resolution for PNG and TIFF; vector
+        dimensions are physical. Raster size is ``floor(size_in_inches * dpi)``
+        pixels (Matplotlib's rule), for example 89 mm at 150 dpi is 525 px wide.
+        :class:`PublicationStyle` presets still accept only 300 or 600.
     background : str, default="white"
         ``"transparent"`` or any Matplotlib-compatible colour.
 
@@ -767,13 +952,28 @@ def save_publication(
     TypeError
         If ``plot`` is not a supported plotting result.
     ValueError
-        If dimensions, units, formats, DPI, or background are invalid.
+        If dimensions, units, formats, DPI, or background are invalid, or a
+        filename suffix disagrees with ``formats``.
+
+    Warns
+    -----
+    UserWarning
+        If text, a legend or a colourbar extends beyond the canvas or is clipped
+        by its axes at the final size, or if the requested font family is not
+        installed. The canvas is never enlarged or cropped.
 
     Notes
     -----
     The input is copied before rendering, the canvas is never tight-cropped,
-    temporary figures are closed, SVG text remains text, and PDF text uses
-    embedded TrueType fonts when the selected font is available.
+    temporary figures are closed, SVG text remains text (``svg.fonttype="none"``),
+    and PDF text uses embedded TrueType fonts (``pdf.fonttype=42``). A font family
+    that is not installed falls back to the next installed one (a warning is
+    issued once); the SVG still names the requested family, while the PDF embeds
+    the font actually used. SVG and PDF files carry different metadata (the SVG
+    stores a creation date and element ids, the PDF a producer string and
+    timestamps), so byte-identical output across runs is not expected. A
+    DPI-only change affects PNG and TIFF; SVG and PDF are resolution-independent.
+    Axis-level guide collection from :func:`compose` stays in one panel.
 
     Examples
     --------
@@ -792,8 +992,7 @@ def save_publication(
         or float(height) <= 0
     ):
         raise ValueError(f"height must be a positive number, got {height!r}.")
-    if dpi not in {300, 600}:
-        raise ValueError(f"dpi must be 300 or 600, got {dpi!r}.")
+    dpi = _validate_dpi(dpi)
     if background != "transparent" and not is_color_like(background):
         raise ValueError(f"background must be white, transparent, or a colour; got {background!r}.")
 
@@ -803,12 +1002,14 @@ def save_publication(
     style = _captured_style(plot) or _active_style() or width_style
     height_in = float(height) * _UNIT_TO_INCH[units]
     outputs = _output_paths(filename, formats)
+    _resolve_font(style.fonts, context="save_publication")
     transparent = background == "transparent"
     facecolor = "none" if transparent else background
     figure = None
     try:
         with mpl.rc_context(_style_rcparams(style)):
             figure = _figure_from_object(plot, width_in, height_in, dpi)
+            _warn_overflow(figure, width_in * 25.4, height_in * 25.4)
             saved: list[Path] = []
             for fmt, path in outputs:
                 path.parent.mkdir(parents=True, exist_ok=True)

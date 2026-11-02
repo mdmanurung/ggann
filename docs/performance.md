@@ -8,6 +8,65 @@ composable grammar, and exact publication export—not for a blanket speed claim
 
 ## Evidence and interpretation
 
+```{note}
+The profile, matched-benchmark, regression and gate tables below were measured
+before the 0.1.0 readiness changes (new palette fallback, dotplot orientation,
+stacked-violin fill, export overflow check). They were not re-run, so treat
+them as the pre-change reference. The next section lists what was measured
+afterwards. The embedding point-density target of the earlier plan (9 s at 10k
+cells, 74 s at 30k) is still unmet for the exact method.
+```
+
+## Measured after the readiness changes
+
+All numbers in this section come from one cluster node, `res-hpc-exe048`
+(Intel Xeon E5-2690 v3, 24 CPUs, 8 allotted to the job), on 2026-11-01. Four
+development jobs shared the node at the time, so none of these is a
+quiet-machine benchmark. Compare a before and after pair only within its own
+row.
+
+### Tracksplot drawing
+
+`plot_tracksplot` now draws `geom_rect` instead of `geom_col`. The rectangles
+are identical (extents, colours, limits, negatives). Median of three runs, six
+genes, same host before and after.
+
+| Cells | Before | After |
+|---:|---:|---:|
+| 700 | 6.12 s | 0.52 s |
+| 2,800 | 22.89 s | 0.99 s |
+
+### Binned and exact embedding point density
+
+`plot_embedding(method="binned")` uses a histogram2d plus Gaussian filter,
+sampled at each cell. The exact KDE stays the default and warns above 20,000
+cells. `benchmarks/validate_point_density.py` compares the two with the same
+statsmodels `normal_reference` bandwidth, on a machine under load.
+
+| Fixture | Cells | Spearman | Max normalized error | Exact | Binned |
+|---|---:|---:|---:|---:|---:|
+| `pbmc68k_reduced` UMAP | 700 | 0.9999 | 0.031 | 0.46 s | 0.001 s |
+| synthetic 8-component mixture | 20,000 | 1.0000 | 0.016 | 27 s | 0.008 s |
+
+Max normalized error is `max|binned - exact| / max(exact)`. The binned values
+are an approximation and the legend says so (`density (binned)`). The 20,000-cell
+fixture is synthetic, so the PBMC row is the only one on real data.
+
+### Publication export
+
+`save_publication` on a 700-cell embedding (the size of `pbmc68k_reduced`), 89 × 70 mm,
+300 dpi, best of three, same node.
+
+| Output | Time |
+|---|---:|
+| SVG | 0.29 s |
+| PDF | 0.44 s |
+| PNG | 0.26 s |
+| SVG, PDF and PNG in one call | 0.77 s |
+
+Three formats cost less than the sum of three single exports, because one draw
+is shared. The overflow check adds about 0.1 s per call.
+
 ### What the refined profile found
 
 `benchmarks/profile_hotspots.py` records cProfile calls, tracemalloc lines,

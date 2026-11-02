@@ -41,8 +41,19 @@ expression_source = resolve_source
 StandardScale = Literal["var", "group", "zscore"]
 
 
+def _check_request(adata, genes, by) -> None:
+    """Reject an empty gene request or missing grouping columns before extraction."""
+    if len(genes) == 0:
+        raise ValueError("No genes requested; pass at least one gene name.")
+    missing = [name for name in by if name not in adata.obs.columns]
+    if missing:
+        quoted = ", ".join(repr(name) for name in missing)
+        raise KeyError(f"Observation column(s) not found: {quoted}.")
+
+
 def _projected_frames(adata, genes, by, *, kind, layer):
     """Extract one expression projection and its grouping columns positionally."""
+    _check_request(adata, genes, by)
     expression, groups, genes = expression_with_obs_frame(
         adata,
         genes,
@@ -59,10 +70,7 @@ def _projected_frames(adata, genes, by, *, kind, layer):
 
 def _projected_matrix(adata, genes, by, *, kind, layer):
     """Project expression and grouping positions for the explicit fast backend."""
-    missing = [name for name in by if name not in adata.obs.columns]
-    if missing:
-        quoted = ", ".join(repr(name) for name in missing)
-        raise KeyError(f"Observation column(s) not found: {quoted}.")
+    _check_request(adata, genes, by)
     matrix, genes = expression_matrix(
         adata,
         genes,

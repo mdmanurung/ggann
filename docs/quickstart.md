@@ -110,10 +110,15 @@ outputs = ag.save_publication(
 )
 ```
 
-`outputs` is an ordered tuple of paths. A suffixed path such as
-`"pbmc_markers.svg"` writes one format; `formats=("svg", "pdf", "png",
-"tiff")` requests an explicit set. PNG and TIFF accept 300 or 600 DPI. The
-canvas is never tight-cropped, so 183 × 90 mm at 600 DPI is reproducible.
+`outputs` is an ordered tuple of paths. `height` is required. A suffixed path
+such as `"pbmc_markers.svg"` writes one format; `formats=("svg", "pdf", "png",
+"tiff")` requests an explicit set. Only an svg, pdf, png or tiff suffix counts
+as a format, so `"fig1.v2"` writes `fig1.v2.svg`, `.pdf` and `.png`; a suffix
+that is missing from an explicit `formats` raises. PNG and TIFF accept any
+positive integer `dpi`, for example 150 for a draft (the style presets use 300
+or 600). The canvas is never tight-cropped or resized, so 183 × 90 mm at 600 DPI
+is reproducible. `save_publication` warns when text, a legend or a colour bar
+is cut off at the final size.
 
 Dense point or tile layers can be rasterized without flattening the rest of a
 vector figure:
@@ -133,8 +138,10 @@ annotations remain vectors. Leave `rasterized=False` for fully vector output.
 ## Use a stable colour vocabulary
 
 Helpers reuse `adata.uns["<obs>_colors"]` only when it contains exactly one
-valid colour per category. In publication mode an invalid stored palette emits
-a warning and falls back deterministically without modifying `adata`.
+valid colour per category. An invalid stored palette emits a warning and falls
+back deterministically without modifying `adata`. With no stored colours,
+categories get Scanpy's default palette, so colours match `sc.pl.umap`.
+Colours follow category order: reorder the categories and the colours move.
 
 For a custom annotation, make the vocabulary explicit once:
 
@@ -166,15 +173,16 @@ adata.uns["cell_type_colors"] = [colours[value] for value in cell_types]
 ```
 
 Missing observations remain represented in embedding plots with the neutral
-publication grey. The reviewed qualitative core contains eight colours; larger
-vocabularies require visual review or a redundant encoding such as shape or
-direct labels.
+publication grey. Only the first eight qualitative colours are tested for colour-vision
+deficiency. Larger palettes extend a fixed sequence, so earlier categories keep
+their colours, but separation is not guaranteed and ggann warns once. Add
+labels or shapes for larger vocabularies.
 
 ## Build a custom grammar plot
 
-Use `gganndata` when plotnine already expresses the figure clearly. Include a
-field in the aesthetic mapping when a later facet or layer needs that column;
-`group=` is a convenient non-visual mapping for `depth` here.
+Use `gganndata` when plotnine already expresses the figure clearly. A facet or
+layer can name an observation column that the first mapping did not mention;
+`gganndata` reads it from `adata` when the component is added.
 
 ```python
 from ggann import aes, gganndata, obs, obsm
@@ -183,18 +191,18 @@ from plotnine import facet_wrap, geom_point, theme
 plot = (
     gganndata(
         adata,
-        aes(
-            x=obsm("umap", 0),
-            y=obsm("umap", 1),
-            color=obs("louvain"),
-            group=obs("depth"),
-        ),
+        aes(x=obsm("umap", 0), y=obsm("umap", 1), color=obs("louvain")),
     )
+    + ag.scale_color_obs(adata, "louvain")   # stored colours; none by default
     + geom_point(size=1.0, alpha=0.8)
     + facet_wrap("depth")
     + theme(legend_position="bottom")
 )
 ```
+
+`gganndata` adds no colour scale of its own, so `scale_color_obs` is how you
+use the colours stored in `adata.uns`. Late fields work on `gganndata` plots
+only; on `plot_*` helpers use `split_by=`.
 
 The returned object accepts any compatible plotnine geom, stat, scale,
 coordinate system, facet, label, or theme. A bare plotnine plot built inside

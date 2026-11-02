@@ -12,13 +12,16 @@ builds an annplyr-tidied matrix and hands it to
 
 from __future__ import annotations
 
+import warnings
 from typing import Iterable, Sequence
 
 import pandas as pd
 
 from ._aggregate import _standardize, group_means
+from ._compat import accepts_groupby
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source
+from ._grouping import _drop_missing_groups
 from .publication import _active_style
 
 __all__ = ["plot_clustermap"]
@@ -35,6 +38,7 @@ def _require_pch():
     return pch
 
 
+@accepts_groupby
 def plot_clustermap(
     adata,
     genes: Sequence[str],
@@ -66,6 +70,23 @@ def plot_clustermap(
     both would normalize twice. Returns the
     :class:`PyComplexHeatmap.ClusterMapPlotter` instance.
 
+    Clustering reorders rows and columns, but PyComplexHeatmap draws no
+    dendrogram unless asked: pass ``row_dendrogram=True`` and/or
+    ``col_dendrogram=True`` to show the trees. Clustering needs at least two
+    rows (genes) or two columns (groups or cells); with fewer, set
+    ``row_cluster=False`` / ``col_cluster=False``. Progress text is off by
+    default (``verbose=0``); pass ``verbose=1`` to see it.
+
+    PyComplexHeatmap lays the figure out at the size of the current matplotlib
+    figure when it is constructed, not at export size. For a publication
+    export, create the figure at the target size first (for example
+    ``plt.figure(figsize=(183 / 25.4, 120 / 25.4))``) and then call this
+    function; resizing afterwards clips more. This reduces clipping but does
+    not remove it: on ``pbmc68k_reduced`` at 183 x 120 mm, rotated column names
+    and the legend still overflow. ``plot_legend=False, show_colnames=False``
+    leaves only the annotation title outside. ``save_publication`` warns about
+    anything clipped.
+
     Parameters
     ----------
     adata
@@ -91,7 +112,8 @@ def plot_clustermap(
     plot : bool
         Render immediately.
     **kwargs
-        Passed to ``PyComplexHeatmap.ClusterMapPlotter``.
+        Passed to ``PyComplexHeatmap.ClusterMapPlotter`` (for example
+        ``row_dendrogram=True``).
 
     Returns
     -------
@@ -105,7 +127,9 @@ def plot_clustermap(
     KeyError
         If requested genes, metadata, or a layer are missing.
     ValueError
-        If sources are incompatible or both scaling mechanisms are selected.
+        If sources are incompatible, both scaling mechanisms are selected, the
+        matrix is empty, or clustering is requested along an axis with fewer than
+        two entries.
 
     Notes
     -----
@@ -116,6 +140,7 @@ def plot_clustermap(
     --------
     >>> cm = plot_clustermap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     if standard_scale is not None and z_score is not None:
         raise ValueError(
             "standard_scale and z_score are mutually exclusive (both normalize the "
@@ -138,6 +163,16 @@ def plot_clustermap(
         matrix = wide.T  # genes x cells
         ann_df = projected.ap.to_df(obs=ann_cols) if ann_cols else None
 
+    if matrix.size == 0:
+        raise ValueError(f"The matrix to draw is empty ({matrix.shape[0]} x {matrix.shape[1]}).")
+    for enabled, axis, n, off in (
+        (row_cluster, "row", matrix.shape[0], "row_cluster=False"),
+        (col_cluster, "col", matrix.shape[1], "col_cluster=False"),
+    ):
+        # a failed PyComplexHeatmap call can corrupt its global state, so refuse here
+        if enabled and n < 2:
+            raise ValueError(f"{axis} clustering needs at least 2 {axis}s, got {n}; pass {off}.")
+
     top_annotation = None
     if ann_df is not None and not ann_df.empty:
         # pandas>=3 gives string columns the `str` dtype, which PyComplexHeatmap
@@ -150,20 +185,49 @@ def plot_clustermap(
             is_numeric = pd.api.types.is_numeric_dtype(ann_df[col])
             if not is_numeric or pd.api.types.is_bool_dtype(ann_df[col]):
                 ann_df[col] = ann_df[col].astype("category")
-        top_annotation = pch.HeatmapAnnotation(df=ann_df, axis=1, plot_legend=True)
+            else:
+                # its cmap detection only knows float64/int64, not float32/int32
+                ann_df[col] = ann_df[col].astype(float)
+        # Reuse stored/publication category colours (adata.uns is not modified).
+        from ._palette import annotation_colors
 
-    result = pch.ClusterMapPlotter(
-        data=matrix,
-        top_annotation=top_annotation,
-        z_score=z_score,
-        row_cluster=row_cluster,
-        col_cluster=col_cluster,
-        cmap=cmap,
-        show_rownames=show_rownames,
-        show_colnames=show_colnames,
-        plot=plot,
-        **kwargs,
-    )
+        stored = annotation_colors(adata, ann_df)
+        top_annotation = pch.HeatmapAnnotation(
+            df=ann_df,
+            axis=1,
+            plot_legend=True,
+            **({"colors": stored} if stored else {}),
+        )
+
+    # colour-bar title: what the values are, including any scaling (backend default is "heatmap")
+    column_unit = "group" if group_by is not None else "cell"
+    scaling = ""
+    if standard_scale == "var":
+        scaling = "scaled 0-1 per gene"
+    elif standard_scale == "group":
+        scaling = f"scaled 0-1 per {column_unit}"
+    elif standard_scale == "zscore" or z_score == 0:
+        scaling = "z-score per gene"
+    elif z_score == 1:
+        scaling = f"z-score per {column_unit}"
+    label = "mean expression" if group_by is not None else "expression"
+    kwargs.setdefault("label", f"{label}\n{scaling}" if scaling else label)
+    kwargs.setdefault("verbose", 0)  # PyComplexHeatmap prints progress at verbose=1
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Clustering large matrix with scipy")
+        warnings.filterwarnings("ignore", message=".*set_bad.*", category=PendingDeprecationWarning)
+        result = pch.ClusterMapPlotter(
+            data=matrix,
+            top_annotation=top_annotation,
+            z_score=z_score,
+            row_cluster=row_cluster,
+            col_cluster=col_cluster,
+            cmap=cmap,
+            show_rownames=show_rownames,
+            show_colnames=show_colnames,
+            plot=plot,
+            **kwargs,
+        )
     if style := _active_style():
         # Preserve the backend's documented return type while retaining the
         # style used to construct/render it for ggann's export adapter.

@@ -26,6 +26,7 @@ from typing import Iterable, cast
 
 import pandas as pd
 
+from ._compat import SKIP_GGANN_FRAMES
 from ._expression import (
     _expression_kwargs,
     expression_frame,
@@ -366,14 +367,18 @@ def _embedding_selectors(adata, key: str, indices: Iterable[int]) -> list[str]:
     )
 
 
-def _all_embedding_coords(adata, n: int = 2) -> dict[str, tuple[str, int]]:
-    """Map every embedding coordinate name -> (obsm key, column index)."""
+def _all_embedding_coords(adata, n: int | None = None) -> dict[str, tuple[str, int]]:
+    """Map every embedding coordinate name -> (obsm key, column index).
+
+    ``n`` caps the coordinates per embedding; ``None`` lists each embedding's
+    full width, so ``PC_5`` resolves like ``UMAP_1``.
+    """
     out: dict[str, tuple[str, int]] = {}
     for key, arr in adata.obsm.items():
         if getattr(arr, "ndim", 0) != 2:
             continue
         prefix = _embedding_prefix(key)
-        for i in range(min(n, arr.shape[1])):
+        for i in range(arr.shape[1] if n is None else min(n, arr.shape[1])):
             out.setdefault(f"{prefix}_{i + 1}", (key, i))
     return out
 
@@ -389,8 +394,13 @@ def resolve_frame(
     use_raw: bool | None = None,
     warn_collisions: bool = True,
     max_matrix_values: int | None = None,
+    strict: bool = False,
+    _cost: list[int] | None = None,
 ) -> pd.DataFrame:
     """Build a per-cell DataFrame with one column per requested ``name``.
+
+    With ``strict=True`` (used by the plotting helpers, whose requests are
+    always field names) any name that resolves to nothing raises ``KeyError``.
 
     ``names`` may contain plain strings or :class:`Ref` objects (from
     :func:`gene`/:func:`obs`). Names that resolve to nothing are silently
@@ -454,7 +464,7 @@ def resolve_frame(
                 warnings.warn(
                     f"'{name}' is both an obs column and a gene; using obs. "
                     f"Use 'gene:{name}' to plot expression.",
-                    stacklevel=2,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
                 )
             obs_names.append(name)
         elif name in default_set:
@@ -463,15 +473,22 @@ def resolve_frame(
             key, idx = emb[name]
             obsm_specs.append((name, key, idx))
         elif name in other_set:
-            warnings.warn(
+            message = (
                 f"'{name}' is a gene in "
                 f"{_source_label('raw' if default_kind != 'raw' else 'x', default_layer)} "
                 f"but not in the active expression source "
                 f"({_source_label(default_kind, default_layer)}); "
-                f"pass use_raw={default_kind != 'raw'} to plot it.",
-                stacklevel=2,
+                f"pass use_raw={default_kind != 'raw'} to plot it."
             )
+            if strict:
+                raise KeyError(message)
+            warnings.warn(message, skip_file_prefixes=SKIP_GGANN_FRAMES)
             continue
+        elif strict:
+            raise KeyError(
+                f"'{name}' is not an obs column, a gene in "
+                f"{_source_label(default_kind, default_layer)}, or an embedding coordinate."
+            )
         else:
             continue  # computed / literal aesthetic -- leave to plotnine
         order.append(name)
@@ -495,6 +512,8 @@ def resolve_frame(
         adata.n_obs * projected_columns,
         context="resolve_frame",
     )
+    if _cost is not None:  # lets a caller track a budget across several calls
+        _cost.append(adata.n_obs * projected_columns)
 
     frames = []
 
@@ -597,6 +616,22 @@ def resolve_frame(
     return cast(
         pd.DataFrame,
         out.loc[:, ordered + [c for c in out.columns if c not in ordered]],
+    )
+
+
+def field_names(adata, *, layer: str | None = None, use_raw: bool | None = None) -> set[str]:
+    """Every name :func:`resolve_frame` can turn into a column for this source.
+
+    Used to tell field identifiers from callables and literals inside an aes
+    expression. Gene names of the inactive matrix are included so that a request
+    for one still reaches the "inactive source" warning.
+    """
+    kind, _ = resolve_source(adata, layer, use_raw)
+    return (
+        set(adata.obs.columns)
+        | set(source_var_names(adata, kind))
+        | set(_other_gene_universe(adata, kind))
+        | set(_all_embedding_coords(adata))
     )
 
 

@@ -13,6 +13,7 @@ by indexing ``adata.X`` directly, keeping the one-extraction-layer contract.
 
 from __future__ import annotations
 
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -20,7 +21,9 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_point, ggplot, labs
 
+from ._compat import SKIP_GGANN_FRAMES
 from ._expression import ordered_unique
+from ._grouping import _downsample_cells
 from ._resolve import embedding_coords, plain_name, resolve_frame
 from .plots import _continuous_scale, _embedding_style
 
@@ -59,11 +62,13 @@ def plot_density(
     adjust: float = 1.0,
     size: float = 1.5,
     alpha: float = 0.9,
-    cmap: str = "magma",
+    cmap: str | None = None,
     ncol: int | None = None,
     rasterized: bool = False,
     show_axes: bool | None = None,
     equal_aspect: bool | None = None,
+    downsample: int | None = None,
+    random_state: int | None = 0,
 ):
     """Gene-weighted density over an embedding, one faceted panel per feature.
 
@@ -79,8 +84,16 @@ def plot_density(
     Each panel's colour is the density min-max scaled to ``[0, 1]`` so panels
     stay legible under plotnine's shared facet scale (raw density magnitudes
     differ by orders of magnitude across genes). The scaling is monotonic, so the
-    within-panel ordering is unchanged; for raw-magnitude colourbars, compose
-    separate ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+    within-panel ordering is unchanged, but it **hides absolute density**: a faint
+    gene and a strong gene both reach 1 in their own panel, so compare panels by
+    pattern, not colour. For raw-magnitude colourbars, compose separate
+    ``plot_density`` calls with the re-exported ``Wrap`` / ``plot_layout``.
+    ``joint=True`` needs two or more features; with one it warns and draws the
+    single panel.
+
+    ``downsample=N`` keeps at most ``N`` cells (drawn without replacement, seeded by
+    ``random_state``) before the KDE, which is the slow step on large data; the
+    density is then estimated from, and drawn at, the kept cells only.
 
     Parameters
     ----------
@@ -100,8 +113,9 @@ def plot_density(
         Bandwidth multiplier.
     size, alpha : float
         Point size and opacity.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` uses ``"magma"`` (or the active
+        publication style's sequential map); an explicit name always wins.
     ncol : int, optional
         Facet columns.
     rasterized : bool, default=False
@@ -111,6 +125,10 @@ def plot_density(
         legacy or publication default.
     equal_aspect : bool, optional
         Force equal x/y data units; ``None`` enables it in publication mode.
+    downsample : int, optional
+        Maximum number of cells (total, not per group) used for the density.
+    random_state : int, optional
+        Seed for ``downsample``.
 
     Returns
     -------
@@ -138,6 +156,7 @@ def plot_density(
     >>> p = plot_density(adata, ["CD3D", "NKG7"], joint=True)
     """
     calculate_density = _require_pynebulosa()
+    adata = _downsample_cells(adata, None, downsample, random_state=random_state)
 
     if isinstance(features, str):
         features = [features]
@@ -151,7 +170,7 @@ def plot_density(
     xcol, ycol = coords.columns[:2]
     xy = coords.iloc[:, :2].to_numpy(dtype=float)
 
-    values = resolve_frame(adata, features, layer=layer, use_raw=use_raw)
+    values = resolve_frame(adata, features, layer=layer, use_raw=use_raw, strict=True)
     names = [plain_name(adata, f) for f in features]
     missing = [f for f, n in zip(features, names) if n not in values.columns]
     if missing:
@@ -179,6 +198,12 @@ def plot_density(
         for name in panels
     }
     panel_density = dict(raw_density)
+    if joint and len(panels) < 2:
+        warnings.warn(
+            "joint=True needs at least two features; drawing the single feature panel.",
+            UserWarning,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
+        )
     if joint and len(panels) > 1:
         joint_label = " + ".join(panels)
         panel_density[joint_label] = np.prod([raw_density[n] for n in panels], axis=0)
@@ -203,7 +228,7 @@ def plot_density(
         ggplot(long, aes(xcol, ycol, color="density"))
         + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + _continuous_scale("color", long["density"], cmap, signed=False)
+        + _continuous_scale("color", long["density"], cmap, signed=False, default="magma")
         + labs(color="density\n(scaled)")
         + _embedding_style(show_axes, equal_aspect)
     )

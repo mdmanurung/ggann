@@ -23,6 +23,9 @@ import scanpy as sc
 import ggann as ag
 
 GROUP = "louvain"
+# Fresh wilcoxon result in its own key: the bundled "rank_genes_groups" has no
+# logfoldchanges and is left untouched.
+DE_KEY = "rank_wilcoxon"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 
 
@@ -38,7 +41,7 @@ def _adata():
     )
     # pbmc3k_processed.X is already restricted to the highly variable genes.
     adata.var["highly_variable"] = True
-    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
+    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50, key_added=DE_KEY)
     sc.tl.dendrogram(adata, groupby=GROUP)
     return adata
 
@@ -50,8 +53,8 @@ def _save_scanpy(fn, path):
     plt.close("all")
 
 
-def _save_ggann(plot, path):
-    plot.save(path, width=5.5, height=4, dpi=80, verbose=False)
+def _save_ggann(plot, path, width=5.5):
+    plot.save(path, width=width, height=4, dpi=80, verbose=False)
 
 
 def pairs(adata):
@@ -70,7 +73,7 @@ def pairs(adata):
         ),
         "matrixplot": (
             lambda: sc.pl.matrixplot(adata, MARKERS, groupby=GROUP, show=False),
-            lambda: ag.plot_matrixplot(adata, MARKERS, GROUP, standard_scale="var"),
+            lambda: ag.plot_matrixplot(adata, MARKERS, GROUP),
         ),
         "stacked_violin": (
             lambda: sc.pl.stacked_violin(adata, MARKERS, groupby=GROUP, show=False),
@@ -86,15 +89,15 @@ def pairs(adata):
         ),
         "correlation": (
             lambda: sc.pl.correlation_matrix(adata, groupby=GROUP, show=False),
-            lambda: ag.plot_correlation(adata, GROUP),
+            lambda: ag.plot_correlation(adata, GROUP, use_rep="X_pca"),
         ),
         "highest_expr_genes": (
             lambda: sc.pl.highest_expr_genes(adata, n_top=15, show=False),
             lambda: ag.plot_highest_expr_genes(adata, n=15, use_raw=True),
         ),
         "rank_genes_dotplot": (
-            lambda: sc.pl.rank_genes_groups_dotplot(adata, n_genes=3, show=False),
-            lambda: ag.plot_rank_genes_dotplot(adata, n_genes=3),
+            lambda: sc.pl.rank_genes_groups_dotplot(adata, n_genes=3, key=DE_KEY, show=False),
+            lambda: ag.plot_rank_genes_dotplot(adata, n_genes=3, key=DE_KEY),
         ),
     }
 
@@ -107,7 +110,9 @@ def main():
     for name, (scfn, ggfn) in pairs(adata).items():
         try:
             _save_scanpy(scfn, os.path.join(out, f"{name}_scanpy.png"))
-            _save_ggann(ggfn(), os.path.join(out, f"{name}_ggann.png"))
+            # eight group labels overlap less when the tracks are wider
+            width = 8 if name == "tracksplot" else 5.5
+            _save_ggann(ggfn(), os.path.join(out, f"{name}_ggann.png"), width)
             print("wrote", name)
         except Exception as error:
             failures.append((name, error))

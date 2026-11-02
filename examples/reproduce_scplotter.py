@@ -35,6 +35,9 @@ from plotnine import (
 import ggann as ag
 
 GROUP = "louvain"
+# Fresh wilcoxon result in its own key: the bundled "rank_genes_groups" has no
+# logfoldchanges and is left untouched.
+DE_KEY = "rank_wilcoxon"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
 
 
@@ -50,7 +53,7 @@ def _adata():
     )
     # pbmc3k_processed.X is already restricted to the highly variable genes.
     adata.var["highly_variable"] = True
-    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50)
+    sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50, key_added=DE_KEY)
     return adata
 
 

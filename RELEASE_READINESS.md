@@ -1,147 +1,138 @@
 # ggann 0.1.0 verification record
 
-Assessment date: 2026-08-09
+Assessment date: 2026-11-02 (gate re-run included). Branch `release/0.1.0-readiness`.
 
-This record captures the local evidence for ggann's first public release. The
-verified scope is the AnnData grammar, all 30 plotting helpers, the optional
-publication design system, exact multi-format export, executable documentation,
-and source/distribution reproducibility.
+The package source is ready for release. Publication to PyPI is blocked on
+two upstream packages, `annplyr` and `plotnine-extra`, which must reach PyPI
+first (see [Release blockers](#release-blockers)).
 
 ## Outcome
 
 | Area | Result | Evidence |
 |---|:---:|---|
-| Python API and helpers | **PASS** | 386 tests on each of Python 3.12, 3.13, and 3.14; all 28 plotnine helpers and both grid-backend exceptions exercised |
-| Static quality | **PASS** | Ruff check and format verification clean; Pyright reports zero errors, warnings, or information messages for `src/ggann` |
-| Documentation | **PASS** | Offline Sphinx build succeeds with warnings as errors and executes all six workflows |
-| Scientific invariance | **PASS** | Frozen `30e3359` prepared tables match at `rtol=1e-6`, `atol=1e-7`; mappings, labels, scales, populations, category order, and AnnData fingerprints match exactly |
-| Exploratory rendering | **PASS** | Representative legacy embedding, dotplot, matrixplot, and heatmap PNGs are pixel-identical; default SVG output remains vector |
-| Publication rendering | **PASS** | Exact canvases, final-size text/overlap checks, vector/raster layering, fonts, palette accessibility, object cleanup, and real PBMC output contracts pass |
-| Performance regression | **PASS** | 18 timing/RSS checks against `30e3359` pass the 5% limit with seven repeated samples and seven isolated memory children |
-| Distribution | **PASS** | Offline wheel and sdist build; strict Twine checks; wheel import outside the checkout; `pip check`; source/wheel output identity |
+| Test suite | **PASS** | 686 tests, Python 3.12.13, `pytest -n 8` |
+| Backlog | **PASS** | All 96 evaluation rows completed, documented or deferred with a reason |
+| Static quality | **PASS** | ruff check and format clean; pyright 0 errors over `src/ggann` |
+| Documentation | **PASS** | Offline `sphinx-build -W --keep-going` exits 0 and executes every vignette |
+| Scanpy agreement | **PASS** | Dotplot/matrixplot means and fractions match Scanpy within `atol=rtol=1e-6` (max 3e-7) |
+| Statistics | **PASS** | `stat_cor`, `stat_regline_equation`, `stat_compare_means` match SciPy on the same inputs |
+| Distribution | **PASS** | sdist and wheel build; `twine check --strict`; wheel imports outside the checkout; `pip check` clean |
+| Self-regression | **PASS** (claim stages) | Preparation and end-to-end within 5% of frozen `30e3359` across two counterbalanced passes; embedding construction +12% (diagnostic stage), explained below |
+| Public install | **BLOCKED** | `annplyr` 404 and `plotnine-extra` only 0.2.0 on PyPI |
 
-## Runtime matrix
+## Runtime
 
-All runs used the official annplyr 0.3.0 and plotnine-extra 0.3.1 source
-snapshots, plotnine 0.15.7, Scanpy 1.12.3, AnnData 0.13.2, NumPy 2.4.6,
-pandas 3.0.5, SciPy 1.18.0, and Matplotlib 3.11.1.
+Python 3.12.13 in `.venv-rc`, locked in `plans/evaluation/env-rc.lock`.
+First-party dependencies come from pinned commits, as in CI: annplyr
+`cadb0e77` (0.3.0) and plotnine-extra `fcbd88f6` (0.3.1).
 
-| Python | Command | Result |
-|---|---|---:|
-| 3.12.13 | `PYTHONPATH=src python -m pytest -q` | 386 passed |
-| 3.13.11 | `PYTHONPATH=src python -m pytest -q` | 386 passed |
-| 3.14.5 | `PYTHONPATH=src python -m pytest -q` | 386 passed |
+| Package | Version |
+|---|---|
+| anndata | 0.13.4 |
+| scanpy | 1.12.5 |
+| plotnine | 0.15.8 |
+| pandas | 3.1.0 |
+| numpy | 2.5.4 |
+| scipy | 1.18.1 |
+| matplotlib | 3.11.2 |
+| statsmodels | 0.15.0 |
+| decoupler | 2.3.1 |
+| PyComplexHeatmap | 1.8.5 |
+| marsilea | 0.8.1 |
+| pynebulosa | 0.1.1 |
 
-Expected third-party warnings cover PyComplexHeatmap's pending colormap
-deprecation, deliberately duplicated observation names, tiny density groups,
-and fixture-specific scaled-expression guidance. No test is skipped or marked
-expected-failure.
+CI still runs Python 3.12, 3.13 and 3.14. This record covers 3.12 only; the
+other two run in CI on the next push.
 
-## Scientific and visual invariance
+## What changed since the 2026-08-09 record
 
-The representative real-data audit uses
-`scanpy.datasets.pbmc68k_reduced`. It compares frozen and candidate:
+A six-report evaluation found 96 backlog rows. The work is recorded per area
+in `plans/evaluation/changes/` and routed from
+`plans/evaluation/remaining_todos.md`. Binding decisions are in
+`plans/evaluation/decisions.md`. `CHANGELOG.md` lists every user-visible
+change, with figure-altering changes first.
 
-- exact AnnData SHA-256 fingerprints before and after construction/rendering;
-- resolved and aggregated tables, including structure and categorical order;
-- plot-ready embedding, dotplot, matrixplot, and heatmap tables;
-- mappings, labels, scales, visible text, represented point/tile counts, and
-  rasterization state;
-- PNG channel differences and SVG raster-image presence.
+Changes that affect scientific results:
 
-Every prepared result passes the numeric tolerances. All four PNG pairs have
-maximum and mean channel differences of zero and infinite PSNR. The complete
-report is [publication-legacy-invariance.md](benchmarks/results/publication-legacy-invariance.md).
+- Cells with a missing `group_by` or `split_by` are dropped from every grouped
+  plot and statistic, with a warning that gives the count. Proportions use the
+  kept cells as the denominator. Before, per-cell plots kept them and some
+  helpers crashed.
+- Helper requests are validated at the call. A bare gene string is one gene;
+  unknown fields raise instead of being skipped.
+- `plot_ma` and `plot_volcano` share one significance rule:
+  `padj < cutoff` and `|LFC| >= lfc`.
+- `pseudobulk(use_raw=True)` reads counts and genes from `adata.raw` when the
+  gene sets differ.
+- Rank-genes `values_to_plot` draws the stored DE statistic, never an
+  expression mean.
+- Jitter and sina spread are reproducible under `random_state`, across
+  repeated draws and exports.
 
-Publication tests additionally cover 89 × 70 mm and 183 × 120 mm canvases,
-one-pixel raster dimension tolerance, 0.5-point canvas containment, less than
-5% unintended text overlap, a 5-point minimum visible font, exact represented
-populations, selective layer rasterization, editable SVG text, embedded PDF
-TrueType/CID Type 2 fonts, 20 repeated exports with less than 1 MiB retained
-Python allocation growth, and exception-path cleanup.
+Regression tests: one per repaired row, in `tests/test_release_core.py` (15),
+`test_release_deqc.py` (42), `test_release_dist.py` (39),
+`test_release_emb.py` (38) and `test_release_pub.py` (21). Where a row fixed
+a bug, its test was checked to fail on the pre-change source.
 
-The core eight-colour vocabulary passes minimum CIEDE2000 separation of 10 in
-normal vision and 5 under protanopia, deuteranopia, and tritanopia simulations.
-Sequential luminance and both diverging arms are monotonic.
+## Known limitations
 
-## Real PBMC evidence
+Partial and deferred rows are listed for users in `docs/limitations.md`.
+They include integer-data sina jitter (upstream plotnine), clustermap
+clipping at publication sizes, no helper-output late grammar fields, no
+`dendrogram=` on dotplot/matrixplot, negative `n_genes`, and fonts verified
+only against a simulated Arial. Seven upstream drafts are in
+`plans/evaluation/upstream/`; none were filed.
 
-The claim-driven workflow represents all 700 cells in the bundled PBMC68k
-subset and combines lineage UMAP, five-gene dotplot, CD3D distribution, and
-lineage-by-phase composition panels. It writes:
+## Performance
 
-- exploratory and publication PNGs;
-- editable publication SVG and PDF;
-- exact-size 2161 × 1417 PNG and TIFF for 183 × 120 mm at 300 DPI;
-- an accessibility report;
-- a manifest containing the claim, panel map, `n`, summary definitions, style,
-  palette, software versions, input fingerprint, canvas, DPI, and hashes.
+Numbers measured on `res-hpc-exe048` (Xeon E5-2690 v3, 8 of 24 CPUs) on
+2026-11-01, with other jobs on the node. Details are in `docs/performance.md`.
 
-The retained local evidence is under `examples/_output/pbmc-publication/`; the
-two review images are versioned under `docs/images/`. The workflow itself is
-`examples/vignettes/05_publication_panels.py` and can recreate every artifact
-without network access.
+- Tracksplot: 700 cells 6.12 s to 0.52 s; 2,800 cells 22.89 s to 0.99 s.
+- Embedding point density: exact KDE stays the default and warns above
+  20,000 cells. Opt-in `method="binned"` takes 0.008 s at 20,000 cells against
+  27 s exact, with Spearman 1.0000 and max normalized error 0.016.
+- The exact-method target (under 5 s at 30,000 cells) is still unmet.
 
-## Performance regression
+### Self-regression gate against frozen `30e3359`
 
-Frozen commit `30e3359` and the candidate were run sequentially on the same
-extended 20,000 × 10,000 CSR fixture with one BLAS/OpenMP thread, identical
-seeds/caches, seven repeated timings, and seven fresh-process RSS measurements
-per library and stage.
+Re-run on 2026-11-02 with the 2026-08-09 settings (synthetic extended CSR
+fixture, seed 20260809, 7 repeats, one BLAS thread), both trees in
+`.venv-rc`. The node carried load 4 to 13 from other jobs, so the run was
+counterbalanced: frozen, candidate, frozen, candidate. Ratios below are the sum
+of the two candidate medians over the sum of the two frozen medians.
 
-| Workload | Preparation | Construction | Render | End to end | Peak RSS | Retained RSS |
-|---|---:|---:|---:|---:|---:|---:|
-| Embedding | 0.963× | 0.954× | 0.998× | 0.993× | 1.002× | 0.960× |
-| Dotplot | 1.003× | 1.002× | 1.000× | 0.996× | 0.932× | 0.932× |
-| Matrixplot | 0.993× | 1.009× | 0.993× | 1.000× | 0.934× | 0.934× |
+| Workload | Preparation | Construction | Render | End to end |
+|---|---:|---:|---:|---:|
+| Embedding | 1.045 | **1.121** | 1.031 | 1.041 |
+| Dotplot | 0.996 | 1.035 | 1.016 | 1.015 |
+| Matrixplot | 1.024 | 1.036 | 1.006 | 1.022 |
 
-Ratios are candidate divided by frozen; values at or below 1.05 pass. Raw
-samples and the machine-readable comparison are versioned as
-`benchmarks/results/publication-*.json`, with the concise table in
-[publication-regression.md](benchmarks/results/publication-regression.md).
+Memory (end-to-end peak and retained RSS) is within 5% in every workload.
 
-The separate matched Scanpy benchmark favours Scanpy for speed and memory on
-the measured large sparse workloads. The documentation therefore makes no
-blanket speed claim and positions ggann around explicit source selection,
-plotnine composability, and exact publication export.
+The first pass alone failed 7 checks while load rose from 10 to 13; the
+reversed pass shows that most of it was drift. Embedding construction is a real
++1.5 ms per plot (+12%) in both passes. A profile traces it to the new
+colour-scale path: stored-palette reuse, Scanpy's default palette as the
+fallback and numeric-to-continuous dispatch (rows D3 and B5), about 2,200
+extra small calls per plot. The harness treats construction as a diagnostic
+stage; only preparation and end-to-end support speed claims, and both pass.
+Raw results: `benchmarks/results/rerun-2026-11-02-*`.
 
-## Documentation workflows
+## Release blockers
 
-The warning-as-error offline build executes six scenario-led examples:
+`pip install ggann` cannot resolve until both first-party dependencies are on
+PyPI at the declared versions. In order:
 
-1. a PBMC marker-review figure from a familiar Scanpy analysis;
-2. an NKG7 cytotoxic-program question expressed through the grammar;
-3. sparse and read-only backed marker review;
-4. a depth-aware custom annplyr summary beside a standard helper;
-5. a claim-to-publication workflow;
-6. an evidence-linked Scanpy trade-off comparison.
-
-All six run on `scanpy.datasets.pbmc3k_processed`, the 2,638-cell PBMC sample
-behind Scanpy's and Seurat's clustering tutorials. `scripts/fetch_datasets.py`
-caches it into `data/` once; the build itself reaches no network, and
-`GGANN_DOCS_OFFLINE=1` turns a missing cache into an error rather than a
-download.
-
-## Distribution verification
-
-`uv build --offline` produced `ggann-0.1.0-py3-none-any.whl` and
-`ggann-0.1.0.tar.gz`.
-
-`twine check --strict` passes both. The wheel was installed over the package in
-a dependency-complete environment copied to `/tmp/ggann-wheel-verify`, then
-imported from that environment's `site-packages` while the working directory
-was `/tmp`. `pip check` reports no broken requirements.
-
-Wheel-installed legacy PNGs are pixel-identical to source, with identical
-prepared tables, mappings, labels, scales, artists, and SVG vector contracts.
-The wheel-installed real PBMC exploratory PNG, publication PNG, and TIFF are
-also pixel-identical to source. Publication manifests match, SVG text remains
-editable with no image layer, and both PDFs reject Type 3 fonts. See
-[publication-wheel-invariance.md](benchmarks/results/publication-wheel-invariance.md).
-
-The build used cached declared build requirements because the verification
-environment had no network access. Public-index dependency resolution is an
-operational upload-time check and was not inferred from the offline build.
+1. Publish `annplyr` 0.3.x to PyPI.
+2. Publish `plotnine-extra` 0.3.1 from a commit that exports `DimPlot`,
+   `FeatureDimPlot` and `ggvolcano` (not the stale `v0.3.1` tag).
+3. Install `ggann[heatmap,density,upset,pseudobulk]` from TestPyPI in a clean
+   environment and run one vignette.
+4. Remove the `vendor/` checkout steps from `.github/workflows/ci.yml` and
+   `docs.yml`; confirm CI on 3.12, 3.13 and 3.14.
+5. Set the changelog date, add `date-released` and the Zenodo DOI to
+   `CITATION.cff`, tag `v0.1.0`, upload.
 
 ## Reproduction commands
 
@@ -150,12 +141,18 @@ python scripts/fetch_datasets.py
 python scripts/run_pyright.py
 ruff check src tests benchmarks docs/extensions examples scripts
 ruff format --check src tests benchmarks docs/extensions examples scripts
-PYTHONPATH=src MPLBACKEND=Agg python -m pytest -q
+python -m pytest -q -n 8
 GGANN_DOCS_OFFLINE=1 MPLBACKEND=Agg \
   sphinx-build -W --keep-going -b html docs docs/_build/html
-uv build --offline --out-dir dist
+python -m build --outdir dist
 twine check --strict dist/*
 ```
 
-The exact benchmark and invariance commands are documented in
-`docs/performance.md` and retained in the JSON metadata.
+## Historical record (2026-08-09)
+
+The earlier record reported 386 tests on Python 3.12, 3.13 and 3.14,
+pixel-identical legacy rendering against frozen commit `30e3359`, and a 5%
+performance-regression gate on a 20,000 × 10,000 fixture. The timing gate was re-run
+on 2026-11-02 (see Performance). The pixel comparisons were not: deliberate default changes
+(category order, palettes, stacked violin) now alter several of the compared
+images. The raw results stay in `benchmarks/results/`.

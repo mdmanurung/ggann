@@ -24,3 +24,6 @@ docs/generated/
 !docs/images/scplotter/*.png
 !docs/images/api/*.png
 !docs/images/scanpy/*.png
+
+# internal evaluation notes, decisions and agent briefs (kept local)
+plans/

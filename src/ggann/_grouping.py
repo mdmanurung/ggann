@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
+
+from ._compat import SKIP_GGANN_FRAMES
 
 
 def _group_categories(adata, group_by: str) -> list | None:
@@ -14,6 +17,52 @@ def _group_categories(adata, group_by: str) -> list | None:
     if isinstance(col.dtype, pd.CategoricalDtype):
         return list(col.cat.categories)
     return None
+
+
+def _drop_missing_groups(adata, *fields):
+    """Drop cells whose grouping field is missing, warning with the count.
+
+    ``fields`` that are ``None`` or not ``obs`` columns are ignored, so callers
+    can pass ``group_by`` and ``split_by`` unconditionally.
+    """
+    fields = [f for f in dict.fromkeys(fields) if isinstance(f, str) and f in adata.obs]
+    if not fields:
+        return adata
+    missing = adata.obs[fields].isna().any(axis=1).to_numpy()
+    n = int(missing.sum())
+    if not n:
+        return adata
+    names = ", ".join(repr(f) for f in fields)
+    warnings.warn(
+        f"dropped {n} of {adata.n_obs} cells with missing {names}",
+        UserWarning,
+        skip_file_prefixes=SKIP_GGANN_FRAMES,
+    )
+    return adata[~missing]
+
+
+def _check_group_cardinality(adata, field: str | None, limit: int, *, action: str) -> int:
+    """Count the non-missing levels of ``field``; ``action`` is 'raise' or 'warn'.
+
+    Guards helpers whose cost or readability grows with the number of groups
+    (a numeric column such as a cell index has one level per cell).
+    """
+    if field is None or field not in adata.obs:
+        return 0
+    col = adata.obs[field]
+    n = len(col.cat.categories) if isinstance(col.dtype, pd.CategoricalDtype) else col.nunique()
+    n = int(min(n, col.nunique()))
+    if n <= limit:
+        return n
+    kind = "numeric " if pd.api.types.is_numeric_dtype(col) else ""
+    message = (
+        f"{kind}group field {field!r} has {n} levels (limit {limit}); "
+        "bin or convert it to a categorical with fewer levels first"
+    )
+    if action == "raise":
+        raise ValueError(message)
+    warnings.warn(message, UserWarning, skip_file_prefixes=SKIP_GGANN_FRAMES)
+    return n
 
 
 def _resolve_group_order(

@@ -29,9 +29,13 @@ from plotnine import (
     scale_color_cmap,
     scale_color_gradient,
     scale_color_gradient2,
+    scale_color_manual,
     scale_fill_cmap,
     scale_fill_gradient2,
     scale_size,
+    scale_x_discrete,
+    scale_y_discrete,
+    scale_y_reverse,
     theme,
 )
 from scipy import sparse
@@ -44,14 +48,20 @@ from ._aggregate import (
     tidy_expression,
 )
 from ._annotation import annotation_threshold, geom_contrast_text
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
-from ._grouping import _downsample_cells, _group_categories, _order_groups
+from ._grouping import (
+    _check_group_cardinality,
+    _downsample_cells,
+    _drop_missing_groups,
+    _group_categories,
+    _order_groups,
+)
 from ._matplotlib_backend import categorical_palette, promote_matplotlib_plot
 from ._palette import obs_colors, scale_color_obs
 from ._resolve import (
     ObsmRef,
     Ref,
-    embedding_coords,
     embedding_key,
     obsm,
     parse_token,
@@ -71,8 +81,11 @@ __all__ = [
 
 
 def _is_numeric(series: pd.Series) -> bool:
-    return pd.api.types.is_numeric_dtype(series) and not isinstance(
-        series.dtype, pd.CategoricalDtype
+    """True for continuous values; bool and categorical are discrete."""
+    return (
+        pd.api.types.is_numeric_dtype(series)
+        and not pd.api.types.is_bool_dtype(series)
+        and not isinstance(series.dtype, pd.CategoricalDtype)
     )
 
 
@@ -84,32 +97,75 @@ def _validate_backend(backend: str) -> None:
 def _continuous_scale(
     aesthetic: str,
     values: pd.Series,
-    cmap: str,
+    cmap: str | None,
     *,
     signed: bool,
+    default: str = "Reds",
 ):
-    """Publication-aware continuous scale while freezing legacy defaults."""
+    """Publication-aware continuous scale while freezing legacy defaults.
+
+    ``cmap=None`` means "not chosen": the family ``default`` applies outside a
+    style context and the style's ``sequential_cmap`` inside one; signed values
+    inside a style use its diverging palette. An explicit ``cmap`` always wins,
+    inside or outside a style context (signed values then get symmetric limits so
+    zero stays at the centre of the map). The embedding ``low``/``high`` pair
+    only drives the legacy two-colour gradient and is ignored once a ``cmap`` is
+    given.
+    """
     style = _active_style()
     scale_cmap = scale_color_cmap if aesthetic == "color" else scale_fill_cmap
     scale_diverging = scale_color_gradient2 if aesthetic == "color" else scale_fill_gradient2
+    limits = None
     if style is not None and signed:
         finite = values.to_numpy(dtype=float)
         finite = finite[np.isfinite(finite)]
         limit = float(np.abs(finite).max()) if len(finite) else 1.0
         limit = limit or 1.0
-        return scale_diverging(
-            low=style.diverging[0],
-            mid=style.diverging[1],
-            high=style.diverging[2],
-            midpoint=0,
-            limits=(-limit, limit),
-            na_value=style.missing_color,
-        )
+        limits = (-limit, limit)
+        if cmap is None:
+            return scale_diverging(
+                low=style.diverging[0],
+                mid=style.diverging[1],
+                high=style.diverging[2],
+                midpoint=0,
+                limits=limits,
+                na_value=style.missing_color,
+            )
+    if cmap is None:
+        cmap = default if style is None else style.sequential_cmap
+    extra = {} if limits is None else {"limits": limits}
     if style is not None:
-        if cmap == "Reds":
-            cmap = style.sequential_cmap
-        return scale_cmap(cmap_name=cmap, na_value=style.missing_color)
-    return scale_cmap(cmap_name=cmap)
+        return scale_cmap(cmap_name=cmap, na_value=style.missing_color, **extra)
+    return scale_cmap(cmap_name=cmap, **extra)
+
+
+def _resolve_cmap(cmap: str | None, default: str) -> str:
+    """Name of the colormap a ``cmap=None`` default resolves to (explicit wins)."""
+    if cmap is not None:
+        return cmap
+    style = _active_style()
+    return default if style is None else style.sequential_cmap
+
+
+_MAX_DENSITY_GROUPS = 100  # one facet per group; more panels are unreadable and slow
+
+
+def _kde_density(xy: np.ndarray) -> np.ndarray:
+    """Gaussian KDE of ``xy`` (shape ``(2, n)``) at its own points, min-max to [0, 1].
+
+    Degenerate groups (fewer than 3 cells, no spread, singular covariance) get a
+    flat density of 0.
+    """
+    from scipy.stats import gaussian_kde
+
+    if xy.shape[1] < 3 or float(xy.std(axis=1).min()) == 0.0:
+        return np.zeros(xy.shape[1])
+    try:
+        d = gaussian_kde(xy)(xy)
+    except np.linalg.LinAlgError:
+        return np.zeros(xy.shape[1])
+    lo, hi = float(d.min()), float(d.max())
+    return (d - lo) / (hi - lo) if hi > lo else np.zeros_like(d)
 
 
 def _native_vector(matrix) -> np.ndarray:
@@ -169,7 +225,7 @@ def _native_embedding_frame(
                 warnings.warn(
                     f"'{name}' is both an obs column and a gene; using obs. "
                     f"Use 'gene:{name}' to plot expression.",
-                    stacklevel=3,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
                 )
             vector = adata.obs[name].array
         else:
@@ -242,26 +298,239 @@ def _centroid_labels(
     label lands where its category actually sits in that panel rather than at the
     pooled median (which would be broadcast to every facet).
     """
-    keys = [cname] if split_by is None else [split_by, cname]
+    same = split_by == cname  # the facet column *is* the label column
+    keys = [cname] if split_by is None or same else [split_by, cname]
     cents = df.groupby(keys, observed=True)[[xcol, ycol]].median().reset_index()
-    return cents.rename(columns={cname: "label"})
+    cents = cents.rename(columns={cname: "label"})
+    if same:
+        cents[cname] = cents["label"]
+    return cents
+
+
+_NA_LABEL = "NA"  # scanpy's label for a missing category
+_LEGEND_LOCS = {"right margin", "right", "on data", "none"}
+
+
+def _components_indices(components, width: int, basis: str) -> tuple[int, int]:
+    """Zero-based (x, y) coordinate indices from scanpy-style 1-based ``components``."""
+    if components is None:
+        return 0, 1
+    if isinstance(components, str):
+        components = components.split(",")
+    try:
+        pair = tuple(int(c) for c in components)
+    except (TypeError, ValueError):
+        pair = ()
+    if len(pair) != 2 or pair[0] == pair[1] or min(pair) < 1 or max(pair) > width:
+        raise ValueError(
+            f"components must be two different 1-based coordinates of '{basis}' "
+            f"(1..{width}), e.g. (1, 3) or '1,3'; got {components!r}."
+        )
+    return pair[0] - 1, pair[1] - 1
+
+
+def _limit(value, values: np.ndarray, name: str):
+    """A colour limit: a number, or ``'p<percentile>'`` of the finite values."""
+    if value is None:
+        return None
+    if isinstance(value, str) and value.startswith("p"):
+        try:
+            return float(np.percentile(values, float(value[1:]))) if len(values) else None
+        except ValueError:
+            pass
+    elif isinstance(value, (int, float, np.integer, np.floating)) and np.isfinite(value):
+        return float(value)
+    raise ValueError(f"{name} must be a finite number or 'p<percentile>' (e.g. 'p99').")
+
+
+def _embedding_color_scale(values: pd.Series, *, vmin, vmax, vcenter, color_map, na_color):
+    """Continuous colour scale for explicit limits, centring, colour map or NA colour.
+
+    Values outside ``[vmin, vmax]`` are clipped to the end colours, as in scanpy.
+    """
+    from matplotlib import colormaps
+    from matplotlib.colors import TwoSlopeNorm
+    from mizani.bounds import squish
+    from plotnine import scale_color_gradientn
+
+    finite = values.to_numpy(dtype=float)
+    finite = finite[np.isfinite(finite)]
+    lo = _limit(vmin, finite, "vmin")
+    hi = _limit(vmax, finite, "vmax")
+    centre = _limit(vcenter, finite, "vcenter")
+    lo = float(finite.min()) if lo is None and len(finite) else lo
+    hi = float(finite.max()) if hi is None and len(finite) else hi
+    if lo is None or hi is None or lo >= hi:
+        raise ValueError(f"vmin ({lo}) must be below vmax ({hi}).")
+    cmap = colormaps[color_map or ("RdBu_r" if centre is not None else "viridis")]
+    positions = np.linspace(0, 1, 256)
+    if centre is None:
+        stops = positions
+    else:
+        if not lo < centre < hi:
+            raise ValueError(f"vcenter ({centre}) must lie strictly between vmin and vmax.")
+        stops = (TwoSlopeNorm(centre, lo, hi).inverse(positions) - lo) / (hi - lo)
+    return scale_color_gradientn(
+        colors=[tuple(c) for c in cmap(positions)],
+        values=stops,
+        limits=(lo, hi),
+        oob=squish,
+        na_value=na_color,
+    )
+
+
+def _categorical_levels_of(series: pd.Series) -> list:
+    if isinstance(series.dtype, pd.CategoricalDtype):
+        return list(series.cat.categories)
+    return list(pd.Categorical(series).categories)
+
+
+def _na_labels(breaks) -> list:
+    """Legend text for a categorical scale: a missing value reads ``NA``."""
+    return [_NA_LABEL if pd.isna(b) or b == "nan" else b for b in breaks]
+
+
+def _categorical_scale(adata, df: pd.DataFrame, cname: str, *, palette, groups, na_color):
+    """Categorical colour scale and the row order that draws missing cells first.
+
+    Missing values stay missing in ``df`` (drawn in ``na_color``, legend ``NA``).
+    ``groups`` sets every other category to missing, so only the selected groups
+    are coloured and listed. Returns ``(scale, order)``; ``df[cname]`` is
+    rewritten in place for ``groups``.
+    """
+    from mizani.palettes import hue_pal
+
+    from ._palette import _publication_obs_mapping
+
+    series = df[cname]
+    levels = _categorical_levels_of(series)
+    if groups is not None:
+        unknown = [g for g in groups if g not in levels]
+        if unknown:
+            raise ValueError(f"groups {unknown} are not categories of {cname!r}: {levels}")
+        series = df[cname] = series.where(series.isin(groups))
+    # missing / de-selected cells first, so coloured cells are never occluded
+    order = np.argsort(~series.isna().to_numpy(), kind="stable")
+    kwargs = {"na_value": na_color, "labels": _na_labels}
+    if groups is not None:
+        kwargs["breaks"] = [c for c in levels if c in groups]
+    if palette is None and groups is None:
+        return scale_color_obs(adata, cname, **kwargs), order
+    if isinstance(palette, dict):
+        lacking = [c for c in levels if c not in palette]
+        if lacking:
+            raise ValueError(f"palette has no colour for {lacking}.")
+        colours = {c: palette[c] for c in levels}
+    elif palette is not None:
+        palette = list(palette)
+        if len(palette) < len(levels):
+            raise ValueError(f"palette has {len(palette)} colours for {len(levels)} categories.")
+        colours = dict(zip(levels, palette))
+    else:
+        mapping = obs_colors(adata, cname) or _publication_obs_mapping(adata, cname)
+        colours = (
+            {c: mapping[c] for c in levels}
+            if mapping is not None
+            else dict(zip(levels, hue_pal()(len(levels))))
+        )
+    return scale_color_manual(values=colours, **kwargs), order
+
+
+_DENSITY_WARN_CELLS = 20_000
+
+
+def _kde_params() -> dict:
+    """Seed statsmodels' generator so its entropy FutureWarning does not fire.
+
+    The generator only matters for cross-validated bandwidths, which are not
+    used; the default ``normal_reference`` bandwidth is deterministic.
+    """
+    import inspect
+
+    from statsmodels.nonparametric.kernel_density import KDEMultivariate
+
+    if "rng" in inspect.signature(KDEMultivariate.__init__).parameters:
+        return {"rng": np.random.default_rng(0)}
+    return {}
+
+
+def _binned_density(xy: np.ndarray) -> np.ndarray:
+    """Approximate Gaussian point density: 2-D histogram, Gaussian filter, sample back.
+
+    The bandwidth is statsmodels' ``normal_reference`` rule, which is what the
+    exact ``stat_pointdensity`` KDE uses, so the two agree up to binning error.
+    Densities are in true density units (integrate to one); each cell reads the
+    bilinear interpolation of the smoothed grid at its own position.
+    """
+    from scipy.ndimage import gaussian_filter, map_coordinates
+
+    n = len(xy)
+    spread = xy.std(axis=0)
+    if n < 3 or float(spread.min()) == 0.0:
+        return np.zeros(n)
+    bw = 1.06 * spread * n ** (-1.0 / 6.0)
+    # at least ~8 bins per bandwidth so the filter resolves the kernel
+    bins = [int(np.clip(np.ptp(xy[:, i]) / bw[i] * 8, 64, 1024)) for i in (0, 1)]
+    hist, xe, ye = np.histogram2d(xy[:, 0], xy[:, 1], bins=bins)
+    dx, dy = xe[1] - xe[0], ye[1] - ye[0]
+    smooth = gaussian_filter(hist, sigma=(bw[0] / dx, bw[1] / dy), mode="constant")
+    smooth /= n * dx * dy
+    at = [(xy[:, 0] - xe[0]) / dx - 0.5, (xy[:, 1] - ye[0]) / dy - 0.5]
+    return map_coordinates(smooth, at, order=1, mode="nearest")
+
+
+def _point_density(df: pd.DataFrame, xcol: str, ycol: str, split_by: str | None) -> np.ndarray:
+    """Binned density per facet group (or all rows), written back by position."""
+    xy = df[[xcol, ycol]].to_numpy(dtype=float)
+    if split_by is None:
+        return _binned_density(xy)
+    codes = pd.Categorical(df[split_by]).codes
+    density = np.zeros(len(df))
+    for code in np.unique(codes):
+        rows = np.flatnonzero(codes == code)
+        density[rows] = _binned_density(xy[rows])
+    return density
+
+
+def _embedding_panels(adata, basis, colors, titles, ncol, kwargs):
+    """One ``plot_embedding`` per colour, composed into a grid (shared option set)."""
+    from .layout import compose
+
+    panels = [
+        plot_embedding(adata, basis, c, title=t, **kwargs)
+        for c, t in zip(colors, titles, strict=True)
+    ]
+    return compose(panels, ncol=ncol, tag_levels=None)
 
 
 def plot_embedding(
     adata,
     basis: str = "umap",
-    color: str | None = None,
+    color: str | Sequence[str] | None = None,
     *,
     split_by: str | None = None,
     layer: str | None = None,
     use_raw: bool | None = None,
+    components: str | Sequence[int] | None = None,
     size: float = 1.5,
     alpha: float = 0.9,
     pointdensity: bool | None = None,
+    method: str = "exact",
     label: bool = False,
     label_size: float = 9,
     low: str = "#d9d9d9",
     high: str = "#2166ac",
+    color_map: str | None = None,
+    palette: dict | Sequence[str] | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
+    vcenter: float | str | None = None,
+    groups: str | Sequence[str] | None = None,
+    sort_order: bool = True,
+    na_color: str | None = None,
+    title: str | None = None,
+    legend_loc: str = "right margin",
+    ncol: int | None = None,
     downsample: int | None = None,
     random_state: int | None = 0,
     backend: str = "plotnine",
@@ -274,8 +543,10 @@ def plot_embedding(
     * ``color=None`` -> density-coloured scatter (``geom_pointdensity``), which
       reads well for dense embeddings.
     * categorical ``color`` (e.g. an obs cluster column) -> discrete colours
-      (reusing scanpy's stored palette when present).
+      (reusing scanpy's stored palette when present). Missing values are drawn
+      in ``na_color`` and labelled ``NA``, as in scanpy.
     * numeric ``color`` (a gene or continuous obs column) -> a gradient.
+    * a list of colours -> one panel each, composed into a grid (``ncol``).
     * ``split_by`` -> facet the scatter over an obs column (Seurat ``split.by``).
     * ``label=True`` -> for a categorical ``color``, print each category at its
       centroid using repelled (non-overlapping) text, like scplotter's
@@ -290,29 +561,62 @@ def plot_embedding(
         Annotated data matrix.
     basis : str, default="umap"
         Embedding basis in ``adata.obsm``.
-    color : str or selector, optional
+    color : str, selector or sequence, optional
         Observation column, gene, or explicit :func:`ggann.obs`/:func:`ggann.gene`.
+        A sequence draws one panel per entry and returns a composition.
     split_by : str, optional
         Observation column used for facets.
     layer, use_raw : optional
         Expression source for gene colour; these options are mutually exclusive.
+    components : str or pair of int, optional
+        Two different 1-based coordinates to plot, e.g. ``(1, 3)`` or ``"1,3"``
+        (scanpy's ``components``). Default ``(1, 2)``.
     size, alpha : float
         Point size and opacity.
     pointdensity : bool, optional
         Use density colouring when ``color`` is absent.
+    method : {"exact", "binned"}, default="exact"
+        Point-density estimator when ``color`` is absent. ``"exact"`` is the
+        Gaussian KDE at every cell (cost grows quadratically; a warning is
+        raised above 20,000 cells). ``"binned"`` is an opt-in approximation
+        (2-D histogram, Gaussian filter, sampled back at each cell) that is much
+        faster; its legend reads ``density (binned)``.
     label : bool, default=False
         Label categorical colour centroids.
     label_size : float
         Centroid-label size.
     low, high : str
         End colours for continuous values.
+    color_map : str, optional
+        Matplotlib colormap for continuous values (scanpy's ``color_map``);
+        overrides ``low``/``high``.
+    palette : dict or sequence of str, optional
+        Category colours: a ``{category: colour}`` dict or colours in category
+        order. Overrides stored ``adata.uns`` colours.
+    vmin, vmax, vcenter : float or "p<percentile>", optional
+        Continuous colour limits and centre; out-of-range values are clipped to
+        the end colours. ``"p99"`` is the 99th percentile of the finite values.
+    groups : str or sequence of str, optional
+        Categories to colour; all other cells are drawn first in ``na_color``.
+    sort_order : bool, default=True
+        Draw low values first so high values are not occluded (continuous colour).
+    na_color : str, optional
+        Colour of missing or de-selected cells. Default: the publication
+        missing colour, else light grey.
+    title : str, optional
+        Plot title. Panels of a colour list default to the colour name.
+    legend_loc : {"right margin", "right", "on data", "none"}
+        ``"on data"`` is ``label=True`` without a legend; ``"none"`` hides it.
+    ncol : int, optional
+        Grid columns when ``color`` is a list.
     downsample : int, optional
         Maximum total observations to draw.
     random_state : int, optional
         Reproducible downsampling seed; ``None`` is non-deterministic.
     backend : {"plotnine", "matplotlib"}, default="plotnine"
         Rendering path. The explicit Matplotlib path accelerates an unsplit
-        point scatter while returning a composable ggplot subclass.
+        point scatter while returning a composable ggplot subclass. It does not
+        support the display options above (``components`` to ``legend_loc``).
     rasterized : bool, default=False
         Rasterize only the point layer. Text, axes, guides, and annotations
         remain editable vectors in SVG and PDF output.
@@ -327,34 +631,82 @@ def plot_embedding(
     Returns
     -------
     plotnine.ggplot
-        Composable embedding plot. The Matplotlib backend returns a
-        :class:`ggann.MatplotlibGGPlot` subclass.
+        Composable embedding plot (a composition when ``color`` is a list). The
+        Matplotlib backend returns a :class:`ggann.MatplotlibGGPlot` subclass.
 
     Raises
     ------
     KeyError
         If the embedding or an explicit colour/split source is missing.
     ValueError
-        If the embedding has fewer than two coordinates, downsampling/backend is
-        invalid, or the Matplotlib backend is asked for an unsupported density,
-        facet, or centroid-label layout.
+        If the embedding has fewer than two coordinates, an option is invalid,
+        or the Matplotlib backend is asked for an unsupported density, facet,
+        centroid-label or display option.
 
     Notes
     -----
-    Only two embedding coordinates and the requested colour metadata are projected.
-    Downsampling occurs before extraction and never mutates ``adata``.
+    Only the requested embedding coordinates and colour metadata are projected.
+    Downsampling occurs before extraction and never mutates ``adata``. Cells with
+    a missing ``split_by`` are dropped with a warning; cells with a missing
+    ``color`` stay visible. Not supported: scanpy's ``projection="3d"``,
+    ``edges``/``arrows``/``neighbors_key``, ``add_outline`` and ``frameon``
+    (use ``show_axes``); add them with ordinary plotnine layers.
 
     Examples
     --------
     >>> p = plot_embedding(adata, "umap", color="cell_type")
+    >>> p = plot_embedding(adata, "umap", color=["cell_type", "CD3D"], vmax="p99")
     """
     _validate_backend(backend)
-    if backend == "matplotlib" and (split_by is not None or label):
-        raise ValueError(
-            "backend='matplotlib' currently supports unsplit embeddings without "
-            "centroid labels; use backend='plotnine' for facets or label=True."
-        )
+    if method not in {"exact", "binned"}:
+        raise ValueError("method must be 'exact' or 'binned'.")
+    if legend_loc not in _LEGEND_LOCS:
+        raise ValueError(f"legend_loc must be one of {sorted(_LEGEND_LOCS)}, got {legend_loc!r}.")
+    if isinstance(groups, str):
+        groups = [groups]
+    adata = _drop_missing_groups(adata, split_by)
     adata = _downsample_cells(adata, None, downsample, random_state=random_state)
+
+    if color is not None and not isinstance(color, (str, Ref, ObsmRef)):
+        colors = list(color)
+        if not colors:
+            raise ValueError("color is an empty sequence.")
+        if title is not None and not isinstance(title, str):
+            titles = list(title)
+        else:
+            titles = [title if title is not None else plain_name(adata, c) for c in colors]
+        if len(titles) != len(colors):
+            raise ValueError(f"{len(titles)} titles for {len(colors)} colours.")
+        shared = dict(
+            split_by=split_by, layer=layer, use_raw=use_raw, components=components, size=size,
+            alpha=alpha, pointdensity=pointdensity, method=method, label=label,
+            label_size=label_size, low=low, high=high, color_map=color_map, palette=palette,
+            vmin=vmin, vmax=vmax, vcenter=vcenter, groups=groups, sort_order=sort_order,
+            na_color=na_color, legend_loc=legend_loc, backend=backend, rasterized=rasterized,
+            show_axes=show_axes, equal_aspect=equal_aspect,
+        )  # fmt: skip
+        return _embedding_panels(adata, basis, colors, titles, ncol, shared)
+
+    if backend == "matplotlib":
+        display_options = dict(
+            components=components, color_map=color_map, palette=palette, vmin=vmin, vmax=vmax,
+            vcenter=vcenter, groups=groups, na_color=na_color, title=title,
+        )  # fmt: skip
+        used = [k for k, v in display_options.items() if v is not None]
+        used += ["sort_order"] * (not sort_order) + ["legend_loc"] * (legend_loc != "right margin")
+        used += ["method"] * (method != "exact")
+        if used:
+            raise ValueError(
+                f"backend='matplotlib' does not support {used}; use backend='plotnine'."
+            )
+        if split_by is not None or label:
+            raise ValueError(
+                "backend='matplotlib' currently supports unsplit embeddings without "
+                "centroid labels; use backend='plotnine' for facets or label=True."
+            )
+    label_requested = label
+    if legend_loc == "on data":
+        label = True
     key = embedding_key(adata, basis)
     width = adata.obsm[key].shape[1]
     if width < 2:
@@ -362,6 +714,7 @@ def plot_embedding(
             f"Embedding '{basis}' has only {width} dimension(s); "
             "plot_embedding requires at least 2."
         )
+    xi, yi = _components_indices(components, width, basis)
     if backend == "matplotlib":
         df, xcol, ycol, native_cname = _native_embedding_frame(
             adata,
@@ -371,19 +724,26 @@ def plot_embedding(
             use_raw=use_raw,
         )
     else:
-        coordinate_refs = [obsm(key, 0), obsm(key, 1)]
+        coordinate_refs = [obsm(key, xi), obsm(key, yi)]
         requested = [*coordinate_refs]
         if color is not None:
             requested.append(color)
         if split_by is not None:
             requested.append(split_by)
-        df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw)
+        df = resolve_frame(adata, requested, layer=layer, use_raw=use_raw, strict=True)
         xcol, ycol = (plain_name(adata, ref) for ref in coordinate_refs)
         native_cname = None
     facet = pe.facet_wrap("~" + split_by) if split_by is not None else None
+    style = _active_style()
+    na_colour = na_color or (style.missing_color if style is not None else "lightgray")
+    extras = []
+    if title is not None:
+        extras.append(labs(title=title))
+    if legend_loc in {"none", "on data"}:
+        extras.append(theme(legend_position="none"))
 
     def _with_facet(components):
-        return [*components, facet] if facet is not None else components
+        return [*components, *extras, *([facet] if facet is not None else [])]
 
     def _solid_point():
         # plotnine's default 0.5-point same-colour outline duplicates colour
@@ -424,7 +784,7 @@ def plot_embedding(
             alpha=alpha,
             low=low,
             high=high,
-            cmap="Reds",
+            cmap=_resolve_cmap(None, "Reds"),
             publication_style=_active_style(),
             rasterized=rasterized,
             show_axes=show_axes,
@@ -432,11 +792,11 @@ def plot_embedding(
             signed=signed,
         )
 
-    if label and color is None:
+    if label_requested and color is None:
         warnings.warn(
             "plot_embedding: label=True is ignored when color is None "
             "(centroid labels need a categorical color).",
-            stacklevel=2,
+            skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
 
     if color is None:
@@ -448,9 +808,32 @@ def plot_embedding(
                     "backend='matplotlib' does not implement point-density "
                     "estimation; pass pointdensity=False or use backend='plotnine'."
                 )
+            if method == "binned":
+                df = df.copy()
+                df["density"] = _point_density(df, xcol, ycol, split_by)
+                return ggplot(df, aes(xcol, ycol, color="density")) + _with_facet(
+                    [
+                        geom_point(size=size, alpha=alpha, raster=rasterized),
+                        labs(color="density (binned)"),
+                        *_embedding_style(show_axes, equal_aspect),
+                    ]
+                )
+            if len(df) > _DENSITY_WARN_CELLS:
+                warnings.warn(
+                    f"exact point density over {len(df):,} cells is slow (it grows "
+                    "quadratically); pass method='binned' for a fast approximation, "
+                    "pointdensity=False, or downsample=.",
+                    UserWarning,
+                    skip_file_prefixes=SKIP_GGANN_FRAMES,
+                )
             return ggplot(df, aes(xcol, ycol)) + _with_facet(
                 [
-                    pe.geom_pointdensity(size=size, alpha=alpha, raster=rasterized),
+                    pe.geom_pointdensity(
+                        size=size,
+                        alpha=alpha,
+                        raster=rasterized,
+                        kde_params=_kde_params(),
+                    ),
                     labs(color="density"),
                     *_embedding_style(show_axes, equal_aspect),
                 ]
@@ -466,24 +849,35 @@ def plot_embedding(
         raise KeyError(f"Could not resolve color={color!r} from obs, genes or obsm.")
 
     if _is_numeric(df[cname]):
-        if label:
+        if label_requested:
             warnings.warn(
                 f"plot_embedding: label=True is ignored for the numeric color {color!r} "
                 "(centroid labels need a categorical color).",
-                stacklevel=2,
+                skip_file_prefixes=SKIP_GGANN_FRAMES,
             )
         # Draw low-expression cells first so high-expression cells are not occluded
-        # (mirrors scanpy's sc.pl.embedding ordering).
-        df = df.sort_values(cname)
-        style = _active_style()
+        # (mirrors scanpy's sc.pl.embedding ordering); missing values go first.
+        if sort_order:
+            df = df.sort_values(cname, na_position="first")
         finite = df[cname].to_numpy(dtype=float)
         finite = finite[np.isfinite(finite)]
         signed = bool(len(finite) and finite.min() < 0 < finite.max())
-        continuous_scale = (
-            _continuous_scale("color", df[cname], "Reds", signed=signed)
-            if style is not None
-            else scale_color_gradient(low=low, high=high)
-        )
+        custom = any(v is not None for v in (vmin, vmax, vcenter, color_map, na_color))
+        if custom and backend == "plotnine":
+            continuous_scale = _embedding_color_scale(
+                df[cname],
+                vmin=vmin,
+                vmax=vmax,
+                vcenter=vcenter,
+                color_map=color_map,
+                na_color=na_colour,
+            )
+        else:
+            continuous_scale = (
+                _continuous_scale("color", df[cname], "Reds", signed=signed)
+                if style is not None
+                else scale_color_gradient(low=low, high=high)
+            )
         return _finish(
             ggplot(df, aes(xcol, ycol, color=cname))
             + _with_facet(
@@ -496,23 +890,30 @@ def plot_embedding(
             value=cname,
             signed=signed,
         )
-    components = [
+    colour_scale = scale_color_obs(adata, cname)
+    if backend == "plotnine":
+        df = df.copy()
+        colour_scale, order = _categorical_scale(
+            adata, df, cname, palette=palette, groups=groups, na_color=na_colour
+        )
+        df = df.iloc[order]
+    panel = [
         _solid_point(),
-        scale_color_obs(adata, cname),
+        colour_scale,
         # enlarge the legend swatches so categories stay readable (scplotter does this)
         guides(
             color=guide_legend(
                 override_aes={"size": 4},
-                ncol=(2 if _active_style() is not None and df[cname].nunique() > 8 else None),
-                byrow=_active_style() is not None,
+                ncol=(2 if style is not None and int(df[cname].nunique()) > 8 else None),
+                byrow=style is not None,
             )
         ),
         *_embedding_style(show_axes, equal_aspect),
     ]
     if label:
-        cents = _centroid_labels(df, cname, xcol, ycol, split_by=split_by)
+        cents = _centroid_labels(df[df[cname].notna()], cname, xcol, ycol, split_by=split_by)
         # white-backed repelled labels at centroids, like scplotter's label_bg="white"
-        components.append(
+        panel.append(
             pe.geom_label_repel(
                 aes(xcol, ycol, label="label"),
                 data=cents,
@@ -523,7 +924,7 @@ def plot_embedding(
             )
         )
     return _finish(
-        ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(components),
+        ggplot(df, aes(xcol, ycol, color=cname)) + _with_facet(panel),
         value=cname,
         categorical=True,
     )
@@ -536,25 +937,32 @@ def plot_features(
     *,
     layer: str | None = None,
     use_raw: bool | None = None,
+    components: str | Sequence[int] | None = None,
     ncol: int | None = None,
     size: float = 1.2,
     alpha: float = 0.9,
-    cmap: str = "magma",
+    cmap: str | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
+    vcenter: float | str | None = None,
+    sort_order: bool = True,
+    na_color: str | None = None,
+    color_scale: str = "auto",
     downsample: int | None = None,
     random_state: int | None = 0,
     rasterized: bool = False,
     show_axes: bool | None = None,
     equal_aspect: bool | None = None,
 ):
-    """Multi-gene embedding grid: one faceted panel per feature.
+    """Multi-gene embedding grid: one panel per feature.
 
-    Panels share a single expression colour scale, which is best for comparing
-    magnitudes *across* genes. Because the scale is shared, a low-range gene shown
-    next to a high-range one will look faint -- for independent per-gene colour
-    bars (like ``sc.pl.umap(color=[...])``), compose separate ``plot_embedding``
-    calls with the re-exported ``Wrap`` / ``plot_layout`` instead. ``downsample=N``
-    caps cells before drawing for lighter panels on large data; ``random_state``
-    controls the retained cells.
+    ``color_scale="shared"`` draws one faceted plot whose panels share a single
+    expression colour scale, best for comparing magnitudes *across* genes of one
+    unit. ``"free"`` draws one :func:`plot_embedding` per feature, each with its
+    own colour bar and original values, composed into a grid. ``"auto"`` (the
+    default) is ``"free"`` as soon as a feature is an obs column (counts,
+    scores and expression are different units) and ``"shared"`` for genes only.
+    ``downsample=N`` caps cells before drawing; ``random_state`` controls them.
 
     Parameters
     ----------
@@ -566,12 +974,24 @@ def plot_features(
         Embedding basis.
     layer, use_raw : optional
         Mutually exclusive expression-source selection.
+    components : str or pair of int, optional
+        Two different 1-based coordinates to plot, e.g. ``(1, 3)``.
     ncol : int, optional
-        Facet columns.
+        Panel columns.
     size, alpha : float
         Point size and opacity.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` is ``"magma"`` (the active publication
+        style's sequential map inside one); an explicit name always wins.
+    vmin, vmax, vcenter : float or "p<percentile>", optional
+        Colour limits and centre; out-of-range values clip to the end colours.
+        In the shared mode they apply to all panels at once.
+    sort_order : bool, default=True
+        Draw low values first so high values are not occluded.
+    na_color : str, optional
+        Colour of missing values.
+    color_scale : {"auto", "shared", "free"}
+        Shared or per-feature colour scales (see above).
     downsample : int, optional
         Maximum total observations to draw.
     random_state : int, optional
@@ -587,7 +1007,7 @@ def plot_features(
     Returns
     -------
     plotnine.ggplot
-        Composable faceted feature plot.
+        Composable faceted feature plot; a composition for ``color_scale="free"``.
 
     Raises
     ------
@@ -599,25 +1019,53 @@ def plot_features(
 
     Notes
     -----
-    annplyr projects requested fields only; ``adata`` is never mutated.
+    annplyr projects requested fields only; ``adata`` is never mutated. Values
+    are never rescaled; per-feature normalization is not offered here.
 
     Examples
     --------
     >>> p = plot_features(adata, ["CD3D", "NKG7"], basis="umap")
+    >>> p = plot_features(adata, ["CD3D", "n_counts"], color_scale="free")
     """
     features = ordered_unique(features)
     adata = _downsample_cells(adata, None, downsample, random_state=random_state)
-    coords = embedding_coords(adata, basis)
-    if coords.shape[1] < 2:
+    if color_scale not in {"auto", "shared", "free"}:
+        raise ValueError("color_scale must be 'auto', 'shared' or 'free'.")
+    key = embedding_key(adata, basis)
+    width = adata.obsm[key].shape[1]
+    if width < 2:
         raise ValueError(f"Embedding '{basis}' has fewer than 2 dimensions.")
+    xi, yi = _components_indices(components, width, basis)
+    coordinate_refs = [obsm(key, xi), obsm(key, yi)]
+    coords = resolve_frame(adata, coordinate_refs)
     xcol, ycol = coords.columns[:2]
 
-    values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw)
-    feats = list(
-        dict.fromkeys(f for f in features if f in values.columns and _is_numeric(values[f]))
-    )
-    if not feats:
+    values = resolve_frame(adata, list(features), layer=layer, use_raw=use_raw, strict=True)
+    if not features:
         raise ValueError("plot_features needs at least one numeric feature (gene or metric).")
+    feats = [plain_name(adata, f) for f in features]
+    non_numeric = [f for f in feats if not _is_numeric(values[f])]
+    if non_numeric:
+        raise ValueError(
+            f"plot_features plots numeric features only; {non_numeric} are categorical. "
+            "Use plot_embedding(color=...) for those."
+        )
+
+    mixed_units = any(f in adata.obs.columns for f in feats)
+    if color_scale == "free" or (color_scale == "auto" and mixed_units):
+        return _embedding_panels(
+            adata,
+            basis,
+            list(features),
+            [str(f) for f in feats],
+            ncol,
+            dict(
+                layer=layer, use_raw=use_raw, components=components, size=size, alpha=alpha,
+                color_map=_resolve_cmap(cmap, "magma"), vmin=vmin, vmax=vmax, vcenter=vcenter, sort_order=sort_order,
+                na_color=na_color, rasterized=rasterized, show_axes=show_axes,
+                equal_aspect=equal_aspect,
+            ),
+        )  # fmt: skip
 
     df = coords.join(values[feats])
     long = df.melt(
@@ -625,13 +1073,27 @@ def plot_features(
         value_vars=feats,
         var_name="feature",
         value_name="expression",
-    ).sort_values("expression")
+    )
+    if sort_order:
+        long = long.sort_values("expression", na_position="first")
     long["feature"] = pd.Categorical(long["feature"], categories=feats, ordered=True)
+    if any(v is not None for v in (vmin, vmax, vcenter, na_color)):
+        style = _active_style()
+        scale = _embedding_color_scale(
+            long["expression"],
+            vmin=vmin,
+            vmax=vmax,
+            vcenter=vcenter,
+            color_map=_resolve_cmap(cmap, "magma"),
+            na_color=na_color or (style.missing_color if style is not None else "lightgray"),
+        )
+    else:
+        scale = _continuous_scale("color", long["expression"], cmap, signed=False, default="magma")
     return (
         ggplot(long, aes(xcol, ycol, color="expression"))
         + geom_point(size=size, alpha=alpha, raster=rasterized)
         + pe.facet_wrap("~feature", ncol=ncol)
-        + _continuous_scale("color", long["expression"], cmap, signed=False)
+        + scale
         + _embedding_style(show_axes, equal_aspect)
     )
 
@@ -650,7 +1112,7 @@ def _cell_rank(tidy: pd.DataFrame, group_by: str) -> pd.DataFrame:
     )
     n_cells = int(positions.max()) + 1 if len(positions) else 0
     if cell["obs_name"].is_unique and len(cell) == n_cells:
-        cell = cell.sort_values(group_by)
+        cell = cell.sort_values(group_by, kind="stable")
         ranks = pd.Series(range(len(cell)), index=cell["obs_name"])
         result = tidy.copy()
         result["cell_rank"] = result["obs_name"].map(ranks).to_numpy()
@@ -669,9 +1131,112 @@ def _cell_rank(tidy: pd.DataFrame, group_by: str) -> pd.DataFrame:
     return result
 
 
+_MAX_MATRIX_GROUPS = 100  # beyond this a dotplot/matrixplot is unreadable
+_KEY_SEP = "\x1f"  # joins marker group and gene into one unique axis key
+
+
+def _marker_genes(genes):
+    """Split ``genes`` into ``(unique genes, occurrences)``.
+
+    ``genes`` is a list, or a ``{marker group: [genes]}`` dict as in scanpy. For
+    a dict ``occurrences`` lists every ``(group, gene)`` pair, so a gene listed
+    in two groups is drawn twice; its values come from one computation.
+    ``occurrences`` is ``None`` for a plain list.
+    """
+    if not isinstance(genes, dict):
+        return ordered_unique(genes), None
+    occurrences = [
+        (str(label), gene) for label, members in genes.items() for gene in ordered_unique(members)
+    ]
+    if not occurrences:
+        raise ValueError("var_names dict contains no genes.")
+    return ordered_unique(gene for _, gene in occurrences), occurrences
+
+
+def _expand_occurrences(frame: pd.DataFrame, occurrences, *, reverse: bool = False):
+    """Repeat each gene's rows once per marker-group occurrence.
+
+    Adds ``marker_group`` and ``feature_key`` (a unique, display-only axis key);
+    ``reverse`` orders the keys last-first for an axis that draws bottom-up.
+    """
+    parts = []
+    for label, gene in occurrences:
+        part = frame[frame["feature"] == gene].copy()
+        part["marker_group"] = label
+        part["feature_key"] = f"{label}{_KEY_SEP}{gene}"
+        parts.append(part)
+    out = pd.concat(parts, ignore_index=True)
+    keys = [f"{label}{_KEY_SEP}{gene}" for label, gene in occurrences]
+    out["feature_key"] = pd.Categorical(
+        out["feature_key"], categories=keys[::-1] if reverse else keys
+    )
+    out["marker_group"] = pd.Categorical(
+        out["marker_group"], categories=list(dict.fromkeys(label for label, _ in occurrences))
+    )
+    return out
+
+
+def _key_labels(keys) -> list[str]:
+    return [str(key).split(_KEY_SEP, 1)[-1] for key in keys]
+
+
+def _colour_limits(scale, values: pd.Series, vmin, vmax, *, symmetric: bool = False):
+    """Set explicit (or zero-centred) limits on a continuous scale; clip outliers.
+
+    Returns the numeric ``(vmin, vmax)`` actually used, or ``(None, None)``.
+    """
+    if vmin is None and vmax is None and not symmetric:
+        return None, None
+    from mizani.bounds import squish
+
+    finite = values.to_numpy(dtype=float)
+    finite = finite[np.isfinite(finite)]
+    low, high = _limit(vmin, finite, "vmin"), _limit(vmax, finite, "vmax")
+    if symmetric and low is None and high is None and len(finite):
+        high = float(np.abs(finite).max()) or 1.0
+        low = -high
+    low = float(finite.min()) if low is None and len(finite) else low
+    high = float(finite.max()) if high is None and len(finite) else high
+    if low is None or high is None or low >= high:
+        raise ValueError(f"vmin ({low}) must be below vmax ({high}).")
+    scale.limits = (low, high)
+    scale.oob = squish
+    return low, high
+
+
+def _matrix_layout(
+    group_by, group_levels, genes, occurrences, split_by, swap_axes
+) -> tuple[str, str, list]:
+    """Axis mapping, scales and facets of a groups-by-features display.
+
+    The first group (or gene when swapped) is drawn at the top, as in scanpy.
+    Only the displayed axis is reversed: data, aggregation and category order
+    keep their semantic order. ``occurrences`` (from a marker dict) facet the
+    feature axis into one panel per marker group.
+    """
+    feature = "feature_key" if occurrences else "feature"
+    xcol, ycol = (group_by, feature) if swap_axes else (feature, group_by)
+    parts: list = []
+    if not swap_axes:
+        parts.append(scale_y_discrete(limits=list(reversed(group_levels))))
+    elif not occurrences:
+        parts.append(scale_y_discrete(limits=list(reversed(genes))))
+    if occurrences:  # keys are pre-reversed by _expand_occurrences when on y
+        labels = {"labels": _key_labels}
+        parts.append(scale_y_discrete(**labels) if swap_axes else scale_x_discrete(**labels))
+        rows = "marker_group" if swap_axes else (split_by or ".")
+        cols = (split_by or ".") if swap_axes else "marker_group"
+        free = "free_y" if swap_axes else "free_x"
+        parts.append(facet_grid(f"{rows} ~ {cols}", scales=free, space=free))
+    elif split_by:
+        parts.append(pe.facet_wrap(f"~{split_by}"))
+    return xcol, ycol, parts
+
+
+@accepts_groupby
 def plot_dotplot(
     adata,
-    genes: Sequence[str],
+    genes: Sequence[str] | dict[str, Sequence[str]],
     group_by: str,
     *,
     split_by: str | None = None,
@@ -679,7 +1244,12 @@ def plot_dotplot(
     use_raw: bool | None = None,
     standard_scale: str | None = None,
     expression_cutoff: float = 0.0,
-    cmap: str = "Reds",
+    cmap: str | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
+    dot_min: float | None = None,
+    dot_max: float | None = None,
+    swap_axes: bool = False,
     size_range: tuple[float, float] = (0.5, 8.0),
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
@@ -695,8 +1265,11 @@ def plot_dotplot(
     ----------
     adata
         Annotated data matrix.
-    genes : sequence of str
-        Genes to summarize, in display order.
+    genes : sequence of str or dict
+        Genes to summarize, in display order. A ``{marker group: [genes]}``
+        dict (scanpy's ``var_names`` dict) draws one panel per marker group; a
+        gene listed in several groups appears once per occurrence, labelled by
+        group, with values from a single computation. Needs ``backend="plotnine"``.
     group_by : str
         Primary observation grouping column.
     split_by : str, optional
@@ -707,8 +1280,17 @@ def plot_dotplot(
         Optional scaling of summarized means.
     expression_cutoff : float
         Threshold used for the expressing fraction.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. Default ``"Reds"``, or the diverging
+        ``"RdBu_r"`` with zero-centred limits for ``standard_scale="zscore"``.
+    vmin, vmax : float or "p<percentile>", optional
+        Colour limits; values outside are clipped to the end colours.
+    dot_min, dot_max : float, optional
+        Fractions (0 to 1) mapped to the smallest and largest dot; others clip.
+    swap_axes : bool, default=False
+        Put genes on y and groups on x. The first group (or gene) is always
+        drawn at the top; use this rather than ``coord_flip()``, which would
+        reverse the displayed order.
     size_range : tuple of float
         Minimum and maximum dot size.
     categories_order : iterable of str, optional
@@ -741,18 +1323,26 @@ def plot_dotplot(
     -----
     Requested genes are projected before sparse-native aggregation; no implicit
     downsampling or whole-matrix materialization occurs. ``adata`` is unchanged.
+    A warning is raised when ``group_by`` has more than 100 levels (a numeric
+    column is one level per value). Not supported: scanpy's ``dendrogram``,
+    ``var_group_rotation``, ``smallest_dot`` and ``mean_only_expressed``.
 
     Examples
     --------
     >>> p = plot_dotplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
+    >>> p = plot_dotplot(adata, {"T": ["CD3D"], "NK": ["NKG7"]}, "cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
+    _check_group_cardinality(adata, group_by, _MAX_MATRIX_GROUPS, action="warn")
     _validate_backend(backend)
-    if backend == "matplotlib" and split_by is not None:
+    if backend == "matplotlib" and (split_by is not None or isinstance(genes, dict)):
         raise ValueError(
-            "backend='matplotlib' currently supports unsplit dotplots; "
-            "use backend='plotnine' for split_by facets."
+            "backend='matplotlib' currently supports unsplit dotplots of a gene list; "
+            "use backend='plotnine' for split_by facets or a marker dict."
         )
-    genes = ordered_unique(genes)
+    genes, occurrences = _marker_genes(genes)
+    zscore = standard_scale == "zscore"
+    default = "RdBu_r" if zscore else "Reds"
     extra = [split_by] if split_by else []
     aggregate = aggregate_expression_native if backend == "matplotlib" else aggregate_expression
     agg = aggregate(
@@ -768,6 +1358,11 @@ def plot_dotplot(
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     agg = _order_groups(agg, group_by, categories_order)
+    if occurrences:
+        agg = _expand_occurrences(agg, occurrences, reverse=swap_axes)
+    xcol, ycol, layout = _matrix_layout(
+        group_by, list(agg[group_by].cat.categories), genes, occurrences, split_by, swap_axes
+    )
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
     size_kwargs = {
         "range": size_range,
@@ -775,21 +1370,37 @@ def plot_dotplot(
     }
     if _active_style() is not None:
         size_kwargs.update(limits=(0, 1), breaks=(0, 0.25, 0.5, 0.75, 1.0))
+    dot_limits = None
+    if dot_min is not None or dot_max is not None:
+        from mizani.bounds import squish
+
+        lo = 0.0 if dot_min is None else float(dot_min)
+        hi = float(agg["fraction"].max()) if dot_max is None else float(dot_max)
+        if not 0 <= lo < hi:
+            raise ValueError(f"dot_min ({lo}) must be non-negative and below dot_max ({hi}).")
+        dot_limits = (lo, hi)
+        size_kwargs.update(limits=dot_limits, oob=squish)
+    colour_scale = _continuous_scale(
+        "color", agg["mean_expression"], cmap, signed=zscore, default=default
+    )
+    limits = _colour_limits(
+        colour_scale,
+        agg["mean_expression"],
+        vmin,
+        vmax,
+        symmetric=zscore and _active_style() is None,
+    )
     components = [
         geom_point(
             aes(size="fraction", color="mean_expression"),
             raster=rasterized,
         ),
-        _continuous_scale(
-            "color",
-            agg["mean_expression"],
-            cmap,
-            signed=standard_scale == "zscore",
-        ),
+        colour_scale,
         scale_size(**size_kwargs),
         labs(x="", y="", color=color_lab, size="fraction\nexpressing"),
         _family_theme("matrix"),
         pe.rotate_x_text(45),
+        *layout,
     ]
     threshold = annotation_threshold(annotate)
     if threshold is not None:
@@ -802,39 +1413,45 @@ def plot_dotplot(
                 size=style.axis_text_size if style is not None else 7,
             )
         )
-    if split_by:
-        components.append(pe.facet_wrap(f"~{split_by}"))
-    plot = ggplot(agg, aes("feature", group_by)) + components
+    plot = ggplot(agg, aes(xcol, ycol)) + components
     if backend == "plotnine":
         return plot
     return promote_matplotlib_plot(
         plot,
         kind="dotplot",
         data=agg,
-        x="feature",
-        y=group_by,
+        x=xcol,
+        y=ycol,
         value="mean_expression",
         fraction="fraction",
-        cmap=cmap,
+        cmap=_resolve_cmap(cmap, default),
         size_range=size_range,
         value_label=color_lab,
         publication_style=_active_style(),
         rasterized=rasterized,
-        signed=standard_scale == "zscore",
+        signed=zscore and cmap is None,
         annotation_min_cell_pt=threshold,
+        vmin=limits[0],
+        vmax=limits[1],
+        symmetric=zscore,
+        dot_limits=dot_limits,
     )
 
 
+@accepts_groupby
 def plot_matrixplot(
     adata,
-    genes: Sequence[str],
+    genes: Sequence[str] | dict[str, Sequence[str]],
     group_by: str,
     *,
     split_by: str | None = None,
     layer: str | None = None,
     use_raw: bool | None = None,
     standard_scale: str | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
+    swap_axes: bool = False,
     categories_order: Iterable[str] | None = None,
     backend: str = "plotnine",
     rasterized: bool = False,
@@ -851,8 +1468,11 @@ def plot_matrixplot(
     ----------
     adata
         Annotated data matrix.
-    genes : sequence of str
-        Genes to summarize, in display order.
+    genes : sequence of str or dict
+        Genes to summarize, in display order. A ``{marker group: [genes]}``
+        dict draws one panel per marker group; a gene listed in several groups
+        appears once per occurrence, labelled by group, with values from a single
+        computation. Needs ``backend="plotnine"``.
     group_by : str
         Primary observation grouping column.
     split_by : str, optional
@@ -861,8 +1481,14 @@ def plot_matrixplot(
         Mutually exclusive expression-source selection.
     standard_scale : {None, "var", "group", "zscore"}
         Optional scaling of group means.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. Default ``"viridis"``, or the diverging
+        ``"RdBu_r"`` with zero-centred limits for ``standard_scale="zscore"``.
+    vmin, vmax : float or "p<percentile>", optional
+        Colour limits; values outside are clipped to the end colours.
+    swap_axes : bool, default=False
+        Put genes on y and groups on x. The first group (or gene) is always
+        drawn at the top; use this rather than ``coord_flip()``.
     categories_order : iterable of str, optional
         Complete order of observed groups.
     backend : {"plotnine", "matplotlib"}, default="plotnine"
@@ -891,19 +1517,26 @@ def plot_matrixplot(
     Notes
     -----
     Requested genes are projected before sparse-native aggregation. ``adata`` is
-    not mutated.
+    not mutated. A warning is raised when ``group_by`` has more than 100 levels.
+    A matrixplot has no detection threshold, so ``expression_cutoff`` and the
+    ``dot_*`` options belong to :func:`plot_dotplot` only. Not supported:
+    scanpy's ``dendrogram`` and ``var_group_rotation``.
 
     Examples
     --------
     >>> p = plot_matrixplot(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by, split_by)
+    _check_group_cardinality(adata, group_by, _MAX_MATRIX_GROUPS, action="warn")
     _validate_backend(backend)
-    if backend == "matplotlib" and split_by is not None:
+    if backend == "matplotlib" and (split_by is not None or isinstance(genes, dict)):
         raise ValueError(
-            "backend='matplotlib' currently supports unsplit matrixplots; "
-            "use backend='plotnine' for split_by facets."
+            "backend='matplotlib' currently supports unsplit matrixplots of a gene list; "
+            "use backend='plotnine' for split_by facets or a marker dict."
         )
-    genes = ordered_unique(genes)
+    genes, occurrences = _marker_genes(genes)
+    zscore = standard_scale == "zscore"
+    default = "RdBu_r" if zscore else "viridis"
     extra = [split_by] if split_by else []
     aggregate = aggregate_means_native if backend == "matplotlib" else aggregate_means
     agg = aggregate(
@@ -918,18 +1551,29 @@ def plot_matrixplot(
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
     agg = _order_groups(agg, group_by, categories_order)
+    if occurrences:
+        agg = _expand_occurrences(agg, occurrences, reverse=swap_axes)
+    xcol, ycol, layout = _matrix_layout(
+        group_by, list(agg[group_by].cat.categories), genes, occurrences, split_by, swap_axes
+    )
     color_lab = "scaled\nexpression" if standard_scale else "mean\nexpression"
+    fill_scale = _continuous_scale(
+        "fill", agg["mean_expression"], cmap, signed=zscore, default=default
+    )
+    limits = _colour_limits(
+        fill_scale,
+        agg["mean_expression"],
+        vmin,
+        vmax,
+        symmetric=zscore and _active_style() is None,
+    )
     components = [
         geom_tile(raster=rasterized),
-        _continuous_scale(
-            "fill",
-            agg["mean_expression"],
-            cmap,
-            signed=standard_scale == "zscore",
-        ),
+        fill_scale,
         labs(x="", y="", fill=color_lab),
         _family_theme("matrix"),
         pe.rotate_x_text(45),
+        *layout,
     ]
     threshold = annotation_threshold(annotate)
     if threshold is not None:
@@ -942,35 +1586,42 @@ def plot_matrixplot(
                 size=style.axis_text_size if style is not None else 7,
             )
         )
-    if split_by:
-        components.append(pe.facet_wrap(f"~{split_by}"))
-    plot = ggplot(agg, aes("feature", group_by, fill="mean_expression")) + components
+    plot = ggplot(agg, aes(xcol, ycol, fill="mean_expression")) + components
     if backend == "plotnine":
         return plot
     return promote_matplotlib_plot(
         plot,
         kind="matrixplot",
         data=agg,
-        x="feature",
-        y=group_by,
+        x=xcol,
+        y=ycol,
         value="mean_expression",
-        cmap=cmap,
+        cmap=_resolve_cmap(cmap, default),
         value_label=color_lab,
         publication_style=_active_style(),
         rasterized=rasterized,
-        signed=standard_scale == "zscore",
+        signed=zscore and cmap is None,
         annotation_min_cell_pt=threshold,
+        vmin=limits[0],
+        vmax=limits[1],
+        symmetric=zscore,
     )
 
 
+@accepts_groupby
 def plot_embedding_density(
     adata,
     basis: str = "umap",
     group_by: str | None = None,
     *,
+    groups: str | Sequence[str] | None = None,
+    background: bool | None = None,
+    components: str | Sequence[int] | None = None,
     size: float = 2.0,
     ncol: int | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
     downsample: int | None = None,
     random_state: int | None = 0,
     rasterized: bool = False,
@@ -996,13 +1647,27 @@ def plot_embedding_density(
     basis : str, default="umap"
         Embedding basis.
     group_by : str, optional
-        Observation column defining density facets.
+        Observation column defining density facets. At most 100 levels; a
+        numeric column with more raises ``ValueError`` before any density is
+        computed.
+    groups : str or sequence of str, optional
+        Draw only these groups (scanpy's ``group``). Each group's density is
+        the same as when all groups are drawn.
+    background : bool, optional
+        Draw every cell in grey behind each panel, as scanpy does. The grey
+        cells are context only: they are not rows of ``plot.data`` and take no
+        part in any density. Default: on when ``groups`` is given, else off.
+    components : str or pair of int, optional
+        Two different 1-based coordinates to plot, e.g. ``(1, 3)``.
     size : float
         Point size.
     ncol : int, optional
         Facet columns.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. ``None`` is ``"viridis"`` (or the style's map);
+        an explicit name always wins.
+    vmin, vmax : float or "p<percentile>", optional
+        Colour limits on the ``[0, 1]`` density; values outside clip.
     downsample : int, optional
         Maximum observations per group.
     random_state : int, optional
@@ -1030,69 +1695,95 @@ def plot_embedding_density(
     Notes
     -----
     KDE cost grows with retained cells; downsampling is explicit and deterministic
-    by default. The input is not mutated.
+    by default. The input is not mutated. Densities are computed here, never read
+    from ``sc.tl.embedding_density`` results (scanpy's ``key`` is not supported).
 
     Examples
     --------
     >>> p = plot_embedding_density(adata, "umap", group_by="cell_type")
     """
-    import numpy as np
-    from scipy.stats import gaussian_kde
-
+    adata = _drop_missing_groups(adata, group_by)
+    _check_group_cardinality(adata, group_by, _MAX_DENSITY_GROUPS, action="raise")
+    if isinstance(groups, str):
+        groups = [groups]
+    if groups is not None and group_by is None:
+        raise ValueError("groups needs group_by.")
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
-    coords = embedding_coords(adata, basis)
-    if coords.shape[1] < 2:
+    key = embedding_key(adata, basis)
+    width = adata.obsm[key].shape[1]
+    if width < 2:
         raise ValueError(f"Embedding '{basis}' has fewer than 2 dimensions.")
+    xi, yi = _components_indices(components, width, basis)
+    coords = resolve_frame(adata, [obsm(key, xi), obsm(key, yi)])
     xcol, ycol = coords.columns[:2]
-
-    def _density(sub: pd.DataFrame) -> pd.Series:
-        xy = sub[[xcol, ycol]].to_numpy().T  # shape (2, n_cells)
-        # KDE needs >2 points and some spread; degenerate groups get a flat density
-        if xy.shape[1] < 3 or float(xy.std(axis=1).min()) == 0.0:
-            return pd.Series(0.0, index=sub.index)
-        try:
-            d = gaussian_kde(xy)(xy)
-        except np.linalg.LinAlgError:  # singular covariance -- fall back to flat
-            return pd.Series(0.0, index=sub.index)
-        lo, hi = float(d.min()), float(d.max())
-        d = (d - lo) / (hi - lo) if hi > lo else d * 0.0
-        return pd.Series(d, index=sub.index)
+    xy = coords[[xcol, ycol]].to_numpy(dtype=float)
 
     if group_by is None:
         df = coords.copy()
-        df["density"] = _density(df).to_numpy()
-        plot = ggplot(df, aes(xcol, ycol, color="density")) + geom_point(
-            size=size, raster=rasterized
-        )
+        df["density"] = _kde_density(xy.T)
+        df = df.sort_values("density", kind="stable")  # dense cells drawn last, as scanpy
+        plot = ggplot(df, aes(xcol, ycol, color="density"))
     else:
-        gcol = resolve_frame(adata, [group_by])[[group_by]]
-        df = coords.join(gcol)
-        # groupby(...).apply concatenates in group-sorted order, so reindex back
-        # to df's cell order (a bare .to_numpy() would misalign interleaved groups)
-        per_group = df.groupby(group_by, observed=True, group_keys=False).apply(_density)
-        df["density"] = per_group.reindex(df.index).to_numpy()
-        cats = _group_categories(adata, group_by)
-        df = _order_groups(df, group_by, cats)
-        plot = (
-            ggplot(df, aes(xcol, ycol, color="density"))
-            + geom_point(size=size, raster=rasterized)
-            + pe.facet_wrap("~" + group_by, ncol=ncol)
-        )
-    return (
-        plot
-        + _continuous_scale("color", df["density"], cmap, signed=False)
-        + _embedding_style(show_axes, equal_aspect)
-    )
+        # Everything is positional: a group's density is written back to the
+        # rows of its own cells, so interleaved groups and duplicate obs names
+        # cannot misalign (and a single group is no special case).
+        labels = pd.Categorical(adata.obs[group_by])
+        cats = list(labels.categories)
+        levels = [str(c) for c in cats]
+        if groups is not None:
+            unknown = [g for g in groups if str(g) not in levels]
+            if unknown:
+                raise ValueError(f"groups {unknown} are not levels of {group_by!r}: {levels}")
+            wanted = {str(g) for g in groups}
+        else:
+            wanted = set(levels)
+        density = np.zeros(len(coords))
+        selected = np.zeros(len(coords), dtype=bool)
+        for code, level in enumerate(levels):
+            if level not in wanted:
+                continue
+            rows = np.flatnonzero(labels.codes == code)
+            density[rows] = _kde_density(xy[rows].T)
+            selected[rows] = True
+        df = coords.copy()
+        df[group_by] = adata.obs[group_by].array
+        df["density"] = density
+        df = cast(pd.DataFrame, df[selected]).sort_values("density", kind="stable")  # dense last
+        order = [c for c in cats if str(c) in wanted]
+        df = _order_groups(df, group_by, order)
+        plot = ggplot(df, aes(xcol, ycol, color="density"))
+        if background is None:
+            background = groups is not None
+        if background:
+            # grey context in every panel; layer data, not observations of plot.data
+            plot = plot + geom_point(
+                aes(xcol, ycol),
+                data=coords[[xcol, ycol]],
+                color="#d9d9d9",
+                size=size,
+                raster=rasterized,
+                inherit_aes=False,
+            )
+    plot = plot + geom_point(size=size, raster=rasterized)
+    if group_by is not None:
+        plot = plot + pe.facet_wrap("~" + group_by, ncol=ncol)
+    scale = _continuous_scale("color", df["density"], cmap, signed=False, default="viridis")
+    _colour_limits(scale, df["density"], vmin, vmax)
+    return plot + scale + _embedding_style(show_axes, equal_aspect)
 
 
+@accepts_groupby
 def plot_heatmap(
     adata,
-    genes: Sequence[str],
+    genes: Sequence[str] | dict[str, Sequence[str]],
     group_by: str,
     *,
     layer: str | None = None,
     use_raw: bool | None = None,
-    cmap: str = "viridis",
+    cmap: str | None = None,
+    vmin: float | str | None = None,
+    vmax: float | str | None = None,
+    swap_axes: bool = False,
     standard_scale: str | None = None,
     categories_order: Sequence[str] | None = None,
     downsample: int | None = None,
@@ -1113,14 +1804,21 @@ def plot_heatmap(
     ----------
     adata
         Annotated data matrix.
-    genes : sequence of str
-        Genes shown as rows.
+    genes : sequence of str or dict
+        Genes shown as rows. A ``{marker group: [genes]}`` dict adds one row
+        panel per marker group; a gene listed in several groups appears once per
+        occurrence, labelled by group, with values from a single computation.
     group_by : str
         Observation column defining cell blocks.
     layer, use_raw : optional
         Mutually exclusive expression-source selection.
-    cmap : str
-        Matplotlib colormap name.
+    cmap : str, optional
+        Matplotlib colormap name. Default ``"viridis"``, or the diverging
+        ``"RdBu_r"`` with zero-centred limits for ``standard_scale="zscore"``.
+    vmin, vmax : float or "p<percentile>", optional
+        Colour limits; values outside are clipped to the end colours.
+    swap_axes : bool, default=False
+        Draw genes as columns and cells as rows (groups stacked top to bottom).
     standard_scale : {None, "var", "group", "zscore"}
         Optional per-gene or per-cell scaling.
     categories_order : sequence of str, optional
@@ -1156,8 +1854,11 @@ def plot_heatmap(
     --------
     >>> p = plot_heatmap(adata, ["CD3D", "NKG7"], group_by="cell_type")
     """
+    adata = _drop_missing_groups(adata, group_by)
     adata = _downsample_cells(adata, group_by, downsample, random_state=random_state)
-    genes = ordered_unique(genes)
+    genes, occurrences = _marker_genes(genes)
+    zscore = standard_scale == "zscore"
+    default = "RdBu_r" if zscore else "viridis"
     tidy = tidy_expression(adata, genes, group_by, layer=layer, use_raw=use_raw)
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
@@ -1176,7 +1877,7 @@ def plot_heatmap(
             tidy["value"] = (tidy["value"] - centre) / spread
         else:
             lo = g.transform("min")
-            rng = (g.transform("max") - lo).replace(0, 1)
+            rng = (g.transform("max") - lo).replace(0, 1)  # pyright: ignore[reportOperatorIssue]
             tidy["value"] = (tidy["value"] - lo) / rng
         fill_lab = "scaled expr."
     else:
@@ -1184,26 +1885,59 @@ def plot_heatmap(
 
     # order cells by group, then give each a rank so tiles sit side by side
     tidy = _cell_rank(tidy, group_by)
-    tidy["feature"] = pd.Categorical(
-        tidy["feature"], categories=list(reversed(genes)), ordered=True
-    )
+    if occurrences:
+        tidy = _expand_occurrences(tidy, occurrences, reverse=not swap_axes)
+        feature = "feature_key"
+    else:
+        feature = "feature"
+        # first gene on top (y) or left (x)
+        tidy["feature"] = pd.Categorical(
+            tidy["feature"],
+            categories=genes if swap_axes else list(reversed(genes)),
+            ordered=True,
+        )
 
-    components = [
-        geom_tile(raster=rasterized),
-        facet_grid(". ~ " + group_by, scales="free_x", space="free_x"),
-        _continuous_scale(
-            "fill",
-            tidy["value"],
-            cmap,
-            signed=standard_scale == "zscore",
-        ),
-        labs(x="", y="", fill=fill_lab),
-        _family_theme("matrix"),
-        theme(
+    marker = "marker_group" if occurrences else "."
+    fill_scale = _continuous_scale("fill", tidy["value"], cmap, signed=zscore, default=default)
+    _colour_limits(
+        fill_scale,
+        tidy["value"],
+        vmin,
+        vmax,
+        symmetric=zscore and _active_style() is None,
+    )
+    if swap_axes:
+        xcol, ycol = feature, "cell_rank"
+        layout = [
+            facet_grid(f"{group_by} ~ {marker}", scales="free", space="free"),
+            scale_y_reverse(),
+        ]
+        hide = theme(
+            axis_text_y=element_blank(),
+            axis_ticks_major_y=element_blank(),
+            strip_text_y=element_text(angle=0),
+            strip_text_x=element_text(angle=0),
+        )
+    else:
+        xcol, ycol = "cell_rank", feature
+        layout = [facet_grid(f"{marker} ~ {group_by}", scales="free", space="free")]
+        hide = theme(
             axis_text_x=element_blank(),
             axis_ticks_major_x=element_blank(),
             strip_text_x=element_text(angle=90),
-        ),
+            strip_text_y=element_text(angle=0),
+        )
+    if occurrences:
+        labels = {"labels": _key_labels}
+        layout.append(scale_x_discrete(**labels) if swap_axes else scale_y_discrete(**labels))
+
+    components = [
+        geom_tile(raster=rasterized),
+        *layout,
+        fill_scale,
+        labs(x="", y="", fill=fill_lab),
+        _family_theme("matrix"),
+        hide,
     ]
     threshold = annotation_threshold(annotate)
     if threshold is not None:
@@ -1216,4 +1950,4 @@ def plot_heatmap(
                 size=style.axis_text_size if style is not None else 7,
             )
         )
-    return ggplot(tidy, aes("cell_rank", "feature", fill="value")) + components
+    return ggplot(tidy, aes(xcol, ycol, fill="value")) + components

@@ -85,7 +85,12 @@ sc.pl.matrixplot(
 ```
 
 Parity here means the same population and statistics, not pixel identity. The
-two libraries deliberately use different plotting systems and defaults.
+two libraries deliberately use different plotting systems. Both call pairs use
+Scanpy's defaults: the dotplot and matrixplot draw the first category at the
+top, and the matrixplot shows raw group means (`standard_scale=None`). To
+transpose either plot, pass `swap_axes=True`; `coord_flip()` reverses the
+displayed order. ggann spells the grouping `group_by`, and `groupby=` is also
+accepted.
 
 ## Where Scanpy is stronger
 

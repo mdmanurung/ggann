@@ -26,20 +26,21 @@ def test_rank_genes_helpers_accept_canonical_group_by(de_adata):
     assert "bulk_labels" in plot.data.columns
 
 
-def test_rank_genes_helpers_warn_for_legacy_groupby(de_adata):
-    with pytest.warns(FutureWarning, match="group_by") as caught:
+def test_rank_genes_helpers_accept_scanpy_groupby(de_adata):
+    # A1: groupby is a silent alias of group_by, as on every grouped helper
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
         plot = ag.plot_rank_genes_dotplot(de_adata, n_genes=2, groupby="bulk_labels")
     assert "bulk_labels" in plot.data.columns
-    assert Path(caught[0].filename) == Path(__file__)
 
 
-def test_rank_genes_helpers_reject_both_group_spellings(de_adata):
+def test_rank_genes_helpers_reject_conflicting_group_spellings(de_adata):
     with pytest.raises(TypeError, match="only 'group_by'"):
         ag.plot_rank_genes_dotplot(
             de_adata,
             n_genes=2,
             group_by="bulk_labels",
-            groupby="bulk_labels",
+            groupby="louvain",
         )
 
 
@@ -48,7 +49,7 @@ def test_pseudobulk_use_raw_and_legacy_alias(monkeypatch, adata):
     calls = []
 
     def _pseudobulk(input_adata, **kwargs):
-        calls.append(kwargs)
+        calls.append({**kwargs, "input": input_adata})
         result = input_adata[:1].copy()
         result.obs["psbulk_cells"] = 10
         return result
@@ -62,10 +63,12 @@ def test_pseudobulk_use_raw_and_legacy_alias(monkeypatch, adata):
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         ag.pseudobulk(adata, "phase", use_raw=True, min_cells=0)
-    assert calls[-1]["raw"] is True
+    # raw is resolved to an AnnData holding the raw matrix, so decoupler gets raw=False
+    assert calls[-1]["raw"] is False
+    assert list(calls[-1]["input"].var_names) == list(adata.raw.var_names)
     with pytest.warns(FutureWarning, match="use_raw") as caught:
         ag.pseudobulk(adata, "phase", raw=True, min_cells=0)
-    assert calls[-1]["raw"] is True
+    assert calls[-1]["raw"] is False
     assert Path(caught[0].filename) == Path(__file__)
     with pytest.raises(ValueError, match="layer"):
         ag.pseudobulk(adata, "phase", layer="counts", use_raw=True, min_cells=0)
