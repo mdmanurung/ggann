@@ -20,7 +20,7 @@ import pandas as pd
 from ._aggregate import _standardize, group_means
 from ._compat import accepts_groupby
 from ._expression import densify_frame as _densify
-from ._expression import ordered_unique, project_expression, resolve_source
+from ._expression import ordered_unique, project_expression, resolve_source, to_wide
 from ._grouping import _drop_missing_groups
 from .publication import _active_style
 
@@ -156,11 +156,11 @@ def plot_clustermap(
         kind, lyr = resolve_source(adata, layer, use_raw)
         ann_cols = list(annotations) if annotations else []
         projected, genes = project_expression(adata, genes, kind=kind, layer=lyr, obs=ann_cols)
-        wide = _densify(projected.ap.to_df(x=genes))[genes]
+        wide = _densify(to_wide(projected, x=genes))[genes]
         wide.index = adata.obs_names.copy()
         wide = _standardize(wide, standard_scale)
         matrix = wide.T  # genes x cells
-        ann_df = projected.ap.to_df(obs=ann_cols) if ann_cols else None
+        ann_df = to_wide(projected, obs=ann_cols) if ann_cols else None
 
     if matrix.size == 0:
         raise ValueError(f"The matrix to draw is empty ({matrix.shape[0]} x {matrix.shape[1]}).")

@@ -6,6 +6,13 @@ All notable changes to ggann are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- ggann now requires `annplyr>=0.5,<0.6`. All annplyr reads go through one
+  adapter, `ggann._expression.to_wide`, which uses annplyr 0.5's container
+  selectors (`obs.<name>`, `X[...]`, `raw[...]`, layers, `obsm` keys). annplyr
+  0.3 and 0.4 are no longer supported. Plotted values are unchanged.
+
 ### Added
 
 - `tidy_heatmap` and `TidyHeatmap`: a port of the tidyHeatmap verbs

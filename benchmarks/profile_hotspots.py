@@ -104,9 +104,9 @@ def _frame_description(value: Any) -> dict[str, Any]:
 
 @contextmanager
 def _record_annplyr_calls(adata: Any) -> Iterator[list[dict[str, Any]]]:
-    """Record public ``to_df`` calls without bypassing annplyr semantics."""
+    """Record public ``to_wide`` calls without bypassing annplyr semantics."""
     accessor_type = type(adata.ap)
-    original = accessor_type.to_df
+    original = accessor_type.to_wide
     calls: list[dict[str, Any]] = []
 
     def wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
@@ -124,11 +124,11 @@ def _record_annplyr_calls(adata: Any) -> Iterator[list[dict[str, Any]]]:
         )
         return result
 
-    accessor_type.to_df = wrapped
+    accessor_type.to_wide = wrapped
     try:
         yield calls
     finally:
-        accessor_type.to_df = original
+        accessor_type.to_wide = original
 
 
 def _profile_rows(profile: cProfile.Profile, *, limit: int = 80) -> list[dict[str, Any]]:

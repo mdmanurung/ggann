@@ -325,19 +325,28 @@ def test_resolution_preserves_categorical_order_and_missing_values():
     assert result["group"].isna().sum() == 10
 
 
+def _record_annplyr_reads(monkeypatch):
+    """Record the arguments of every annplyr read through ggann's one adapter."""
+    import ggann._expression as expression
+    import ggann._resolve as resolve
+
+    original = expression.to_wide
+    calls = []
+
+    def recording(adata, **kwargs):
+        calls.append(kwargs.copy())
+        return original(adata, **kwargs)
+
+    monkeypatch.setattr(expression, "to_wide", recording)
+    monkeypatch.setattr(resolve, "to_wide", recording)
+    return calls
+
+
 def test_resolve_frame_preflights_cumulative_budget_before_any_accessor_call(
     monkeypatch,
 ):
     adata = _adata("csr")
-    accessor_type = type(adata.ap)
-    original = accessor_type.to_df
-    calls = []
-
-    def recording_to_df(self, *args, **kwargs):
-        calls.append(kwargs.copy())
-        return original(self, *args, **kwargs)
-
-    monkeypatch.setattr(accessor_type, "to_df", recording_to_df)
+    calls = _record_annplyr_reads(monkeypatch)
     fields = [
         ag.gene("gene_1", use_raw=False),
         ag.gene("gene_2", layer="double"),
@@ -371,15 +380,7 @@ def test_resolve_frame_preflights_cumulative_budget_before_any_accessor_call(
 
 def test_grouped_aggregation_fuses_expression_and_obs_projection(monkeypatch):
     adata = _adata("csr")
-    accessor_type = type(adata.ap)
-    original = accessor_type.to_df
-    calls = []
-
-    def recording_to_df(self, *args, **kwargs):
-        calls.append(kwargs.copy())
-        return original(self, *args, **kwargs)
-
-    monkeypatch.setattr(accessor_type, "to_df", recording_to_df)
+    calls = _record_annplyr_reads(monkeypatch)
     result = aggregate_expression(adata, ["gene_1", "gene_3"], "group", use_raw=False)
 
     assert not result.empty

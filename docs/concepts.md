@@ -224,9 +224,12 @@ currently expose the hard budget. Use the grammar, or extract explicitly with
 annplyr and plot the resulting table:
 
 ```python
-table = adata.ap.to_df(
-    obs=["cell_type"],
-    x=["CD3D", "NKG7"],
+from annplyr.data import X, obs
+
+table = adata.ap.to_wide(
+    obs.cell_type,
+    X.CD3D,
+    X.NKG7,
     max_matrix_values=2 * adata.n_obs,
 )
 ```

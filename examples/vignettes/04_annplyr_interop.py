@@ -10,6 +10,7 @@ import annplyr as ap
 import matplotlib.pyplot as plt
 import pandas as pd
 from _fixture import fingerprint, load_adata
+from annplyr.data import X, obs
 from plotnine import aes, geom_col, ggplot, labs
 
 import ggann as ag
@@ -20,16 +21,18 @@ def main() -> None:
     before = fingerprint(adata)
 
     # annplyr projects just two genes and rejects a request above this budget.
-    table = adata.ap.to_df(
-        obs=["louvain", "depth"],
-        x=["CST3", "NKG7"],
+    table = adata.ap.to_wide(
+        obs.louvain,
+        obs.depth,
+        X.CST3,
+        X.NKG7,
         max_matrix_values=2 * adata.n_obs,
     )
     assert {"louvain", "depth", "CST3", "NKG7"} <= set(table.columns)
 
     summary = adata.ap.summarize(
-        x={"mean_CST3": ap.mean(ap.col("CST3"))},
-        by=["louvain", "depth"],
+        mean_CST3=ap.mean(X.CST3),
+        by=(obs.louvain, obs.depth),
         max_matrix_values=adata.n_obs,
     )
     if isinstance(summary["mean_CST3"].dtype, pd.SparseDtype):

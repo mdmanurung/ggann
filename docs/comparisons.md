@@ -43,17 +43,18 @@ gene. That preparation happens before plotnine draws the points:
 
 ```python
 import annplyr as ap
+from annplyr.data import obs, raw
 from plotnine import aes, geom_point, ggplot, scale_color_cmap, scale_size
 
 genes = ["CD3D", "NKG7", "CST3", "GNLY"]
 
 mean = adata.ap.summarize(
-    raw={g: ap.mean(ap.col(g)) for g in genes},
-    by=group,
+    {g: ap.mean(raw[g]) for g in genes},
+    by=obs[group],
 )
 fraction = adata.ap.summarize(
-    raw={g: ap.mean(ap.col(g) > 0) for g in genes},
-    by=group,
+    {g: ap.mean(raw[g] > 0) for g in genes},
+    by=obs[group],
 )
 
 mean = mean.melt(

@@ -29,11 +29,12 @@ def test_runtime_dependencies_are_index_installable_version_ranges():
         assert requirement.specifier, f"runtime dependency is unbounded: {raw}"
 
 
-def test_annplyr_and_anndata_ranges_match_the_v03_contract():
+def test_annplyr_and_anndata_ranges_match_the_v05_contract():
+    # ggann's to_wide adapter uses annplyr 0.5's container selectors
     annplyr = _requirement("annplyr").specifier
-    assert annplyr.contains("0.3.0")
-    assert not annplyr.contains("0.2.0")
+    assert annplyr.contains("0.5.0")
     assert not annplyr.contains("0.4.0")
+    assert not annplyr.contains("0.6.0")
 
     anndata = _requirement("anndata").specifier
     assert anndata.contains("0.12.0")

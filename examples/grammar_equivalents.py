@@ -29,6 +29,7 @@ import annplyr as ap
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
+from annplyr import data as sources
 from mizani.bounds import squish
 from plotnine import (
     aes,
@@ -147,8 +148,9 @@ def _first_group_on_top(long, group):
 
 def _grouped_means(adata, genes, group, cutoff=0.0):
     """Group-by-gene mean expression and fraction expressing, via annplyr."""
-    mean = adata.ap.summarize(raw={g: ap.mean(ap.col(g)) for g in genes}, by=group)
-    frac = adata.ap.summarize(raw={g: ap.mean(ap.col(g) > cutoff) for g in genes}, by=group)
+    by = sources.obs[group]
+    mean = adata.ap.summarize({g: ap.mean(sources.raw[g]) for g in genes}, by=by)
+    frac = adata.ap.summarize({g: ap.mean(sources.raw[g] > cutoff) for g in genes}, by=by)
     mean = mean.set_index(group)[genes].astype(float)
     frac = frac.set_index(group)[genes].astype(float)
     long = (
@@ -274,10 +276,10 @@ def correlation_grammar(adata, group=GROUP, n_genes=None):
     if n_genes is not None:
         genes = genes[:n_genes]
     # Match plot_correlation's default source: raw when present, otherwise X.
-    source = "raw" if adata.raw is not None else "x"
+    source = sources.raw if adata.raw is not None else sources.X
     means = adata.ap.summarize(
-        **{source: {g: ap.mean(ap.col(g)) for g in genes}},
-        by=group,
+        {g: ap.mean(source[g]) for g in genes},
+        by=sources.obs[group],
     )
     profiles = (
         means.set_index(group)[genes].apply(lambda c: np.asarray(c, float)).T

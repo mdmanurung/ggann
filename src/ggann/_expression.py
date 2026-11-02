@@ -1,6 +1,6 @@
 """Expression-source selection and projected extraction for plotting data.
 
-annplyr is ggann's authoritative AnnData-to-tabular adapter.  Its public v0.3
+annplyr is ggann's authoritative AnnData-to-tabular adapter.  Its public v0.5
 accessor projects requested matrix columns before reading dense, sparse, view,
 or backed inputs.  This module keeps source selection and ggann's user-facing
 errors in one place while delegating every tabular matrix read to that accessor.
@@ -14,7 +14,35 @@ import annplyr as _annplyr  # registers the AnnData ``.ap`` accessor
 import numpy as np
 import pandas as pd
 from anndata import AnnData
+from annplyr import data as _sources
 from scipy import sparse
+
+
+def to_wide(
+    adata,
+    *,
+    obs: Sequence[str] | None = None,
+    x: Sequence[str] | None = None,
+    raw: Sequence[str] | None = None,
+    layer: str | None = None,
+    obsm: dict[str, Sequence[str]] | None = None,
+    max_matrix_values: int | None = None,
+) -> pd.DataFrame:
+    """One projected annplyr read: the single place ggann calls ``ap.to_wide``.
+
+    ``x`` names features of ``layer`` when given, else of ``.X``. annplyr returns
+    columns grouped as obs, X/layer, raw (``raw_`` prefix), then obsm
+    (``<key>_<selector>``), whatever the argument order.
+    """
+    selectors = [_sources.obs[name] for name in obs or ()]
+    if x:
+        matrix = _annplyr.layer(layer) if layer is not None else _sources.X
+        selectors += [matrix[name] for name in x]
+    selectors += [_sources.raw[name] for name in raw or ()]
+    for key, columns in (obsm or {}).items():
+        source = getattr(_sources, key)
+        selectors += [source[column] for column in columns]
+    return adata.ap.to_wide(*selectors, max_matrix_values=max_matrix_values)
 
 
 def resolve_source(
@@ -211,11 +239,12 @@ def expression_frame(
     """
     genes = _validate_genes(adata, genes, kind=kind, layer=layer)
     kwargs = _expression_kwargs(kind, layer, genes)
-    frame = adata.ap.to_df(
+    frame = to_wide(
+        adata,
         **kwargs,
         max_matrix_values=max_matrix_values,
     )
-    # ``to_df(raw=...)`` prefixes columns to disambiguate mixed X/raw exports.
+    # ``to_wide`` prefixes raw columns (``raw_<gene>``) to disambiguate mixed X/raw exports.
     # This single-source boundary is already unambiguous, so restore the public
     # feature names positionally rather than parsing names such as ``raw_raw_x``.
     frame.columns = genes
@@ -245,7 +274,8 @@ def expression_with_obs_frame(
     can_fuse = len(exported_names) == len(set(exported_names))
 
     if can_fuse:
-        frame = adata.ap.to_df(
+        frame = to_wide(
+            adata,
             obs=list(obs) if obs else None,
             **_expression_kwargs(kind, layer, genes),
             max_matrix_values=max_matrix_values,
@@ -263,7 +293,7 @@ def expression_with_obs_frame(
         layer=layer,
         max_matrix_values=max_matrix_values,
     )
-    observations = adata.ap.to_df(obs=list(obs))
+    observations = to_wide(adata, obs=list(obs))
     return expression, observations, genes
 
 
@@ -297,7 +327,7 @@ def project_expression(
         if missing_obs:
             quoted = ", ".join(repr(name) for name in missing_obs)
             raise KeyError(f"Observation column(s) not found: {quoted}.")
-        obs_frame = adata.ap.to_df(obs=list(obs))
+        obs_frame = to_wide(adata, obs=list(obs))
     else:
         obs_frame = pd.DataFrame(index=adata.obs_names.copy())
 

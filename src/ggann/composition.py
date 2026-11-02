@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pandas as pd
 import plotnine_extra as pe
+from annplyr import data as _sources
 from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, labs
 
 from ._compat import accepts_groupby
@@ -93,7 +94,7 @@ def plot_proportions(
     if missing:
         raise KeyError(f"Observation column(s) not found: {missing}.")
     by = [split_by, group_by] if split_by else [group_by]
-    counts = adata.ap.count(by=by)
+    counts = adata.ap.count(*(_sources.obs[name] for name in by))
     if categories_order is None:
         categories_order = _group_categories(adata, group_by)
 

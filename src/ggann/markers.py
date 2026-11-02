@@ -4,7 +4,7 @@
 mirroring ``sc.pl.tracksplot``. The ``*_grouped`` helpers split the gene axis
 into one labelled facet panel per group, where scanpy draws
 ``var_group_labels`` brackets. Expression is pulled long
-through annplyr's ``to_tidy``. (The violin family lives in ``distributions``.)
+through annplyr's ``to_wide``. (The violin family lives in ``distributions``.)
 """
 
 from __future__ import annotations

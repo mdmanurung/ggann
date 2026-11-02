@@ -29,7 +29,7 @@ from matplotlib.colors import Colormap, LinearSegmentedColormap, to_hex
 from ._aggregate import group_means
 from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._expression import densify_frame as _densify
-from ._expression import ordered_unique, project_expression, resolve_source
+from ._expression import ordered_unique, project_expression, resolve_source, to_wide
 from ._grouping import _drop_missing_groups
 from .clustermap import _require_pch
 from .publication import _UNIT_TO_INCH, _active_style, _width_in_units, save_publication
@@ -474,7 +474,7 @@ def _from_anndata(adata, genes, group_by, layer, use_raw) -> dict:
     var = (adata.raw.var if kind == "raw" else adata.var).copy()
     if group_by is None:
         projected, genes = project_expression(adata, genes, kind=kind, layer=lyr)
-        wide = _densify(projected.ap.to_df(x=genes))[genes].T  # genes x cells
+        wide = _densify(to_wide(projected, x=genes))[genes].T  # genes x cells
         wide.columns = obs.index.copy()
         column, value = "cell", "expression"
         if not obs.index.is_unique:
