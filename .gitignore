@@ -14,15 +14,12 @@ examples/_phase1/
 /tmp/
 *.png
 !examples/_output/.gitkeep
-!docs/images/*.png
+!docs/images/**/*.png
 .ipynb_checkpoints/
 
 # Sphinx docs build artifacts
 docs/_build/
 docs/generated/
-!docs/images/compare/*.png
-!docs/images/scplotter/*.png
-!docs/images/api/*.png
 !docs/images/scanpy/*.png
 
 # internal evaluation notes, decisions and agent briefs (kept local)

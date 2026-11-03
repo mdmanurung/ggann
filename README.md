@@ -6,8 +6,8 @@ it with the grammar of graphics, and export an editable multi-panel figure at
 its final physical size.
 
 [Documentation](https://mdmanurung.github.io/ggann/) ·
-[Quickstart](https://mdmanurung.github.io/ggann/quickstart.html) ·
-[API concepts](https://mdmanurung.github.io/ggann/concepts.html) ·
+[Coming from Scanpy](https://mdmanurung.github.io/ggann/from_scanpy.html) ·
+[Custom figures](https://mdmanurung.github.io/ggann/grammar.html) ·
 [API reference](https://mdmanurung.github.io/ggann/api.html)
 
 ## First plot
@@ -79,24 +79,35 @@ The context coordinates typography, line weights, palettes, missing-value
 colours, embedding axes, and matrix guides. It restores plotnine and Matplotlib
 state exactly when the block exits. `save_publication` preserves the requested
 canvas instead of tight-cropping it; SVG text stays editable, PDF fonts use the
-TrueType path, and raster dimensions follow the requested millimetres and DPI.
+TrueType path, and raster dimensions follow the requested millimetres and DPI. For
+`plot_clustermap` and `tidy_heatmap` figures, it also shrinks the heatmap body
+until every label and legend fits the canvas.
 
-The executable [publication workflow](docs/vignettes/publication_panels.md)
-extends this to four unequal panels and records the claim, panel map, `n`,
-summary definitions, output dimensions, palette, and input fingerprint.
+The [publication guide](docs/publication.md) extends this to a four-panel figure.
 
 ## Installation
 
-Install the public distribution with:
+ggann needs `annplyr>=0.5,<0.6` and `plotnine-extra>=0.3.1,<0.4`. Neither release
+is on PyPI yet, so `pip install ggann` does not resolve today. The package
+metadata cannot name Git URLs, so install both from GitHub first, at the commits
+CI tests against:
 
 ```bash
-pip install ggann
+pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@ae2db5402c8b1c714bb12906ff82a40fbb0d8de2"
+pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8"
+pip install "ggann @ git+https://github.com/mdmanurung/ggann"
 ```
 
-For development from a checkout:
+For development from a checkout, install the two dependencies as above, then:
 
 ```bash
 python -m pip install -e ".[test,docs]"
+```
+
+Once ggann 0.1.0 is released and both dependencies are on PyPI, this will work:
+
+```bash
+pip install ggann
 ```
 
 Optional backends are isolated in extras:
@@ -104,7 +115,7 @@ Optional backends are isolated in extras:
 | Extra | Functions |
 |---|---|
 | `density` | `plot_density` |
-| `heatmap` | `plot_clustermap` |
+| `heatmap` | `plot_clustermap`, `tidy_heatmap` |
 | `upset` | `plot_upset` |
 | `pseudobulk` | `pseudobulk` |
 
@@ -118,8 +129,9 @@ pip install "ggann[density,heatmap,upset,pseudobulk]"
   `plot_violin` for standard single-cell figures.
 - Use `gganndata(...) + ...` when the figure is naturally expressed as a
   plotnine grammar.
-- Except for the documented grid-backend functions `plot_clustermap` and
-  `plot_upset`, plotting functions return composable plotnine objects.
+- Except for the documented grid-backend functions `plot_clustermap`,
+  `tidy_heatmap` and `plot_upset`, plotting functions return composable
+  plotnine objects.
 - Wrap existing helper or bare plotnine construction in `style_context(...)`
   when all panels should share publication defaults. Add later themes, scales,
   coordinates, facets, or annotations normally; the later layer wins.
@@ -178,20 +190,19 @@ plotnine draws directly. `ap.store_palette` colours are the ones `plot_embedding
 `gganndata(..., max_matrix_values=...)` or the same keyword on an annplyr verb to
 bound what is read.
 
-See the executable [annplyr vignette](docs/vignettes/annplyr_interop.md) and the
-[API concepts guide](docs/concepts.md) for source, ownership, sparse, backed,
-ordering, and missing-value behavior.
+See the [custom figures guide](docs/grammar.md) for annplyr pipelines, name
+resolution and large-data budgets.
 
 ## Performance
 
 Performance claims are accepted only from matched, reproducible comparisons
-against Scanpy. The [performance guide](docs/performance.md) defines the timing,
+against Scanpy. The [notes page](docs/notes.md) gives the timing,
 memory, equivalence, and acceptance criteria; it deliberately does not substitute
 microbenchmarks for end-to-end results.
 
 ## Citing
 
-See [Citing ggann](docs/citing.md) for how to cite ggann and the tools behind each figure.
+See [Citing ggann](docs/notes.md#citing) for how to cite ggann and the tools behind each figure.
 
 ## Development checks
 

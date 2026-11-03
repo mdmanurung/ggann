@@ -76,7 +76,7 @@ a bug, its test was checked to fail on the pre-change source.
 
 ## Known limitations
 
-Partial and deferred rows are listed for users in `docs/limitations.md`.
+Partial and deferred rows are listed for users in `docs/notes.md`.
 They include integer-data sina jitter (upstream plotnine), clustermap
 clipping at publication sizes, no helper-output late grammar fields, no
 `dendrogram=` on dotplot/matrixplot, negative `n_genes`, and fonts verified
@@ -86,7 +86,7 @@ only against a simulated Arial. Seven upstream drafts are in
 ## Performance
 
 Numbers measured on `res-hpc-exe048` (Xeon E5-2690 v3, 8 of 24 CPUs) on
-2026-11-01, with other jobs on the node. Details are in `docs/performance.md`.
+2026-11-01, with other jobs on the node. Details are in `docs/notes.md`.
 
 - Tracksplot: 700 cells 6.12 s to 0.52 s; 2,800 cells 22.89 s to 0.99 s.
 - Embedding point density: exact KDE stays the default and warns above

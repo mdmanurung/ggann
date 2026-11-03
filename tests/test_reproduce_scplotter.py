@@ -1,6 +1,6 @@
 """Guard the scplotter reproduction figures + the plot_violin add_points option.
 
-Building every reproduction here keeps the ``docs/scplotter_parity.md`` gallery
+Building every reproduction here keeps the scplotter reproductions
 honest -- if a helper or a composed layer stops producing a figure, this fails.
 """
 

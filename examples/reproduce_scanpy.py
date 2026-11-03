@@ -1,8 +1,8 @@
 """Render scanpy and ggann plots side by side.
 
 For each ``sc.pl.*`` figure we render scanpy's output and the ggann equivalent to
-``docs/images/scanpy/<name>_scanpy.png`` / ``<name>_ggann.png`` on the same
-``pbmc3k_processed`` data for the comparisons in ``docs/scanpy_parity.md``.
+``docs/images/from_scanpy/<name>_scanpy.png`` / ``<name>_ggann.png`` on the same
+``pbmc3k_processed`` data for the comparisons in ``docs/from_scanpy.md``.
 
 Run: ``python examples/reproduce_scanpy.py``.
 """
@@ -43,6 +43,8 @@ def _adata():
     adata.var["highly_variable"] = True
     sc.tl.rank_genes_groups(adata, GROUP, method="wilcoxon", n_genes=50, key_added=DE_KEY)
     sc.tl.dendrogram(adata, groupby=GROUP)
+    # scanpy's density plot reads a stored KDE; ggann computes its own
+    sc.tl.embedding_density(adata, basis="umap", groupby=GROUP)
     return adata
 
 
@@ -58,10 +60,20 @@ def _save_ggann(plot, path, width=5.5):
 
 
 def pairs(adata):
+    # CD4 T cells on pbmc3k_processed; the first level keeps the test fixture working
+    first = adata.obs[GROUP].cat.categories[0]
     return {
         "umap": (
             lambda: sc.pl.umap(adata, color=GROUP, show=False),
             lambda: ag.plot_embedding(adata, "umap", color=GROUP, label=True),
+        ),
+        "pca": (
+            lambda: sc.pl.pca(adata, color=GROUP, show=False),
+            lambda: ag.plot_embedding(adata, "pca", color=GROUP),
+        ),
+        "scatter": (
+            lambda: sc.pl.scatter(adata, x="n_counts", y="n_genes", color=GROUP, show=False),
+            lambda: ag.plot_qc_scatter(adata, "n_counts", "n_genes", color=GROUP),
         ),
         "umap_gene": (
             lambda: sc.pl.umap(adata, color=MARKERS[:4], show=False),
@@ -83,16 +95,42 @@ def pairs(adata):
             lambda: sc.pl.violin(adata, MARKERS[:3], groupby=GROUP, show=False),
             lambda: ag.plot_violin(adata, MARKERS[:3], GROUP),
         ),
+        "heatmap": (
+            lambda: sc.pl.heatmap(adata, MARKERS, groupby=GROUP, show=False),
+            lambda: ag.plot_heatmap(adata, MARKERS, GROUP),
+        ),
         "tracksplot": (
             lambda: sc.pl.tracksplot(adata, MARKERS, groupby=GROUP, show=False),
             lambda: ag.plot_tracksplot(adata, MARKERS, GROUP),
+        ),
+        "rank_genes_matrixplot": (
+            lambda: sc.pl.rank_genes_groups_matrixplot(adata, n_genes=3, key=DE_KEY, show=False),
+            lambda: ag.plot_rank_genes_matrixplot(adata, n_genes=3, key=DE_KEY),
+        ),
+        "pca_variance_ratio": (
+            lambda: sc.pl.pca_variance_ratio(adata, n_pcs=30, log=True, show=False),
+            lambda: ag.plot_variance_ratio(adata, n_pcs=30, log=True),
+        ),
+        "dendrogram": (
+            lambda: sc.pl.dendrogram(adata, groupby=GROUP, show=False),
+            lambda: ag.plot_dendrogram(adata, GROUP),
+        ),
+        "embedding_density": (
+            lambda: sc.pl.embedding_density(
+                adata,
+                basis="umap",
+                key=f"umap_density_{GROUP}",
+                group=first,
+                show=False,
+            ),
+            lambda: ag.plot_embedding_density(adata, "umap", GROUP, groups=first),
         ),
         "correlation": (
             lambda: sc.pl.correlation_matrix(adata, groupby=GROUP, show=False),
             lambda: ag.plot_correlation(adata, GROUP, use_rep="X_pca"),
         ),
         "highest_expr_genes": (
-            lambda: sc.pl.highest_expr_genes(adata, n_top=15, show=False),
+            lambda: sc.pl.highest_expr_genes(adata.raw.to_adata(), n_top=15, show=False),
             lambda: ag.plot_highest_expr_genes(adata, n=15, use_raw=True),
         ),
         "rank_genes_dotplot": (
@@ -104,7 +142,7 @@ def pairs(adata):
 
 def main():
     adata = _adata()
-    out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "scanpy")
+    out = os.path.join(os.path.dirname(__file__), "..", "docs", "images", "from_scanpy")
     os.makedirs(out, exist_ok=True)
     failures = []
     for name, (scfn, ggfn) in pairs(adata).items():

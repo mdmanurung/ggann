@@ -18,7 +18,7 @@
 | Publication mode | `style_context(...)` changes family styling and rendering defaults without changing prepared tables. Later plotnine additions win. |
 | Rasterization | Dense embedding points and matrix tiles remain vectors unless `rasterized=True`; text, axes, guides, tags, and annotations remain vectors. |
 | Missing colour values | In `plot_embedding`, cells with a missing `color=` value stay in the plot, drawn in `na_color` and labelled `NA` in the legend. |
-| Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `plot_clustermap` and `plot_upset` return their grid-backend objects. |
+| Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `plot_clustermap`, `tidy_heatmap` and `plot_upset` return their grid-backend objects. |
 
 ## Performance and ownership by family
 
@@ -32,7 +32,7 @@
 
 Plot construction leaves the input `AnnData` unchanged. Prepared pandas data
 are owned by the returned object; `set_theme` is the documented process-global
-state change. See {doc}`concepts` and {doc}`performance` for the full contracts.
+state change. See {doc}`grammar` and {doc}`notes` for the contracts and timings.
 
 ## Family notes
 
@@ -43,7 +43,7 @@ returns a `GGAnnPlot`, a `plotnine.ggplot` subclass. Fields added later with
 `+ aes(...)`, `+ geom_*(aes(...))` or `+ facet_*(...)` are read from the AnnData
 when added and count against `max_matrix_values`. They do not work on the
 output of `plot_*` helpers; use `split_by=` there. `add_theme=False` keeps
-plotnine's default `theme_gray`. See {doc}`concepts`.
+plotnine's default `theme_gray`. See {doc}`grammar`.
 
 **Embeddings.**
 
@@ -189,7 +189,7 @@ convenience.
    plot_dendrogram
 ```
 
-`tidy_heatmap` and its `TidyHeatmap` verbs are described in {doc}`tidy_heatmap`.
+`tidy_heatmap` and its `TidyHeatmap` verbs are described in {doc}`heatmaps`.
 
 ## Distributions
 
@@ -347,4 +347,4 @@ These re-exports come from
 | `stat_central_tendency` | Mean or median annotation |
 | `geom_signif` | Significance brackets |
 
-What each statistic tests and which p-value it shows is in {doc}`stats_pseudobulk`.
+What each statistic tests and which p-value it shows is in {doc}`grammar`.
