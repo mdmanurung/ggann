@@ -19,7 +19,7 @@ dotplot = ag.plot_dotplot(adata, genes, group_by="louvain")
 ```
 
 You can display `dotplot`, add plotnine components with `+`, place it in a
-composition, or export it later. Except for clustermap and UpSet, helper output
+composition, or export it later. Except for clustermap, `tidy_heatmap` and UpSet, helper output
 is an ordinary `plotnine.ggplot`.
 
 ## Naming map

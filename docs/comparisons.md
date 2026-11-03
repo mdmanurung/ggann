@@ -121,7 +121,7 @@ statistic.
 | `plot_highest_expr_genes` | Per-cell fractions for top-ranked genes | `ggplot + geom_boxplot` |
 | `plot_variance_ratio` | PCA variance-ratio vector | `ggplot + geom_point + geom_line` |
 
-`plot_clustermap` and `plot_upset` are grid-backend escape hatches and therefore
+`plot_clustermap`, `tidy_heatmap` and `plot_upset` are grid-backend escape hatches and therefore
 have no plotnine grammar equivalent. The representative executable
 constructions in `examples/grammar_equivalents.py` expose the exact table/layer
 boundary for the most common recipes.
@@ -167,5 +167,5 @@ constructions from `examples/grammar_equivalents.py`.
 | `plot_proportions` | ![](images/compare/plot_proportions_helper.png) | ![](images/compare/plot_proportions_grammar.png) |
 | `plot_correlation` | ![](images/compare/plot_correlation_helper.png) | ![](images/compare/plot_correlation_grammar.png) |
 
-`plot_clustermap` and `plot_upset` use grid-based backends and do not have a
+`plot_clustermap`, `tidy_heatmap` and `plot_upset` use grid-based backends and do not have a
 plotnine grammar construction.

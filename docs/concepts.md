@@ -9,8 +9,9 @@
 | `gganndata(adata, aes(...))` | Per-cell fields map directly to plotnine aesthetics | `plotnine.ggplot` |
 | `plot_*` helpers | The plot needs aggregation, ordering, or specialized preparation | Usually `plotnine.ggplot` |
 
-`plot_clustermap` and `plot_upset` are deliberate exceptions: they use
-PyComplexHeatmap and marsilea, respectively, and return those backend objects.
+`plot_clustermap`, `tidy_heatmap` and `plot_upset` are deliberate exceptions:
+the first two use PyComplexHeatmap and the third uses marsilea. They return
+those backend objects (`tidy_heatmap` returns a `TidyHeatmap` wrapper).
 
 ## Aesthetic resolution
 
@@ -284,6 +285,7 @@ earlier custom theme; use `style_context` for that.
 | `compose` | plotnine composition object |
 | `embedding_coords`, `rank_genes_df` | `pandas.DataFrame` |
 | `plot_clustermap` | `PyComplexHeatmap.ClusterMapPlotter` |
+| `tidy_heatmap` | `TidyHeatmap` (`.draw()` gives a `ClusterMapPlotter`) |
 | `plot_upset` | marsilea UpSet object |
 | `pseudobulk` | `AnnData` |
 

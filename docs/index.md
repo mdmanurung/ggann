@@ -22,8 +22,8 @@ plot = gganndata(
 ) + geom_point()
 ```
 
-All plotnine-native helpers remain composable. `plot_clustermap` and
-`plot_upset` are the two documented grid-backend exceptions.
+All plotnine-native helpers remain composable. `plot_clustermap`,
+`tidy_heatmap` and `plot_upset` are the documented grid-backend exceptions.
 
 ## Start here
 

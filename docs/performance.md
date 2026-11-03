@@ -71,7 +71,7 @@ is shared. The overflow check adds about 0.1 s per call.
 
 `benchmarks/profile_hotspots.py` records cProfile calls, tracemalloc lines,
 sampled peak/retained RSS, DataFrame sizes, sparse-column counts, and every
-public annplyr `to_df` request. The same 20,000 × 10,000 CSR fixture was profiled
+public annplyr `to_df` request (annplyr 0.3; `to_df` is now `to_wide`). The same 20,000 × 10,000 CSR fixture was profiled
 before and after the changes; these diagnostic medians use three uninstrumented
 warm calls, while cProfile and tracemalloc run separately.
 
@@ -128,7 +128,7 @@ memory probes, complete provenance, payload tolerances, and input fingerprints:
 
 Fresh-process imports took 3.63 seconds for ggann and 2.97 seconds for Scanpy.
 The run used Python 3.12.13 on a 24-logical-core Intel Xeon E5-2690 v3 with one
-BLAS/OpenMP thread, Scanpy 1.12.3, annplyr 0.3.0, AnnData 0.13.2, NumPy 2.4.6,
+BLAS/OpenMP thread, Scanpy 1.12.3, annplyr 0.3.0 (before `to_df` became `to_wide`), AnnData 0.13.2, NumPy 2.4.6,
 pandas 3.0.5, SciPy 1.18.0, plotnine 0.15.7, plotnine-extra 0.3.1, and Matplotlib
 3.11.1.
 
