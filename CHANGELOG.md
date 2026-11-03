@@ -19,7 +19,7 @@ All notable changes to ggann are recorded here. The format follows
   (`annotation_*`, `layer_*`, `split_rows`/`split_columns`, `get_heatmap_data`,
   `+`, `as_ComplexHeatmap`, `save`) on PyComplexHeatmap, for long tables,
   `DataFrameGroupBy` input and `AnnData`. `annotation_numeric` and
-  `show_group_name=False` are partial; see `docs/tidy_heatmap.md`.
+  `show_group_name=False` are partial; see `docs/heatmaps.md`.
 - The colour bar names any `transform` and `scale`, e.g. `log1p(mean)` over
   `z-score by row`, so a scaled matrix is never labelled as raw values.
 

@@ -67,10 +67,8 @@ myst_enable_extensions = [
     "html_admonition",
 ]
 myst_url_schemes = ("http", "https", "mailto")
-# Notebook execution remains off; ``executable_vignettes`` runs the six Python
-# workflows in isolated processes before every build. They read the PBMC3K
-# dataset from the ``data/`` cache that ``scripts/fetch_datasets.py`` populates,
-# so the build itself reaches no network.
+# Notebook execution stays off: page figures are pre-rendered by the scripts in
+# ``examples/docs_figures/`` and ``examples/reproduce_scanpy.py``.
 nb_execution_mode = "off"
 typehints_defaults = "braces"
 always_use_bars_union = True
@@ -95,6 +93,7 @@ else:
 
 exclude_patterns = [
     "_build",
+    "_includes",
     # Older builds wrote every public re-export here, including third-party
     # objects whose upstream docstrings do not parse cleanly in Sphinx. Native
     # API pages now live under generated/native/.

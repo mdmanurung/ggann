@@ -6,8 +6,8 @@ it with the grammar of graphics, and export an editable multi-panel figure at
 its final physical size.
 
 [Documentation](https://mdmanurung.github.io/ggann/) ·
-[Quickstart](https://mdmanurung.github.io/ggann/quickstart.html) ·
-[API concepts](https://mdmanurung.github.io/ggann/concepts.html) ·
+[Coming from Scanpy](https://mdmanurung.github.io/ggann/from_scanpy.html) ·
+[Custom figures](https://mdmanurung.github.io/ggann/grammar.html) ·
 [API reference](https://mdmanurung.github.io/ggann/api.html)
 
 ## First plot
@@ -83,9 +83,7 @@ TrueType path, and raster dimensions follow the requested millimetres and DPI. F
 `plot_clustermap` and `tidy_heatmap` figures, it also shrinks the heatmap body
 until every label and legend fits the canvas.
 
-The executable [publication workflow](docs/vignettes/publication_panels.md)
-extends this to four unequal panels and records the claim, panel map, `n`,
-summary definitions, output dimensions, palette, and input fingerprint.
+The [publication guide](docs/publication.md) extends this to a four-panel figure.
 
 ## Installation
 
@@ -192,20 +190,19 @@ plotnine draws directly. `ap.store_palette` colours are the ones `plot_embedding
 `gganndata(..., max_matrix_values=...)` or the same keyword on an annplyr verb to
 bound what is read.
 
-See the executable [annplyr vignette](docs/vignettes/annplyr_interop.md) and the
-[API concepts guide](docs/concepts.md) for source, ownership, sparse, backed,
-ordering, and missing-value behavior.
+See the [custom figures guide](docs/grammar.md) for annplyr pipelines, name
+resolution and large-data budgets.
 
 ## Performance
 
 Performance claims are accepted only from matched, reproducible comparisons
-against Scanpy. The [performance guide](docs/performance.md) defines the timing,
+against Scanpy. The [notes page](docs/notes.md) gives the timing,
 memory, equivalence, and acceptance criteria; it deliberately does not substitute
 microbenchmarks for end-to-end results.
 
 ## Citing
 
-See [Citing ggann](docs/citing.md) for how to cite ggann and the tools behind each figure.
+See [Citing ggann](docs/notes.md#citing) for how to cite ggann and the tools behind each figure.
 
 ## Development checks
 
