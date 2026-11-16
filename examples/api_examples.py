@@ -29,12 +29,6 @@ GROUP = "louvain"
 # logfoldchanges and is left untouched.
 DE_KEY = "rank_wilcoxon"
 MARKERS = ["CD3D", "CD8A", "NKG7", "GNLY", "MS4A1", "FCGR3A", "CST3"]
-GENE_GROUPS = {
-    "T": ["CD3D", "CD8A"],
-    "NK": ["NKG7", "GNLY"],
-    "B": ["MS4A1"],
-    "Mono": ["CST3"],
-}
 
 
 def _adata():
@@ -65,7 +59,7 @@ def _ma_frame(adata, group="NK cells"):
     raw = adata.raw.to_adata() if adata.raw is not None else adata
     means = np.asarray(raw.X.mean(axis=0)).ravel()
     mean_by_gene = dict(zip(raw.var_names, means))
-    df = ag.rank_genes_df(adata, group=group, key=DE_KEY).rename(
+    df = sc.get.rank_genes_groups_df(adata, group=group, key=DE_KEY).rename(
         columns={"logfoldchanges": "log2FoldChange", "pvals_adj": "padj"}
     )
     df["baseMean"] = df["names"].map(mean_by_gene)
@@ -73,7 +67,7 @@ def _ma_frame(adata, group="NK cells"):
 
 
 def _examples(adata):
-    de = ag.rank_genes_df(adata, key=DE_KEY)
+    de = sc.get.rank_genes_groups_df(adata, group=None, key=DE_KEY)
     sel = ["CD14+ Monocytes", "B cells", "NK cells", "Dendritic cells"]
     marker_sets = {g: list(de[de["group"] == g].head(20)["names"]) for g in sel}
     return {
@@ -87,12 +81,8 @@ def _examples(adata):
         "ggann.plot_density": lambda: ag.plot_density(adata, ["CD3D", "NKG7"], joint=True),
         "ggann.plot_embedding_density": lambda: ag.plot_embedding_density(adata, "umap", GROUP),
         "ggann.plot_dotplot": lambda: ag.plot_dotplot(adata, MARKERS, GROUP),
-        "ggann.plot_dotplot_grouped": lambda: ag.plot_dotplot_grouped(adata, GENE_GROUPS, GROUP),
         "ggann.plot_matrixplot": lambda: ag.plot_matrixplot(
             adata, MARKERS, GROUP, standard_scale="var"
-        ),
-        "ggann.plot_matrixplot_grouped": lambda: ag.plot_matrixplot_grouped(
-            adata, GENE_GROUPS, GROUP
         ),
         "ggann.plot_heatmap": lambda: ag.plot_heatmap(
             adata, MARKERS, GROUP, use_raw=True, standard_scale="var"

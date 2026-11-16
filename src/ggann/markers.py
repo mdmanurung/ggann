@@ -1,10 +1,9 @@
-"""Marker-summary plots: tracksplot and the gene-group dot/matrix plots.
+"""Marker-summary plots: tracksplot.
 
 ``plot_tracksplot`` stacks genes as rows (``facet_grid`` over the feature),
-mirroring ``sc.pl.tracksplot``. The ``*_grouped`` helpers split the gene axis
-into one labelled facet panel per group, where scanpy draws
-``var_group_labels`` brackets. Expression is pulled long
-through annplyr's ``to_wide``. (The violin family lives in ``distributions``.)
+mirroring ``sc.pl.tracksplot``. Grouped marker dot and matrix plots take a
+``{label: [genes]}`` dict in :func:`ggann.plot_dotplot` and
+:func:`ggann.plot_matrixplot`. (The violin family lives in ``distributions``.)
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ from plotnine import (
     ggplot,
     labs,
     scale_x_continuous,
-    scale_x_discrete,
     theme,
 )
 
@@ -30,18 +28,10 @@ from ._compat import accepts_groupby
 from ._expression import ordered_unique
 from ._grouping import _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_fill_obs
-from .plots import (
-    _cell_rank,
-    plot_dotplot,
-    plot_matrixplot,
-)
+from .plots import _cell_rank
 from .publication import _family_theme
 
-__all__ = [
-    "plot_tracksplot",
-    "plot_dotplot_grouped",
-    "plot_matrixplot_grouped",
-]
+__all__ = ["plot_tracksplot"]
 
 
 _SEP = "\x1f"  # joins a marker-group label and a gene into one panel-local key
@@ -82,111 +72,6 @@ def _expand_occurrences(data: pd.DataFrame, occ: list, *, label_col: str) -> pd.
         out[label_col], categories=list(dict.fromkeys(lab for lab, _ in occ)), ordered=True
     )
     return out
-
-
-def _add_gene_group_facet(plot, gene_groups: dict):
-    """Split the gene axis into one labelled facet panel per group (``gene_group``).
-
-    ``gene_groups`` maps a label -> list of genes; the panels appear in dict order.
-    A gene listed under several labels is drawn once in each panel, labelled by its
-    group, with values from the plot's single per-gene computation.
-    """
-    genes, occ = _flatten_gene_groups(gene_groups)
-    if len(genes) == len(occ):  # no repeats: label the existing rows in place
-        label = {g: lab for lab, g in occ}
-        data = plot.data.copy()
-        data["gene_group"] = pd.Categorical(
-            data["feature"].astype(str).map(label),
-            categories=list(dict.fromkeys(gene_groups)),
-            ordered=True,
-        )
-        plot.data = data
-    else:  # repeats: one keyed copy of the gene's rows per occurrence
-        plot.data = _expand_occurrences(plot.data, occ, label_col="gene_group")
-        plot = plot + scale_x_discrete(labels=lambda ks: [str(k).split(_SEP, 1)[-1] for k in ks])
-    return plot + facet_grid(". ~ gene_group", scales="free_x", space="free_x")
-
-
-@accepts_groupby
-def plot_dotplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Draw a dotplot with one facet panel per gene group (not Scanpy brackets).
-
-    Parameters
-    ----------
-    adata
-        Annotated data matrix.
-    gene_groups : mapping of str to sequence of str
-        Labelled marker groups in display order.
-    group_by : str
-        Observation grouping column.
-    **kwargs
-        Passed to :func:`ggann.plot_dotplot`.
-
-    Returns
-    -------
-    plotnine.ggplot
-        Composable grouped marker dotplot.
-
-    Raises
-    ------
-    KeyError
-        If genes or grouping metadata are missing.
-    ValueError
-        If forwarded options are invalid.
-
-    Notes
-    -----
-    A gene listed under several labels appears once per label (as in scanpy), with
-    values from one computation per gene. Extraction and ownership match
-    :func:`ggann.plot_dotplot`.
-
-    Examples
-    --------
-    >>> p = plot_dotplot_grouped(adata, {"T": ["CD3D"]}, group_by="cell_type")
-    """
-    genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(plot_dotplot(adata, genes, group_by, **kwargs), gene_groups)
-
-
-@accepts_groupby
-def plot_matrixplot_grouped(adata, gene_groups: dict, group_by: str, **kwargs):
-    """Draw a matrixplot with one facet panel per gene group (not Scanpy brackets).
-
-    Parameters
-    ----------
-    adata
-        Annotated data matrix.
-    gene_groups : mapping of str to sequence of str
-        Labelled marker groups in display order.
-    group_by : str
-        Observation grouping column.
-    **kwargs
-        Passed to :func:`ggann.plot_matrixplot`.
-
-    Returns
-    -------
-    plotnine.ggplot
-        Composable grouped marker matrixplot.
-
-    Raises
-    ------
-    KeyError
-        If genes or grouping metadata are missing.
-    ValueError
-        If forwarded options are invalid.
-
-    Notes
-    -----
-    A gene listed under several labels appears once per label (as in scanpy), with
-    values from one computation per gene. Extraction and ownership match
-    :func:`ggann.plot_matrixplot`.
-
-    Examples
-    --------
-    >>> p = plot_matrixplot_grouped(adata, {"T": ["CD3D"]}, group_by="cell_type")
-    """
-    genes, _ = _flatten_gene_groups(gene_groups)
-    return _add_gene_group_facet(plot_matrixplot(adata, genes, group_by, **kwargs), gene_groups)
 
 
 @accepts_groupby

@@ -392,7 +392,7 @@ A gene that is a top marker of several groups gets one column per group, labelle
 |---|---|
 | Same spelling | `n_genes` (positive), `groupby`, `key`, `groups`, `min_logfoldchange`, `values_to_plot` (`scores`, `logfoldchanges`, `pvals`, `pvals_adj`, `log10_pvals`, `log10_pvals_adj`), plus the dotplot options |
 | Not accepted | negative `n_genes`, marker brackets (`var_group_positions`), `dendrogram`, `gene_symbols` |
-| Grammar | `rank_genes_df`, then the dotplot recipe |
+| Grammar | `sc.get.rank_genes_groups_df`, then the dotplot recipe |
 
 `values_to_plot` draws the stored statistic, not an expression mean. It needs a result stored with `n_genes=adata.n_vars` and cannot combine with `standard_scale`.
 

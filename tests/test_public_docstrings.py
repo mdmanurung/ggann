@@ -57,5 +57,4 @@ def test_public_data_and_backend_boundaries_are_documented():
     assert "not a plotnine object" in inspect.getdoc(ggann.plot_clustermap).lower()
     assert "not a plotnine object" in inspect.getdoc(ggann.plot_upset).lower()
     assert ggann.scale_colour_expression is ggann.scale_color_expression
-    assert ggann.scale_colour_celltype is ggann.scale_color_celltype
     assert ggann.scale_colour_obs is ggann.scale_color_obs

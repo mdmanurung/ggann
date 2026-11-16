@@ -142,7 +142,7 @@ Create the matplotlib figure at the target size first. The annotation and dendro
 sc.tl.rank_genes_groups(
     adata, "louvain", method="wilcoxon", n_genes=50, key_added="rank_wilcoxon"
 )
-de = ag.rank_genes_df(adata, key="rank_wilcoxon")
+de = sc.get.rank_genes_groups_df(adata, group=None, key="rank_wilcoxon")
 groups = ["CD4 T cells", "CD8 T cells", "NK cells", "B cells"]
 sets = {g: de[de["group"] == g].head(40)["names"] for g in groups}
 plt.figure(figsize=(6, 3.5))

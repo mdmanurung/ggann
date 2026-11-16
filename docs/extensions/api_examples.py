@@ -3,7 +3,7 @@
 Images are pre-rendered by ``examples/api_examples.py`` into
 ``docs/images/api/<fullname>.png`` and committed. This hook adds an ``Examples``
 section pointing at the image for any documented object that has one; objects
-without an image (scales, grammar accessors, ``rank_genes_df``) are untouched, so
+without an image (scales, grammar accessors, ``scale_*``) are untouched, so
 there are no broken images and the source docstrings stay clean.
 """
 

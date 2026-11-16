@@ -35,7 +35,6 @@ from .publication import _family_theme
 _VOLCANO_COLORS = {"down": "#3B4CC0", "not significant": "#B8B8B8", "up": "#B40426"}
 
 __all__ = [
-    "rank_genes_df",
     "plot_rank_genes_dotplot",
     "plot_rank_genes_matrixplot",
     "plot_volcano",
@@ -56,7 +55,7 @@ def _de_group_by(adata, key: str, group_by):
     return adata.uns[key]["params"]["groupby"]
 
 
-def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
+def _rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
     """Tidy DE table for ``group`` (or all groups), via ``sc.get.rank_genes_groups_df``.
 
     Columns: ``group, names, scores, logfoldchanges, pvals, pvals_adj``. Extra
@@ -97,7 +96,7 @@ def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
 
     Examples
     --------
-    >>> table = rank_genes_df(adata, group="T cells")
+    >>> table = _rank_genes_df(adata, group="T cells")
     """
     import scanpy as sc
 
@@ -144,7 +143,7 @@ def _marker_table(adata, n_genes, key, groups, min_logfoldchange) -> pd.DataFram
         kwargs["log2fc_min"] = min_logfoldchange
     parts = []
     for g in dict.fromkeys(groups):
-        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key, **kwargs))
+        df = cast(pd.DataFrame, _rank_genes_df(adata, group=g, key=key, **kwargs))
         df = df[df["names"].notna()].head(n_genes)
         parts.append(pd.DataFrame({"group": g, "names": df["names"].to_numpy()}))
     markers = pd.concat(parts, ignore_index=True)
@@ -169,7 +168,7 @@ def _de_statistic(adata, values_to_plot: str, key: str) -> pd.Series:
         )
     parts = []
     for g in adata.uns[key]["names"].dtype.names:
-        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key))
+        df = cast(pd.DataFrame, _rank_genes_df(adata, group=g, key=key))
         parts.append(df.assign(group=g)[["group", "names", column]])
     stat = cast(pd.Series, pd.concat(parts).set_index(["group", "names"])[column])
     if values_to_plot.startswith("log10_"):
@@ -449,7 +448,7 @@ def plot_volcano(
             "plot_volcano colours points by direction; override with "
             "+ scale_color_manual(...) instead of a color= keyword."
         )
-    df = cast(pd.DataFrame, rank_genes_df(adata, group=group, key=key))
+    df = cast(pd.DataFrame, _rank_genes_df(adata, group=group, key=key))
     missing = {"logfoldchanges", "pvals_adj"} - set(df.columns)
     if missing:
         raise ValueError(

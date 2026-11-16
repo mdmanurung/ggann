@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import warnings
 
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby, renamed_keyword
+from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
 from ._grouping import _drop_missing_groups
 
 __all__ = ["pseudobulk"]
@@ -41,7 +41,6 @@ def pseudobulk(
     *,
     layer: str | None = None,
     use_raw: bool | None = None,
-    raw: bool | None = None,
     mode: str = "sum",
     min_cells: int = 10,
     skip_checks: bool = False,
@@ -60,7 +59,7 @@ def pseudobulk(
     layer, use_raw
         Where the counts live. decoupler expects **integer counts**; pass the counts
         ``layer=`` (or ``use_raw=True``), or ``skip_checks=True`` to aggregate
-        non-counts. ``raw`` is the deprecated spelling of ``use_raw``.
+        non-counts.
     mode
         Aggregation: ``"sum"`` (default, for count-based DE), ``"mean"`` or
         ``"median"``. Other values are passed to decoupler, which also accepts a
@@ -68,10 +67,9 @@ def pseudobulk(
     min_cells
         Drop pseudobulk profiles built from fewer than this many cells
         (decoupler records the count in ``obs['psbulk_cells']``). The default of
-        10 removes small profiles; a warning reports how many. Pass
+        10 matches decoupler's ``dc.pp.filter_samples`` default (checked against
+        decoupler 2.3.1) and removes small profiles; a warning reports how many. Pass
         ``min_cells=0`` to keep every profile.
-    raw
-        Deprecated alias of ``use_raw``.
     skip_checks
         Forwarded to decoupler to permit non-count input.
 
@@ -115,13 +113,7 @@ def pseudobulk(
     if isinstance(min_cells, bool) or not isinstance(min_cells, int) or min_cells < 0:
         raise ValueError(f"min_cells must be a non-negative integer, got {min_cells!r}.")
     adata = _drop_missing_groups(adata, sample_col, group_by)
-    use_raw = renamed_keyword(
-        use_raw,
-        raw,
-        name="use_raw",
-        legacy_name="raw",
-        default=False,
-    )
+    use_raw = bool(use_raw)
     if layer is not None and use_raw:
         raise ValueError("Cannot specify use_raw=True and a layer at the same time.")
     if use_raw:

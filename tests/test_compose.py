@@ -72,7 +72,6 @@ def test_compose_weighted_layout_is_native_composition(adata, group_key, markers
     rendered = fig.draw(show=False)
     panel_heights = [spec.plot.axs[0].get_position().height for spec in fig.plotspecs]
     assert sum(panel_heights[2:]) > sum(panel_heights[:2])
-    assert rendered._ggann_gap_applied is True
     first_row = fig[0]
     left = first_row.gridspec[0].get_position(rendered)
     right = first_row.gridspec[1].get_position(rendered)

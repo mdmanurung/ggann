@@ -8,7 +8,7 @@
 
 | Concept | Rule |
 |---|---|
-| `genes` and `features` | `genes` selects expression variables. `features` may also select numeric observation columns where documented. Repeated sequence entries are removed in first-seen order; grouped marker maps reject a gene assigned to multiple labels. |
+| `genes` and `features` | `genes` selects expression variables. `features` may also select numeric observation columns where documented. Repeated sequence entries are removed in first-seen order. In a grouped marker map, a gene listed under several labels is drawn once per label, with values from one computation. |
 | `group_by` and `split_by` | Every helper that takes `group_by=` also accepts Scanpy's `groupby=`; giving both with different values raises `TypeError`. `group_by` defines the primary summary or colour groups. `split_by` adds a within-group split or facet. Cells with a missing `group_by` or `split_by` value are dropped from every grouped plot and statistic, with a warning that gives the count; proportions use the kept cells. |
 | Expression source | `layer=` and `use_raw=True` are mutually exclusive. With neither set, expression uses `adata.raw` when present and otherwise `adata.X`. A source set on `gene(...)` overrides the plot-wide source. |
 | Ordering | Categorical observation order is preserved. An explicit `categories_order` must include every observed, non-missing group; unused requested levels are dropped. |
@@ -75,8 +75,8 @@ plotnine's default `theme_gray`. See {doc}`grammar`.
 - `plot_dotplot`, `plot_matrixplot` and `plot_heatmap` take `swap_axes`,
   `vmin`/`vmax` and `cmap=None`; `plot_dotplot` also takes `dot_min`/`dot_max`.
   They warn above 100 `group_by` levels (dotplot, matrixplot).
-- `genes=` may be a dict `{marker group: [genes]}`, and
-  `plot_dotplot_grouped` / `plot_matrixplot_grouped` take the same mapping.
+- `genes=` may be a dict `{marker group: [genes]}` in `plot_dotplot`,
+  `plot_matrixplot`, `plot_heatmap` and `plot_tracksplot`.
   Each marker group is one facet panel, side by side, not a Scanpy-style
   bracket above shared columns. A gene listed under several groups appears once
   in each panel, with values from one computation per gene. Plotnine backend only.
@@ -175,9 +175,7 @@ convenience.
    :nosignatures:
 
    plot_dotplot
-   plot_dotplot_grouped
    plot_matrixplot
-   plot_matrixplot_grouped
    plot_heatmap
    plot_violin
    plot_ridge
@@ -211,7 +209,6 @@ convenience.
    :toctree: generated/native
    :nosignatures:
 
-   rank_genes_df
    plot_rank_genes_dotplot
    plot_rank_genes_matrixplot
    plot_volcano
@@ -290,8 +287,6 @@ contracts.
    obs_colors
    scale_color_expression
    scale_fill_expression
-   scale_color_celltype
-   scale_fill_celltype
 ```
 
 The `scale_colour_*` names are aliases of the corresponding `scale_color_*`

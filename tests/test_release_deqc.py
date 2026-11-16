@@ -301,7 +301,7 @@ def test_A5_groups_selects_marker_groups(small_de):
 
 def test_A5_min_logfoldchange_filters_before_top_n(small_de):
     group = "CD56+ NK"
-    table = ag.rank_genes_df(small_de, group=group, key=KEY)
+    table = sc.get.rank_genes_groups_df(small_de, group=group, key=KEY)
     cutoff = float(table["logfoldchanges"].median())
     expected = list(table[table["logfoldchanges"] > cutoff]["names"][:4])
     plot = ag.plot_rank_genes_matrixplot(
@@ -315,7 +315,7 @@ def test_A5_values_to_plot_uses_the_de_statistic_not_expression(de_adata):
     plot = ag.plot_rank_genes_matrixplot(
         de_adata, n_genes=3, key=KEY, groups=[group], values_to_plot="scores"
     )
-    scores = ag.rank_genes_df(de_adata, group=group, key=KEY).set_index("names")["scores"]
+    scores = sc.get.rank_genes_groups_df(de_adata, group=group, key=KEY).set_index("names")["scores"]
     shown = plot.data[plot.data[GROUP] == group]
     shown = shown.set_index(shown["feature"].astype(str))
     for gene, value in shown["mean_expression"].items():

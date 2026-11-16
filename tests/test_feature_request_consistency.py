@@ -79,7 +79,7 @@ def test_correlation_counts_distinct_requested_genes(adata, markers, group_key):
 
 
 def test_grouped_markers_deduplicate_within_one_group(adata, markers, group_key):
-    plot = ag.plot_dotplot_grouped(
+    plot = ag.plot_dotplot(
         adata,
         {"T cell": [markers[0], markers[0], markers[1]]},
         group_key,

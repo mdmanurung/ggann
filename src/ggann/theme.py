@@ -35,9 +35,6 @@ __all__ = [
     "scale_color_expression",
     "scale_colour_expression",
     "scale_fill_expression",
-    "scale_color_celltype",
-    "scale_colour_celltype",
-    "scale_fill_celltype",
 ]
 
 # ggplot2 points-to-mm constant: geom_text `size` is in mm, theme text in pt.
@@ -374,65 +371,3 @@ def scale_fill_expression(cmap: str | None = None, **kwargs):
     if cmap is None:
         cmap = "viridis" if style is None else style.sequential_cmap
     return pe.scale_fill_cmap(cmap_name=cmap, **kwargs)
-
-
-def scale_color_celltype(**kwargs):
-    """Build a categorical colour scale for cell identities.
-
-    Parameters
-    ----------
-    **kwargs
-        Passed to plotnine's hue scale.
-
-    Returns
-    -------
-    plotnine.scales.scale
-        Composable colour scale.
-
-    Raises
-    ------
-    ValueError
-        If a scale argument is invalid.
-
-    Notes
-    -----
-    ``scale_colour_celltype`` is an exact British-spelling alias.
-
-    Examples
-    --------
-    >>> p = p + scale_color_celltype()
-    """
-    return pe.scale_color_hue(**kwargs)
-
-
-# British-spelling alias, mirroring plotnine.
-scale_colour_celltype = scale_color_celltype
-
-
-def scale_fill_celltype(**kwargs):
-    """Build a categorical fill scale for cell identities.
-
-    Parameters
-    ----------
-    **kwargs
-        Passed to plotnine's hue scale.
-
-    Returns
-    -------
-    plotnine.scales.scale
-        Composable fill scale.
-
-    Raises
-    ------
-    ValueError
-        If a scale argument is invalid.
-
-    Notes
-    -----
-    The scale does not inspect or copy AnnData.
-
-    Examples
-    --------
-    >>> p = p + scale_fill_celltype()
-    """
-    return pe.scale_fill_hue(**kwargs)

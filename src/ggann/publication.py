@@ -789,9 +789,6 @@ def _figure_from_object(plot, width_in: float, height_in: float, dpi: int):
             )
     figure.set_size_inches(width_in, height_in, forward=True)
     figure.set_dpi(dpi)
-    if hasattr(working, "_apply_publication_gap"):
-        figure.canvas.draw()
-        working._apply_publication_gap(figure)
     for axis in list(getattr(figure, "_ggann_fit_left", ())):
         fit_left_labels(figure, axis)
     if hasattr(working, "ax_heatmap"):  # a PyComplexHeatmap ClusterMapPlotter

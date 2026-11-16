@@ -30,13 +30,9 @@ from ._expression import (
 __all__ = [
     "aggregate_expression",
     "aggregate_means",
-    "expression_source",
     "group_means",
     "tidy_expression",
 ]
-
-# Internal compatibility name used by older tests and extensions.
-expression_source = resolve_source
 
 StandardScale = Literal["var", "group", "zscore"]
 

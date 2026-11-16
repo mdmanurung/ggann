@@ -7,11 +7,12 @@ and ``dot_size_df`` (fraction expressing).
 
 import numpy as np
 
-from ggann._aggregate import aggregate_expression, expression_source
+from ggann._aggregate import aggregate_expression
+from ggann._expression import resolve_source
 
 
 def test_source_defaults_to_raw(adata):
-    kind, lyr = expression_source(adata, layer=None, use_raw=None)
+    kind, lyr = resolve_source(adata, layer=None, use_raw=None)
     assert kind == "raw"
     assert lyr is None
 

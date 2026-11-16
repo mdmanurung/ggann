@@ -77,15 +77,6 @@ class _GGAnnComposition:
             updates["hspace"] = gap_in / average_cell
         self.gridspec.update(**updates)
 
-    def _apply_publication_gap(self, figure) -> None:
-        """Compatibility hook; gaps are already encoded in parent gridspecs."""
-        figure._ggann_gap_applied = True
-
-    def draw(self, *, show: bool = False):
-        figure = super().draw(show=show)
-        self._apply_publication_gap(figure)
-        return figure
-
     def save(
         self,
         filename: str | Path | BytesIO,
