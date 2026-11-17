@@ -43,7 +43,7 @@ two dependencies from GitHub first, at the commits CI tests against:
 
 ```bash
 pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@bb80d1285d41a1e0470311bb887018433c5acc80"
-pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8"
+pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@184042606ead3522d624c478641bf024f8288812"
 pip install "ggann @ git+https://github.com/mdmanurung/ggann"
 ```
 

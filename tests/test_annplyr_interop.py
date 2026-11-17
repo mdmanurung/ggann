@@ -8,8 +8,6 @@ through the shared ``adata`` fixture.
 
 from __future__ import annotations
 
-import copy
-
 import annplyr as ap
 import numpy as np
 import pandas as pd
@@ -21,10 +19,7 @@ import ggann as ag
 
 
 def _layer_data(plot, i=0):
-    # plotnine<0.16 has no ggplot.layer_data; build a copy and read the layer
-    built = copy.deepcopy(plot)
-    built._build()
-    return built.layers[i].data
+    return plot.layer_data(i)
 
 
 @pytest.fixture(scope="module")

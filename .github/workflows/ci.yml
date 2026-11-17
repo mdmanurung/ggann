@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/plotnine-extra
-          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          ref: 184042606ead3522d624c478641bf024f8288812
           path: vendor/plotnine-extra
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/plotnine-extra
-          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          ref: 184042606ead3522d624c478641bf024f8288812
           path: vendor/plotnine-extra
       - uses: actions/setup-python@v5
         with:
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/plotnine-extra
-          ref: fcbd88f64760a2dd6e8200028a1a00909aa2c9f8
+          ref: 184042606ead3522d624c478641bf024f8288812
           path: vendor/plotnine-extra
       - uses: actions/setup-python@v5
         with:

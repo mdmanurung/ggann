@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from io import BytesIO
+
 import pandas as pd
 import plotnine as p9
 import pytest
@@ -70,14 +72,16 @@ def test_compose_weighted_layout_is_native_composition(adata, group_key, markers
     assert isinstance(fig, Compose)
     assert fig._ggann_ratios == (1.0, 1.5)
     rendered = fig.draw(show=False)
-    panel_heights = [spec.plot.axs[0].get_position().height for spec in fig.plotspecs]
+    # plotnine 0.16 lays panels out when the figure is rendered, not in draw().
+    rendered.savefig(BytesIO(), format="png")
+    panel_heights = [spec.axs[0].get_position().height for spec in fig.iter_plots_all()]
     assert sum(panel_heights[2:]) > sum(panel_heights[:2])
     first_row = fig[0]
-    left = first_row.gridspec[0].get_position(rendered)
-    right = first_row.gridspec[1].get_position(rendered)
+    left = first_row._sub_gridspec[0].get_position(rendered)
+    right = first_row._sub_gridspec[1].get_position(rendered)
     horizontal_gap_mm = (right.x0 - left.x1) * rendered.get_figwidth() * 25.4
-    top = fig.gridspec[0].get_position(rendered)
-    bottom = fig.gridspec[1].get_position(rendered)
+    top = fig._sub_gridspec[0].get_position(rendered)
+    bottom = fig._sub_gridspec[1].get_position(rendered)
     vertical_gap_mm = (top.y0 - bottom.y1) * rendered.get_figheight() * 25.4
     assert horizontal_gap_mm == pytest.approx(1.5)
     assert vertical_gap_mm == pytest.approx(1.5)

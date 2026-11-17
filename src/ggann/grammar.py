@@ -17,8 +17,8 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 from plotnine import aes, ggplot
-from plotnine.mapping._env import Environment
 
+from ._plotnine_compat import Environment
 from ._resolve import ObsmRef, Ref, field_names, parse_token, plain_name, resolve_frame
 from .publication import _family_theme
 

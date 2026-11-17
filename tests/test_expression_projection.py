@@ -413,7 +413,8 @@ def test_gganndata_exposes_cumulative_materialization_budget():
         use_raw=False,
         max_matrix_values=projected_values,
     )
-    assert list(plot.data.columns) == ["gene_1", "PC_1", "PC_2"]
+    # resolve_frame orders columns by the mapping (x, y, color), not by source.
+    assert list(plot.data.columns) == ["PC_1", "PC_2", "gene_1"]
 
 
 def test_resolve_frame_handles_dataframe_backed_obsm_by_position():
