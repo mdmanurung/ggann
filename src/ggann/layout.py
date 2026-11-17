@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from typing import Sequence, cast
@@ -56,26 +56,54 @@ class _GGAnnComposition:
 
     _ggann_gap_mm: float
 
+    def _generate_gridspecs(self, figure, container_gs) -> None:
+        # plotnine 0.16.0a15 builds the grid here (it dropped the old
+        # ``_create_gridspec`` hook); set the physical gap once it exists.
+        super()._generate_gridspecs(figure, container_gs)  # type: ignore[misc]
+        self._configure_physical_gap(figure)
+
     def _configure_physical_gap(self, figure) -> None:
         """Set the parent grid gap before child plot layout is calculated."""
         if self._ggann_gap_mm <= 0:
             return
         gap_in = self._ggann_gap_mm / 25.4
-        bbox = self.gridspec.bbox_relative
+        gridspec = self._sub_gridspec  # type: ignore[attr-defined]
+        ncol, nrow = self.layout.ncol, self.layout.nrow  # type: ignore[attr-defined]
+        bbox = gridspec.bbox_relative
+        # plotnine reserves the root theme's plot margins after this runs, so
+        # size the gap against the space that is left. Margins are fractions
+        # of the figure width; top and bottom scale by width / height.
+        width_left = height_left = 1.0
+        theme = getattr(getattr(figure, "_owner", None), "theme", None)
+        if theme is not None:
+            fig_w, fig_h = theme.getp("figure_size")
+            width_left -= theme.getp("plot_margin_left") + theme.getp("plot_margin_right")
+            height_left -= (theme.getp("plot_margin_top") + theme.getp("plot_margin_bottom")) * (
+                fig_w / fig_h
+            )
         updates: dict[str, float] = {}
-        if self.ncol > 1:
-            available = bbox.width * figure.get_figwidth()
-            average_cell = (available - gap_in * (self.ncol - 1)) / self.ncol
+        if ncol > 1:
+            available = bbox.width * figure.get_figwidth() * width_left
+            average_cell = (available - gap_in * (ncol - 1)) / ncol
             if average_cell <= 0:
                 raise ValueError("gap is too large for the requested figure width.")
             updates["wspace"] = gap_in / average_cell
-        if self.nrow > 1:
-            available = bbox.height * figure.get_figheight()
-            average_cell = (available - gap_in * (self.nrow - 1)) / self.nrow
+        if nrow > 1:
+            available = bbox.height * figure.get_figheight() * height_left
+            average_cell = (available - gap_in * (nrow - 1)) / nrow
             if average_cell <= 0:
                 raise ValueError("gap is too large for the requested figure height.")
             updates["hspace"] = gap_in / average_cell
-        self.gridspec.update(**updates)
+        # p9GridSpec lost ``update()`` in 0.16.0a15; its spacing lives here.
+        gridspec._subplot_params.update(**updates)
+        # The layout engine resets this grid's spacing to 0 when the figure
+        # renders, so re-apply the gap to the params it sets.
+        apply_params = gridspec.update_params_and_artists
+
+        def keep_gap(gsparams) -> None:
+            apply_params(replace(gsparams, **updates))
+
+        gridspec.update_params_and_artists = keep_gap
 
     def save(
         self,
@@ -135,40 +163,28 @@ class _GGAnnComposition:
         return None
 
 
-@dataclass(repr=False)
 class _WeightedBeside(_GGAnnComposition, Beside):
     _ggann_ratios: tuple[float, ...]
     _ggann_gap_mm: float
 
-    def _create_gridspec(self, figure, nest_into):
-        from plotnine._mpl.gridspec import p9GridSpec
-
-        self.gridspec = p9GridSpec(
-            self.nrow,
-            self.ncol,
-            figure,
-            width_ratios=self._ggann_ratios,
-            nest_into=nest_into,
-        )
-        self._configure_physical_gap(figure)
+    def __init__(self, items, ratios: tuple[float, ...], gap_mm: float):
+        # plotnine 0.16 compositions take ``items`` only and are not dataclasses.
+        super().__init__(items)
+        self._ggann_ratios = ratios
+        self._ggann_gap_mm = gap_mm
+        self.layout.widths = list(ratios)
 
 
-@dataclass(repr=False)
 class _WeightedStack(_GGAnnComposition, Stack):
     _ggann_ratios: tuple[float, ...]
     _ggann_gap_mm: float
 
-    def _create_gridspec(self, figure, nest_into):
-        from plotnine._mpl.gridspec import p9GridSpec
-
-        self.gridspec = p9GridSpec(
-            self.nrow,
-            self.ncol,
-            figure,
-            height_ratios=self._ggann_ratios,
-            nest_into=nest_into,
-        )
-        self._configure_physical_gap(figure)
+    def __init__(self, items, ratios: tuple[float, ...], gap_mm: float):
+        # plotnine 0.16 compositions take ``items`` only and are not dataclasses.
+        super().__init__(items)
+        self._ggann_ratios = ratios
+        self._ggann_gap_mm = gap_mm
+        self.layout.heights = list(ratios)
 
 
 def _guide_signature(plot) -> tuple | None:
@@ -191,7 +207,7 @@ def _guide_signature(plot) -> tuple | None:
         return None
 
     scale_signatures: list[tuple] = []
-    for scale in working._build_objs.scales:
+    for scale in working.built.scales:
         used = tuple(sorted(set(scale.aesthetics) & aesthetics))
         if not used or scale.guide is None or scale.guide is False or scale.guide == "none":
             continue

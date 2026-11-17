@@ -112,7 +112,7 @@ class MatplotlibGGPlot(ggplot):
         """Copy grammar state while retaining immutable plot data by reference."""
         result = self.__class__.__new__(self.__class__)
         memo[id(self)] = result
-        shallow = {"data", "figure", "gs", "_build_objs", "_ggann_render_spec"}
+        shallow = {"data", "figure", "gs", "built", "_build_objs", "_ggann_render_spec"}
         for key, item in self.__dict__.items():
             if key in shallow:
                 result.__dict__[key] = item
