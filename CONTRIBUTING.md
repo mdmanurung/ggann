@@ -20,7 +20,7 @@ the development extras, either from the commits CI pins:
 ```bash
 uv pip install --python .venv/bin/python \
   "annplyr @ git+https://github.com/mdmanurung/annplyr@bb80d1285d41a1e0470311bb887018433c5acc80" \
-  "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@184042606ead3522d624c478641bf024f8288812"
+  "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@b24b997749b67ea147a1f759df3d6bc997f511a1"
 uv pip install --python .venv/bin/python -e ".[dev]"
 ```
 
