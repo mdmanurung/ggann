@@ -10,7 +10,7 @@ first (see [Release blockers](#release-blockers)).
 
 | Area | Result | Evidence |
 |---|:---:|---|
-| Test suite | **PASS** | 760 tests, Python 3.12.13, `python -m pytest -q`, about 9 minutes (2026-11-17, after the review follow-ups below) |
+| Test suite | **PASS** | 760 tests, Python 3.12.13, `python -m pytest -q`, 6 to 9 minutes (2026-11-17), also against annplyr `bb80d12` |
 | Backlog | **PASS** | All 96 evaluation rows completed, documented or deferred with a reason |
 | Static quality | **PASS** | ruff check and format clean; pyright 0 errors over `src/ggann` |
 | Documentation | **PASS** | Offline `sphinx-build -W --keep-going` exits 0 and executes every vignette |
