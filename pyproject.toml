@@ -82,6 +82,7 @@ ggann = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "benchmarks"]
 addopts = ["--strict-config", "--strict-markers"]
+markers = ["canary: fast checks of the plotnine coupling, also run nightly on the newest plotnine"]
 filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
 
 [tool.ruff]
