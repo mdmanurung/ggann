@@ -25,12 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/annplyr
-          ref: bb80d1285d41a1e0470311bb887018433c5acc80
+          ref: b3ebb6ffdf754d314f4bb7d255ffb84a5888a4b6
           path: vendor/annplyr
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/plotnine-extra
-          ref: b24b997749b67ea147a1f759df3d6bc997f511a1
+          ref: 337ae624809a0fdda21624a99a358e66a7e5a025
           path: vendor/plotnine-extra
       - uses: actions/setup-python@v5
         with:

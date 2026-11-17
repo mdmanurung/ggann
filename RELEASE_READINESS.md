@@ -24,7 +24,7 @@ first (see [Release blockers](#release-blockers)).
 
 Python 3.12.13 in `.venv-rc`, locked in `plans/evaluation/env-rc.lock`.
 First-party dependencies come from pinned commits, as in CI: annplyr
-`bb80d12` (0.5.0) and plotnine-extra `b24b9977` (0.3.1). The table below
+`b3ebb6f` (0.5.0) and plotnine-extra `337ae62` (0.3.1). The table below
 records the 2026-11-02 `.venv-rc` environment, which predates that plotnine-extra
 pin and the plotnine 0.16.0a15 port.
 
