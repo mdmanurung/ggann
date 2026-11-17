@@ -186,10 +186,8 @@ table = adata.to_wide(obs.louvain, X_umap)  # columns: louvain, UMAP_1, UMAP_2
 ggplot(table, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.theme_ggann()
 ```
 
-Tables from `join_features`, `summarize` and `count` are DataFrames that plotnine
-draws directly. `to_wide` does too for dense `X`; for sparse `X` it returns pandas
-sparse columns that plotnine cannot draw (known, undecided; see annplyr
-`tests/test_plot_contract.py`). `ap.store_palette` colours are the ones `plot_embedding` and
+Tables from `to_wide`, `join_features`, `summarize` and `count` are DataFrames that
+plotnine draws directly, even when `X` is sparse. `ap.store_palette` colours are the ones `plot_embedding` and
 `scale_color_obs` draw.
 
 `ggann` projects only the requested expression columns before conversion. Use
