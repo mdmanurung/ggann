@@ -88,6 +88,9 @@ The [publication guide](docs/publication.md) extends this to a four-panel figure
 
 ## Installation
 
+ggann needs plotnine `>=0.16.0a15,<0.17`. Plotnine 0.16 exists only as alphas on
+PyPI; the specifier names the alpha, so pip installs it without `--pre`.
+
 ggann needs `annplyr>=0.5,<0.6` and `plotnine-extra>=0.3.1,<0.4`. Neither release
 is on PyPI yet, so `pip install ggann` does not resolve today. The package
 metadata cannot name Git URLs, so install both from GitHub first, at the commits
@@ -183,8 +186,10 @@ table = adata.to_wide(obs.louvain, X_umap)  # columns: louvain, UMAP_1, UMAP_2
 ggplot(table, aes("UMAP_1", "UMAP_2", color="louvain")) + geom_point() + ag.theme_ggann()
 ```
 
-Tables from `to_wide`, `join_features`, `summarize` and `count` are DataFrames that
-plotnine draws directly. `ap.store_palette` colours are the ones `plot_embedding` and
+Tables from `join_features`, `summarize` and `count` are DataFrames that plotnine
+draws directly. `to_wide` does too for dense `X`; for sparse `X` it returns pandas
+sparse columns that plotnine cannot draw (known, undecided; see annplyr
+`tests/test_plot_contract.py`). `ap.store_palette` colours are the ones `plot_embedding` and
 `scale_color_obs` draw.
 
 `ggann` projects only the requested expression columns before conversion. Use

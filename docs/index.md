@@ -55,7 +55,9 @@ pip install ggann
 ```
 
 ggann requires Python 3.12 or later. The core install also pulls in
-[plotnine](https://plotnine.org/), Scanpy and AnnData.
+[plotnine](https://plotnine.org/), Scanpy and AnnData. ggann needs plotnine
+`>=0.16.0a15,<0.17`. Plotnine 0.16 exists only as alphas on PyPI; the specifier
+names the alpha, so pip installs it without `--pre`.
 
 ### Optional extras
 
