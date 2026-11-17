@@ -97,8 +97,8 @@ metadata cannot name Git URLs, so install both from GitHub first, at the commits
 CI tests against:
 
 ```bash
-pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@bb80d1285d41a1e0470311bb887018433c5acc80"
-pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@b24b997749b67ea147a1f759df3d6bc997f511a1"
+pip install "annplyr @ git+https://github.com/mdmanurung/annplyr@b3ebb6ffdf754d314f4bb7d255ffb84a5888a4b6"
+pip install "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@337ae624809a0fdda21624a99a358e66a7e5a025"
 pip install "ggann @ git+https://github.com/mdmanurung/ggann"
 ```
 
