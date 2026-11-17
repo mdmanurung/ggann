@@ -50,7 +50,7 @@ Run the same deterministic checks used in continuous integration:
 python scripts/run_pyright.py
 ruff check src tests benchmarks docs/extensions examples scripts
 ruff format --check src tests benchmarks docs/extensions examples scripts
-PYTHONPATH=src python -m pytest -q
+PYTHONPATH=src python -m pytest -q   # about 7 minutes
 GGANN_DOCS_OFFLINE=1 sphinx-build -W --keep-going -b html docs docs/_build/html
 python -m build
 python -m twine check dist/*

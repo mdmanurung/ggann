@@ -97,7 +97,7 @@ from .upset import plot_upset
 try:
     __version__ = version("ggann")
 except PackageNotFoundError:  # pragma: no cover - not installed
-    __version__ = "0.1.0"
+    __version__ = "0+unknown"
 
 __all__ = [
     "gganndata",

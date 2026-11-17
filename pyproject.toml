@@ -76,6 +76,9 @@ Changelog = "https://github.com/mdmanurung/ggann/blob/main/CHANGELOG.md"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ggann = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "benchmarks"]
 addopts = ["--strict-config", "--strict-markers"]
