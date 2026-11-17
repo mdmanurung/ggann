@@ -438,6 +438,11 @@ def plot_volcano(
     Notes
     -----
     Reads only a stored rank-genes table and does not mutate ``adata``.
+    ``rank_genes_groups`` tests treat cells as independent replicates, so its
+    p-values overstate certainty when cells come from few donors. For a
+    donor-level test, aggregate with :func:`ggann.pseudobulk`, run the test, and
+    draw it with :func:`ggann.plot_ma`. State the test and the correction in the
+    figure legend.
 
     Examples
     --------

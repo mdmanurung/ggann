@@ -65,6 +65,13 @@ def plot_clustermap(
     * ``group_by=None`` -> columns are individual cells; ``annotations`` selects
       ``obs`` columns to show as top annotation bars.
 
+    Clustering uses PyComplexHeatmap's defaults (``ward`` linkage, Euclidean
+    distance, checked against PyComplexHeatmap 1.8.5), which differ from
+    :func:`ggann.tidy_heatmap` (``complete`` linkage, as in ComplexHeatmap). Pass
+    ``row_cluster_method=`` / ``row_cluster_metric=`` (and the ``col_`` pair) to
+    change them. Without ``standard_scale`` or ``z_score``, clustering acts on
+    unscaled means, so high-expression genes dominate the distances.
+
     ``standard_scale`` (ggann-side, per gene/group) and ``z_score``
     (PyComplexHeatmap-side row/column z-score) are mutually exclusive -- applying
     both would normalize twice. Returns the

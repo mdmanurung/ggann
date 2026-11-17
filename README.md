@@ -41,7 +41,10 @@ plot = (
 
 Publication styling is opt-in and uses the same helper calls. This example uses
 the 2,638-cell PBMC3K dataset from Scanpy's and Seurat's clustering tutorials,
-so it can be run as written:
+so it can be run as written. The dataset is the public 10x Genomics 3k PBMC
+set, processed as in Scanpy's clustering tutorial and fetched by
+`scanpy.datasets.pbmc3k_processed`; check the 10x Genomics terms before you
+redistribute it:
 
 ```python
 import scanpy as sc
@@ -51,9 +54,7 @@ adata = sc.datasets.pbmc3k_processed()  # downloads once, then caches
 genes = ["CD3D", "MS4A1", "NKG7", "GNLY", "CST3"]
 
 with ag.style_context("double-column"):
-    embedding = ag.plot_embedding(
-        adata, "umap", color="louvain", label=True
-    )
+    embedding = ag.plot_embedding(adata, "umap", color="louvain")
     markers = ag.plot_dotplot(
         adata, genes, group_by="louvain", use_raw=True
     )

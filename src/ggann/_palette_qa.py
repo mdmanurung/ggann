@@ -146,7 +146,11 @@ def palette_accessibility_report(colours: Sequence[str]) -> dict[str, object]:
 
 
 #: Minimum CIEDE2000 separation under colour-vision simulation that the reviewed
-#: core-eight vocabulary meets (see tests/test_palette_accessibility.py).
+#: core-eight vocabulary meets (see tests/test_palette_accessibility.py). The value
+#: 5 is a working threshold for "distinguishable at a glance", not a published
+#: standard. Simulations follow Machado, Oliveira & Fernandes (2009, IEEE TVCG
+#: 15:1291); separations use CIEDE2000 (Sharma, Wu & Dalal, 2005, Color Res Appl
+#: 30:21). These are computed checks, not tests with colour-blind readers.
 CVD_MIN_SEPARATION = 5.0
 
 

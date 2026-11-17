@@ -18,7 +18,8 @@
 | Publication mode | `style_context(...)` changes family styling and rendering defaults without changing prepared tables. Later plotnine additions win. |
 | Rasterization | Dense embedding points and matrix tiles remain vectors unless `rasterized=True`; text, axes, guides, tags, and annotations remain vectors. |
 | Missing colour values | In `plot_embedding`, cells with a missing `color=` value stay in the plot, drawn in `na_color` and labelled `NA` in the legend. |
-| Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `plot_clustermap`, `tidy_heatmap` and `plot_upset` return their grid-backend objects. |
+| Return boundary | Grammar and plotnine-native helpers return composable `plotnine.ggplot` objects. `compose` and `plot_features(color_scale="free")` return a plotnine `Compose`. `backend="matplotlib"` returns a `MatplotlibGGPlot`. `plot_clustermap` returns a PyComplexHeatmap `ClusterMapPlotter`, `tidy_heatmap` a `TidyHeatmap` and `plot_upset` a marsilea `Upset`. |
+| Scanpy spellings | `groupby`, `var_names`, `cmap` / `color_map` and (for `plot_volcano`) `groups` are silent aliases of ggann's spelling. Giving both spellings with different values raises `TypeError`. |
 
 ## Performance and ownership by family
 

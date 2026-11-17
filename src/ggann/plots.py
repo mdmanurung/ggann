@@ -1298,7 +1298,9 @@ def plot_dotplot(
     layer, use_raw : optional
         Mutually exclusive expression-source selection.
     standard_scale : {None, "var", "group", "zscore"}
-        Optional scaling of summarized means.
+        Optional scaling of summarized means: ``"var"`` min-max per gene, ``"group"``
+        min-max per group, ``"zscore"`` per-gene z-score across groups with the
+        population SD (ddof=0).
     expression_cutoff : float
         Threshold used for the expressing fraction.
     cmap : str, optional
@@ -1501,7 +1503,9 @@ def plot_matrixplot(
     layer, use_raw : optional
         Mutually exclusive expression-source selection.
     standard_scale : {None, "var", "group", "zscore"}
-        Optional scaling of group means.
+        Optional scaling of group means: ``"var"`` min-max per gene, ``"group"``
+        min-max per group, ``"zscore"`` per-gene z-score across groups with the
+        population SD (ddof=0).
     cmap : str, optional
         Matplotlib colormap name. Default ``"viridis"``, or the diverging
         ``"RdBu_r"`` with zero-centred limits for ``standard_scale="zscore"``.
@@ -1841,7 +1845,11 @@ def plot_heatmap(
     swap_axes : bool, default=False
         Draw genes as columns and cells as rows (groups stacked top to bottom).
     standard_scale : {None, "var", "group", "zscore"}
-        Optional per-gene or per-cell scaling.
+        ``"var"`` min-max scales each gene across cells. ``"group"`` min-max
+        scales each **cell** across genes (Scanpy's ``standard_scale="obs"``); it
+        does not scale per ``group_by`` group, unlike the other helpers.
+        ``"zscore"`` z-scores each gene across cells with the population SD
+        (ddof=0).
     categories_order : sequence of str, optional
         Complete order of observed groups.
     downsample : int, optional

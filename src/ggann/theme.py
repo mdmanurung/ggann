@@ -147,6 +147,9 @@ class _Sizes:
 #: Font-size scale, refreshed by :func:`set_theme` (see :class:`_Sizes`).
 sizes = _Sizes()
 
+# Font family chosen by :func:`set_theme`; ggann helpers read it with ``sizes``.
+_ACTIVE_FAMILY: list[str | None] = [None]
+
 
 def theme_ggann(base_size: float = 11, base_family: str | None = None):
     """A clean, boxed theme emulating scplotter / plotthis ``theme_this``.
@@ -240,7 +243,10 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
 
     Notes
     -----
-    Always updates :data:`sizes`; with ``register=True`` it deliberately mutates
+    Always updates :data:`sizes` and the font family. Every ggann helper reads
+    both, so ``base_size`` and ``family`` set the look of figures the helpers
+    build, with or without ``register``. Inside :func:`style_context` the
+    publication style wins. With ``register=True`` it deliberately mutates
     process-global plotnine theme state, but never AnnData. The size is
     validated before any global state changes. The registered theme applies to
     plots constructed afterwards; plots already built keep their theme.
@@ -251,6 +257,7 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
     """
     th = theme_ggann(base_size=base_size, base_family=family)  # validates first
     sizes.update(base_size)
+    _ACTIVE_FAMILY[0] = family
     if register:
         theme_set(th)
     return th
@@ -285,6 +292,7 @@ def reset_theme() -> None:
     """
     theme_set(theme_gray())
     sizes.update(11)
+    _ACTIVE_FAMILY[0] = None
 
 
 def scale_color_expression(cmap: str | None = None, **kwargs):

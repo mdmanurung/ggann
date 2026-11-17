@@ -59,7 +59,7 @@ ag.save_publication(
 
 ![Dotplot of lineage markers coloured with the stored palette](images/publication/palette_dotplot.png)
 
-The first eight colours pass distance checks for normal vision, grayscale and three colour-vision simulations. Colours extend in a fixed order, so adding a category never recolours the earlier ones. Past eight, separation is not guaranteed, and ggann warns once. Add direct labels or facets for those figures.
+The first eight colours pass distance checks for normal vision, grayscale and three colour-vision simulations (Machado et al. 2009, severity 100, scored with CIEDE2000 and a minimum of 5). These are computed simulations, not tests with colour-blind readers. Colours extend in a fixed order, so adding a category never recolours the earlier ones. Past eight, separation is not guaranteed, and ggann warns once. Add direct labels or facets for those figures.
 
 The same call takes `"sequential"` and `"diverging"` with `n=`. An explicit `cmap=` on a helper beats the style's sequential map.
 
