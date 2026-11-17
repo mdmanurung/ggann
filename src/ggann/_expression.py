@@ -8,7 +8,7 @@ errors in one place while delegating every tabular matrix read to that accessor.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import annplyr as _annplyr  # registers the AnnData ``.ap`` accessor
 import numpy as np
@@ -98,6 +98,12 @@ def ordered_unique(values: Iterable[str]) -> list[str]:
     """
     if isinstance(values, str):
         values = [values]
+    if isinstance(values, Mapping):
+        raise ValueError(
+            "A {label: [genes]} dict of marker groups is accepted only by "
+            "plot_dotplot, plot_matrixplot, plot_heatmap and plot_tracksplot; "
+            "pass a flat list of genes here."
+        )
     return list(dict.fromkeys(values))
 
 

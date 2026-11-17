@@ -107,16 +107,8 @@ _GGPLOT_CALLS = {
     "plot_dotplot": (
         'plot = ag.plot_dotplot(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
     ),
-    "plot_dotplot_grouped": (
-        'genes = {"T cells": ["CD3D"], "NK cells": ["NKG7"]}\n'
-        'plot = ag.plot_dotplot_grouped(adata, genes, group_by="bulk_labels")'
-    ),
     "plot_matrixplot": (
         'plot = ag.plot_matrixplot(\n    adata, ["CD3D", "NKG7"], group_by="bulk_labels"\n)'
-    ),
-    "plot_matrixplot_grouped": (
-        'genes = {"T cells": ["CD3D"], "NK cells": ["NKG7"]}\n'
-        'plot = ag.plot_matrixplot_grouped(adata, genes, group_by="bulk_labels")'
     ),
     "plot_heatmap": (
         "plot = ag.plot_heatmap(\n"
@@ -224,12 +216,6 @@ for _name, _call in {
 
 _CONTRACTS.update(
     {
-        "ggann.rank_genes_df": _contract(
-            "A tidy ``pandas.DataFrame`` with one row per ranked gene and group.",
-            "A missing ``adata.uns[key]`` rank-genes result raises ``KeyError``; "
-            "scanpy validates group names and filters.",
-            _de('table = ag.rank_genes_df(adata, group="CD56+ NK")'),
-        ),
         "ggann.plot_ma": _contract(
             "A composable ``plotnine.ggplot`` object.",
             "Missing mean, fold-change, or adjusted-p-value columns raise ``KeyError``.",
@@ -400,16 +386,6 @@ _CONTRACTS.update(
             "A continuous plotnine fill scale.",
             _PLOTNINE_ERRORS,
             'import ggann as ag\n\nscale = ag.scale_fill_expression(cmap="viridis")',
-        ),
-        "ggann.scale_color_celltype": _contract(
-            "A discrete plotnine colour scale.",
-            _PLOTNINE_ERRORS,
-            "import ggann as ag\n\nscale = ag.scale_color_celltype()",
-        ),
-        "ggann.scale_fill_celltype": _contract(
-            "A discrete plotnine fill scale.",
-            _PLOTNINE_ERRORS,
-            "import ggann as ag\n\nscale = ag.scale_fill_celltype()",
         ),
         "ggann.compose": _contract(
             "A plotnine composition object with a ``save`` method.",

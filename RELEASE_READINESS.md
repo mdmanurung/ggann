@@ -10,11 +10,11 @@ first (see [Release blockers](#release-blockers)).
 
 | Area | Result | Evidence |
 |---|:---:|---|
-| Test suite | **PASS** | 755 tests, Python 3.12.13, `python -m pytest -q` |
+| Test suite | **PASS** | 760 tests, Python 3.12.13, `python -m pytest -q`, 6 to 9 minutes (2026-11-17), also against annplyr `bb80d12` |
 | Backlog | **PASS** | All 96 evaluation rows completed, documented or deferred with a reason |
 | Static quality | **PASS** | ruff check and format clean; pyright 0 errors over `src/ggann` |
 | Documentation | **PASS** | Offline `sphinx-build -W --keep-going` exits 0 and executes every vignette |
-| Scanpy agreement | **PASS** | Dotplot/matrixplot means and fractions match Scanpy within `atol=rtol=1e-6` (max 3e-7) |
+| Scanpy agreement | **PASS** | Dotplot/matrixplot means and fractions match Scanpy within `atol=rtol=1e-6` (max 3e-7). Embedding coordinates, violin values, stacked-violin medians and heatmap values equal Scanpy's per-cell table (`tests/test_scanpy_value_parity.py`) |
 | Statistics | **PASS** | `stat_cor`, `stat_regline_equation`, `stat_compare_means` match SciPy on the same inputs |
 | Distribution | **PASS** | sdist and wheel build; `twine check --strict`; wheel imports outside the checkout; `pip check` clean |
 | Self-regression | **PASS** (claim stages) | Preparation and end-to-end within 5% of frozen `30e3359` across two counterbalanced passes; embedding construction +12% (diagnostic stage), explained below |
@@ -24,7 +24,7 @@ first (see [Release blockers](#release-blockers)).
 
 Python 3.12.13 in `.venv-rc`, locked in `plans/evaluation/env-rc.lock`.
 First-party dependencies come from pinned commits, as in CI: annplyr
-`ae2db54` (0.5.0) and plotnine-extra `fcbd88f6` (0.3.1).
+`bb80d12` (0.5.0) and plotnine-extra `fcbd88f6` (0.3.1).
 
 | Package | Version |
 |---|---|
@@ -43,6 +43,14 @@ First-party dependencies come from pinned commits, as in CI: annplyr
 
 CI still runs Python 3.12, 3.13 and 3.14. This record covers 3.12 only; the
 other two run in CI on the next push.
+
+## Review follow-ups (2026-11-17)
+
+A ten-reviewer audit found no wrong-number bug. The follow-ups are listed in
+`CHANGELOG.md` under Removed, Added and Fixed (review follow-ups). Not done,
+and tracked for later: a JOSS paper, a benchmark rerun on annplyr 0.5, a release
+workflow with trusted publishing, a lowest-bounds CI job and Python 3.13/3.14
+runs.
 
 ## What changed since the 2026-08-09 record
 

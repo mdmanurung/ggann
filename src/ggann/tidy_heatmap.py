@@ -27,7 +27,7 @@ import pandas as pd
 from matplotlib.colors import Colormap, LinearSegmentedColormap, to_hex
 
 from ._aggregate import group_means
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source, to_wide
 from ._grouping import _drop_missing_groups
@@ -281,7 +281,7 @@ def _group_columns(groupby) -> list[str]:
     return keys
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def tidy_heatmap(
     data,
     row: str | None = None,

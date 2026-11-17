@@ -13,7 +13,7 @@ plot = plot + theme_bw() + labs(title="PBMC markers")
 plot.save("dotplot.png", width=5.5, height=4, dpi=150)
 ```
 
-Every helper keeps Scanpy's argument order and defaults. `groupby=` works as an alias of `group_by=`; giving both with different values raises `TypeError`. A keyword a helper does not list raises `TypeError` too. Rank-genes plots use `n_genes=10`, matrixplots show raw group means, and dotplots draw the first category at the top, as in Scanpy.
+The tables under each call list which Scanpy keywords keep their spelling and which are not accepted. ggann takes four Scanpy spellings as silent aliases: `groupby` for `group_by`, `var_names` for `genes` or `features`, `cmap` and `color_map` for whichever the helper uses, and `groups` for `plot_volcano`'s `group`. Giving both spellings with different values raises `TypeError`, and so does any keyword a helper does not list. Argument order and defaults follow Scanpy only where a table says "Same spelling". Rank-genes plots use `n_genes=10`, matrixplots show raw group means, and dotplots draw the first category at the top, as in Scanpy.
 
 All examples use `pbmc3k_processed` and the `markers` list above. The images come from `examples/reproduce_scanpy.py`, which runs the calls shown.
 
@@ -392,7 +392,7 @@ A gene that is a top marker of several groups gets one column per group, labelle
 |---|---|
 | Same spelling | `n_genes` (positive), `groupby`, `key`, `groups`, `min_logfoldchange`, `values_to_plot` (`scores`, `logfoldchanges`, `pvals`, `pvals_adj`, `log10_pvals`, `log10_pvals_adj`), plus the dotplot options |
 | Not accepted | negative `n_genes`, marker brackets (`var_group_positions`), `dendrogram`, `gene_symbols` |
-| Grammar | `rank_genes_df`, then the dotplot recipe |
+| Grammar | `sc.get.rank_genes_groups_df`, then the dotplot recipe |
 
 `values_to_plot` draws the stored statistic, not an expression mean. It needs a result stored with `n_genes=adata.n_vars` and cannot combine with `standard_scale`.
 
@@ -579,7 +579,7 @@ ggann fits the density itself, so there is no `tl` step and no `key=`. `group` i
 
 ## Not covered
 
-`sc.pl.paga` and graph-layout plots are not implemented. Use Scanpy for them. Other ggann helpers have no single Scanpy counterpart: `plot_clustermap` (see {doc}`heatmaps`), `plot_density`, `plot_box`, `plot_sina`, `plot_ridge`, `plot_proportions`, `plot_volcano`, `plot_ma` and `plot_upset`. See {doc}`api`.
+`sc.pl.paga` and graph-layout plots are not implemented. Use Scanpy for them. Other ggann helpers have no single Scanpy counterpart: `plot_clustermap` (see {doc}`heatmaps`), `plot_density`, `plot_box`, `plot_sina`, `plot_ridge`, `plot_expression_bar`, `plot_expression_line`, `plot_proportions`, `plot_volcano`, `plot_ma` and `plot_upset`. See {doc}`api`.
 
 ## Beyond Scanpy
 

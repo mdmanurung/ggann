@@ -56,3 +56,19 @@ def test_helpers_still_build_after_set_theme(adata, markers, group_key):
     ag.set_theme()
     (ag.plot_dotplot(adata, markers, group_key))._build()
     (ag.plot_violin(adata, markers[:1], group_key))._build()
+
+
+def test_set_theme_base_size_reaches_helper_plots(adata, markers, group_key):
+    import ggann as ag
+
+    def axis_title_size():
+        figure = ag.plot_dotplot(adata, markers, group_key).draw()
+        return figure.axes[0].xaxis.get_label().get_fontsize()
+
+    default = axis_title_size()
+    try:
+        ag.set_theme(base_size=16, register=False)
+        assert axis_title_size() == 16.0 != default
+    finally:
+        ag.reset_theme()
+    assert axis_title_size() == default

@@ -35,9 +35,6 @@ __all__ = [
     "scale_color_expression",
     "scale_colour_expression",
     "scale_fill_expression",
-    "scale_color_celltype",
-    "scale_colour_celltype",
-    "scale_fill_celltype",
 ]
 
 # ggplot2 points-to-mm constant: geom_text `size` is in mm, theme text in pt.
@@ -150,6 +147,9 @@ class _Sizes:
 #: Font-size scale, refreshed by :func:`set_theme` (see :class:`_Sizes`).
 sizes = _Sizes()
 
+# Font family chosen by :func:`set_theme`; ggann helpers read it with ``sizes``.
+_ACTIVE_FAMILY: list[str | None] = [None]
+
 
 def theme_ggann(base_size: float = 11, base_family: str | None = None):
     """A clean, boxed theme emulating scplotter / plotthis ``theme_this``.
@@ -243,7 +243,10 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
 
     Notes
     -----
-    Always updates :data:`sizes`; with ``register=True`` it deliberately mutates
+    Always updates :data:`sizes` and the font family. Every ggann helper reads
+    both, so ``base_size`` and ``family`` set the look of figures the helpers
+    build, with or without ``register``. Inside :func:`style_context` the
+    publication style wins. With ``register=True`` it deliberately mutates
     process-global plotnine theme state, but never AnnData. The size is
     validated before any global state changes. The registered theme applies to
     plots constructed afterwards; plots already built keep their theme.
@@ -254,6 +257,7 @@ def set_theme(base_size: float = 11, family: str | None = None, *, register: boo
     """
     th = theme_ggann(base_size=base_size, base_family=family)  # validates first
     sizes.update(base_size)
+    _ACTIVE_FAMILY[0] = family
     if register:
         theme_set(th)
     return th
@@ -288,6 +292,7 @@ def reset_theme() -> None:
     """
     theme_set(theme_gray())
     sizes.update(11)
+    _ACTIVE_FAMILY[0] = None
 
 
 def scale_color_expression(cmap: str | None = None, **kwargs):
@@ -374,65 +379,3 @@ def scale_fill_expression(cmap: str | None = None, **kwargs):
     if cmap is None:
         cmap = "viridis" if style is None else style.sequential_cmap
     return pe.scale_fill_cmap(cmap_name=cmap, **kwargs)
-
-
-def scale_color_celltype(**kwargs):
-    """Build a categorical colour scale for cell identities.
-
-    Parameters
-    ----------
-    **kwargs
-        Passed to plotnine's hue scale.
-
-    Returns
-    -------
-    plotnine.scales.scale
-        Composable colour scale.
-
-    Raises
-    ------
-    ValueError
-        If a scale argument is invalid.
-
-    Notes
-    -----
-    ``scale_colour_celltype`` is an exact British-spelling alias.
-
-    Examples
-    --------
-    >>> p = p + scale_color_celltype()
-    """
-    return pe.scale_color_hue(**kwargs)
-
-
-# British-spelling alias, mirroring plotnine.
-scale_colour_celltype = scale_color_celltype
-
-
-def scale_fill_celltype(**kwargs):
-    """Build a categorical fill scale for cell identities.
-
-    Parameters
-    ----------
-    **kwargs
-        Passed to plotnine's hue scale.
-
-    Returns
-    -------
-    plotnine.scales.scale
-        Composable fill scale.
-
-    Raises
-    ------
-    ValueError
-        If a scale argument is invalid.
-
-    Notes
-    -----
-    The scale does not inspect or copy AnnData.
-
-    Examples
-    --------
-    >>> p = p + scale_fill_celltype()
-    """
-    return pe.scale_fill_hue(**kwargs)

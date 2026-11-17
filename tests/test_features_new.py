@@ -47,7 +47,9 @@ def test_embedding_categorical_renders_with_palette(adata, group_key, tmp_path):
 # 1b. DE plots
 # --------------------------------------------------------------------------- #
 def test_rank_genes_df_columns(de_adata):
-    df = ag.rank_genes_df(de_adata)
+    from ggann.de import _rank_genes_df
+
+    df = _rank_genes_df(de_adata)
     assert {"group", "names", "logfoldchanges", "pvals_adj"} <= set(df.columns)
 
 
@@ -123,8 +125,8 @@ def test_stacked_violin_and_tracksplot(adata, markers, group_key, tmp_path):
 
 def test_gene_group_brackets(adata, group_key, tmp_path):
     gg = {"T": ["CD3D", "CD8A"], "NK": ["NKG7", "GNLY"]}
-    p = ag.plot_dotplot_grouped(adata, gg, group_key)
-    assert "gene_group" in p.data.columns
+    p = ag.plot_dotplot(adata, gg, group_key)
+    assert "marker_group" in p.data.columns
     _renders(p, tmp_path, "grouped")
 
 
@@ -164,8 +166,8 @@ def test_volcano_requires_pvalues(adata):
 
 
 def test_gene_in_two_groups_is_drawn_once_per_group(adata, group_key):
-    p = ag.plot_dotplot_grouped(adata, {"A": ["CD3D"], "B": ["CD3D"]}, group_key)
-    assert p.data.groupby("gene_group", observed=True)["gene"].nunique().tolist() == [1, 1]
+    p = ag.plot_dotplot(adata, {"A": ["CD3D"], "B": ["CD3D"]}, group_key)
+    assert p.data.groupby("marker_group", observed=True)["feature"].nunique().tolist() == [1, 1]
 
 
 def test_rank_genes_matrixplot(de_adata):

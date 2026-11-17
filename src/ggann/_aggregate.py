@@ -30,13 +30,9 @@ from ._expression import (
 __all__ = [
     "aggregate_expression",
     "aggregate_means",
-    "expression_source",
     "group_means",
     "tidy_expression",
 ]
-
-# Internal compatibility name used by older tests and extensions.
-expression_source = resolve_source
 
 StandardScale = Literal["var", "group", "zscore"]
 
@@ -128,7 +124,8 @@ def _grouped_expression(
         source_codes = categorical.cat.codes.to_numpy()
         valid = source_codes >= 0
         source_codes = source_codes[valid]
-        observed_codes = pd.unique(source_codes)
+        # declared category order, so the same data in another row order gives the same figure
+        observed_codes = np.unique(source_codes)
         remap = np.full(len(categorical.cat.categories), -1, dtype=np.intp)
         remap[observed_codes] = np.arange(len(observed_codes), dtype=np.intp)
         codes = remap[source_codes]

@@ -13,7 +13,7 @@ import plotnine_extra as pe
 from annplyr import data as _sources
 from plotnine import aes, geom_area, geom_col, geom_line, geom_point, ggplot, labs
 
-from ._compat import accepts_groupby
+from ._compat import accepts_scanpy_names
 from ._grouping import _drop_missing_groups, _group_categories, _order_groups, _resolve_group_order
 from ._palette import scale_color_obs, scale_fill_obs
 from .publication import _family_theme
@@ -21,7 +21,7 @@ from .publication import _family_theme
 __all__ = ["plot_proportions"]
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_proportions(
     adata,
     group_by: str,

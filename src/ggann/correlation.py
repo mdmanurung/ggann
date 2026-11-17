@@ -29,7 +29,7 @@ from plotnine import (
 
 from ._aggregate import group_means
 from ._annotation import annotation_threshold, geom_contrast_text
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import ordered_unique
 from ._grouping import _drop_missing_groups
 from .publication import _active_style, _family_theme
@@ -110,7 +110,7 @@ def _fill_scale(values: pd.Series, cmap: str | None):
     return scale_fill_cmap(cmap_name="YlOrRd", limits=(lo, 1.0))  # all-positive -> sequential
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_correlation(
     adata,
     group_by: str,

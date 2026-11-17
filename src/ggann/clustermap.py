@@ -18,7 +18,7 @@ from typing import Iterable, Sequence
 import pandas as pd
 
 from ._aggregate import _standardize, group_means
-from ._compat import accepts_groupby
+from ._compat import accepts_scanpy_names
 from ._expression import densify_frame as _densify
 from ._expression import ordered_unique, project_expression, resolve_source, to_wide
 from ._grouping import _drop_missing_groups
@@ -38,7 +38,7 @@ def _require_pch():
     return pch
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_clustermap(
     adata,
     genes: Sequence[str],
@@ -64,6 +64,13 @@ def plot_clustermap(
       identity.
     * ``group_by=None`` -> columns are individual cells; ``annotations`` selects
       ``obs`` columns to show as top annotation bars.
+
+    Clustering uses PyComplexHeatmap's defaults (``ward`` linkage, Euclidean
+    distance, checked against PyComplexHeatmap 1.8.5), which differ from
+    :func:`ggann.tidy_heatmap` (``complete`` linkage, as in ComplexHeatmap). Pass
+    ``row_cluster_method=`` / ``row_cluster_metric=`` (and the ``col_`` pair) to
+    change them. Without ``standard_scale`` or ``z_score``, clustering acts on
+    unscaled means, so high-expression genes dominate the distances.
 
     ``standard_scale`` (ggann-side, per gene/group) and ``z_score``
     (PyComplexHeatmap-side row/column z-score) are mutually exclusive -- applying

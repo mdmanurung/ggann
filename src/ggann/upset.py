@@ -45,12 +45,12 @@ def plot_upset(
     """UpSet plot of the intersections between named sets.
 
     ``sets`` is a mapping of ``{set_name: iterable_of_members}`` -- e.g. the top
-    marker genes of each cell type (build it from :func:`ggann.rank_genes_df`) to
+    marker genes of each cell type (build it from :func:`scanpy.get.rank_genes_groups_df`) to
     see which markers are shared across clusters. On ``pbmc3k_processed``, whose
     stored result has no fold changes, compute a fresh one into its own key::
 
         sc.tl.rank_genes_groups(adata, "louvain", method="wilcoxon", key_added="rank_wilcoxon")
-        de = ag.rank_genes_df(adata, key="rank_wilcoxon")
+        de = sc.get.rank_genes_groups_df(adata, group=None, key="rank_wilcoxon")
         sets = {g: de[de["group"] == g].head(20)["names"] for g in ["B cells", "NK cells"]}
 
     ``sort_subsets`` orders the intersection bars (``"cardinality"`` or

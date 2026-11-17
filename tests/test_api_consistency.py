@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import warnings
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -66,9 +65,7 @@ def test_pseudobulk_use_raw_and_legacy_alias(monkeypatch, adata):
     # raw is resolved to an AnnData holding the raw matrix, so decoupler gets raw=False
     assert calls[-1]["raw"] is False
     assert list(calls[-1]["input"].var_names) == list(adata.raw.var_names)
-    with pytest.warns(FutureWarning, match="use_raw") as caught:
+    with pytest.raises(TypeError, match="raw"):
         ag.pseudobulk(adata, "phase", raw=True, min_cells=0)
-    assert calls[-1]["raw"] is False
-    assert Path(caught[0].filename) == Path(__file__)
     with pytest.raises(ValueError, match="layer"):
         ag.pseudobulk(adata, "phase", layer="counts", use_raw=True, min_cells=0)

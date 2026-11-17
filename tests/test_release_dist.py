@@ -191,16 +191,16 @@ REPEAT = {"T": ["CD3D", "CD8A", "NKG7"], "NK": ["NKG7", "GNLY", "CD3D"]}
 
 
 @pytest.mark.parametrize(
-    ("grouped", "single"),
+    "single",
     [
-        (ag.plot_dotplot_grouped, ag.plot_dotplot),
-        (ag.plot_matrixplot_grouped, ag.plot_matrixplot),
+        ag.plot_dotplot,
+        ag.plot_matrixplot,
     ],
 )
-def test_A3_repeated_gene_once_per_occurrence_values_from_one_computation(adata, grouped, single):
-    plot = grouped(adata, REPEAT, GROUP, use_raw=True)
+def test_A3_repeated_gene_once_per_occurrence_values_from_one_computation(adata, single):
+    plot = single(adata, REPEAT, GROUP, use_raw=True)
     d = plot.data
-    per_panel = d.groupby("gene_group", observed=True)["gene"].apply(
+    per_panel = d.groupby("marker_group", observed=True)["feature"].apply(
         lambda s: list(dict.fromkeys(s))
     )
     assert per_panel["T"] == REPEAT["T"]  # per-panel order as listed
@@ -210,7 +210,7 @@ def test_A3_repeated_gene_once_per_occurrence_values_from_one_computation(adata,
     for g in ("CD3D", "NKG7"):
         ref = once[once["feature"] == g].set_index(GROUP)[col]
         for label in ("T", "NK"):
-            part = d[(d["gene"] == g) & (d["gene_group"] == label)].set_index(GROUP)[col]
+            part = d[(d["feature"] == g) & (d["marker_group"] == label)].set_index(GROUP)[col]
             assert np.allclose(part.reindex(ref.index).to_numpy(), ref.to_numpy())
     plot.draw()
 
@@ -224,11 +224,6 @@ def test_A3_tracksplot_dict_repeats_tracks(adata):
         part = plot.data[plot.data["feature"] == track]["value"].to_numpy()
         assert np.array_equal(np.sort(part), np.sort(one))
     plot.draw()
-
-
-def test_A3_grouped_rejects_non_dict(adata):
-    with pytest.raises(TypeError, match="dict"):
-        ag.plot_dotplot_grouped(adata, ["CD3D"], GROUP)
 
 
 # --------------------------------------------------------------------------- #

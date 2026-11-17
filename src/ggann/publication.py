@@ -439,9 +439,13 @@ def theme_publication(
 def _family_theme(
     family: Literal["standard", "embedding", "matrix", "distribution"] = "standard",
 ):
-    """Select the frozen legacy theme or the active publication family theme."""
+    """Select the ``set_theme`` theme or the active publication family theme."""
+    from .theme import _ACTIVE_FAMILY, sizes
+
     style = _active_style()
-    return theme_ggann() if style is None else theme_publication(style, axes=family)
+    if style is None:
+        return theme_ggann(base_size=sizes.normal, base_family=_ACTIVE_FAMILY[0])
+    return theme_publication(style, axes=family)
 
 
 def _style_rcparams(style: PublicationStyle) -> dict[str, object]:
@@ -789,9 +793,6 @@ def _figure_from_object(plot, width_in: float, height_in: float, dpi: int):
             )
     figure.set_size_inches(width_in, height_in, forward=True)
     figure.set_dpi(dpi)
-    if hasattr(working, "_apply_publication_gap"):
-        figure.canvas.draw()
-        working._apply_publication_gap(figure)
     for axis in list(getattr(figure, "_ggann_fit_left", ())):
         fit_left_labels(figure, axis)
     if hasattr(working, "ax_heatmap"):  # a PyComplexHeatmap ClusterMapPlotter

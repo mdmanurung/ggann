@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/annplyr
-          ref: ae2db5402c8b1c714bb12906ff82a40fbb0d8de2
+          ref: bb80d1285d41a1e0470311bb887018433c5acc80
           path: vendor/annplyr
       - uses: actions/checkout@v4
         with:
@@ -77,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/annplyr
-          ref: ae2db5402c8b1c714bb12906ff82a40fbb0d8de2
+          ref: bb80d1285d41a1e0470311bb887018433c5acc80
           path: vendor/annplyr
       - uses: actions/checkout@v4
         with:
@@ -105,7 +105,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mdmanurung/annplyr
-          ref: ae2db5402c8b1c714bb12906ff82a40fbb0d8de2
+          ref: bb80d1285d41a1e0470311bb887018433c5acc80
           path: vendor/annplyr
       - uses: actions/checkout@v4
         with:

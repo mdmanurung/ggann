@@ -19,7 +19,7 @@ the development extras, either from the commits CI pins:
 
 ```bash
 uv pip install --python .venv/bin/python \
-  "annplyr @ git+https://github.com/mdmanurung/annplyr@ae2db5402c8b1c714bb12906ff82a40fbb0d8de2" \
+  "annplyr @ git+https://github.com/mdmanurung/annplyr@bb80d1285d41a1e0470311bb887018433c5acc80" \
   "plotnine-extra @ git+https://github.com/mdmanurung/plotnine-extra@fcbd88f64760a2dd6e8200028a1a00909aa2c9f8"
 uv pip install --python .venv/bin/python -e ".[dev]"
 ```
@@ -50,7 +50,7 @@ Run the same deterministic checks used in continuous integration:
 python scripts/run_pyright.py
 ruff check src tests benchmarks docs/extensions examples scripts
 ruff format --check src tests benchmarks docs/extensions examples scripts
-PYTHONPATH=src python -m pytest -q
+PYTHONPATH=src python -m pytest -q   # about 7 minutes
 GGANN_DOCS_OFFLINE=1 sphinx-build -W --keep-going -b html docs docs/_build/html
 python -m build
 python -m twine check dist/*

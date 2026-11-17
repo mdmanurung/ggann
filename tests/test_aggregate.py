@@ -7,11 +7,12 @@ and ``dot_size_df`` (fraction expressing).
 
 import numpy as np
 
-from ggann._aggregate import aggregate_expression, expression_source
+from ggann._aggregate import aggregate_expression
+from ggann._expression import resolve_source
 
 
 def test_source_defaults_to_raw(adata):
-    kind, lyr = expression_source(adata, layer=None, use_raw=None)
+    kind, lyr = resolve_source(adata, layer=None, use_raw=None)
     assert kind == "raw"
     assert lyr is None
 
@@ -44,3 +45,20 @@ def test_standard_scale_var_bounded(adata, markers, group_key):
 def test_feature_order_preserved(adata, markers, group_key):
     agg = aggregate_expression(adata, markers, group_key)
     assert list(agg["feature"].cat.categories) == list(markers)
+
+
+def test_group_order_follows_declared_categories_not_row_order(adata, group_key):
+    """The same cells in another row order must give the same group order."""
+    import numpy as np
+
+    import ggann as ag
+
+    genes = list(adata.raw.var_names[:6])
+    shuffled = adata[np.random.default_rng(0).permutation(adata.n_obs)].copy()
+    declared = [c for c in adata.obs[group_key].cat.categories if c in set(adata.obs[group_key])]
+
+    corr = ag.plot_correlation(shuffled, group_key, genes=genes, cluster=False)
+    assert list(dict.fromkeys(corr.data["row"].astype(str))) == declared
+
+    means = aggregate_expression(shuffled, genes, group_key, use_raw=True)
+    assert list(dict.fromkeys(means[group_key].astype(str))) == declared

@@ -26,7 +26,7 @@ from plotnine import (
     scale_x_log10,
 )
 
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from .plots import plot_dotplot, plot_matrixplot
 from .publication import _family_theme
 
@@ -35,7 +35,6 @@ from .publication import _family_theme
 _VOLCANO_COLORS = {"down": "#3B4CC0", "not significant": "#B8B8B8", "up": "#B40426"}
 
 __all__ = [
-    "rank_genes_df",
     "plot_rank_genes_dotplot",
     "plot_rank_genes_matrixplot",
     "plot_volcano",
@@ -56,7 +55,7 @@ def _de_group_by(adata, key: str, group_by):
     return adata.uns[key]["params"]["groupby"]
 
 
-def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
+def _rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
     """Tidy DE table for ``group`` (or all groups), via ``sc.get.rank_genes_groups_df``.
 
     Columns: ``group, names, scores, logfoldchanges, pvals, pvals_adj``. Extra
@@ -97,11 +96,16 @@ def rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
 
     Examples
     --------
-    >>> table = rank_genes_df(adata, group="T cells")
+    >>> table = _rank_genes_df(adata, group="T cells")
     """
     import scanpy as sc
 
     _require_de(adata, key)
+    stored = list(adata.uns[key]["names"].dtype.names)
+    wanted = [group] if isinstance(group, str) else list(group or [])
+    unknown = [g for g in wanted if g not in stored]
+    if unknown:
+        raise ValueError(f"group {unknown} not in adata.uns[{key!r}]; stored groups: {stored}.")
     return sc.get.rank_genes_groups_df(adata, group=group, key=key, **kwargs)
 
 
@@ -144,7 +148,7 @@ def _marker_table(adata, n_genes, key, groups, min_logfoldchange) -> pd.DataFram
         kwargs["log2fc_min"] = min_logfoldchange
     parts = []
     for g in dict.fromkeys(groups):
-        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key, **kwargs))
+        df = cast(pd.DataFrame, _rank_genes_df(adata, group=g, key=key, **kwargs))
         df = df[df["names"].notna()].head(n_genes)
         parts.append(pd.DataFrame({"group": g, "names": df["names"].to_numpy()}))
     markers = pd.concat(parts, ignore_index=True)
@@ -169,7 +173,7 @@ def _de_statistic(adata, values_to_plot: str, key: str) -> pd.Series:
         )
     parts = []
     for g in adata.uns[key]["names"].dtype.names:
-        df = cast(pd.DataFrame, rank_genes_df(adata, group=g, key=key))
+        df = cast(pd.DataFrame, _rank_genes_df(adata, group=g, key=key))
         parts.append(df.assign(group=g)[["group", "names", column]])
     stat = cast(pd.Series, pd.concat(parts).set_index(["group", "names"])[column])
     if values_to_plot.startswith("log10_"):
@@ -226,7 +230,7 @@ def _rank_plot(plot_fn, aes_name, adata, n_genes, group_by, key, groups, min_lfc
     return plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_rank_genes_dotplot(
     adata,
     n_genes: int = 10,
@@ -306,7 +310,7 @@ def plot_rank_genes_dotplot(
     )
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_rank_genes_matrixplot(
     adata,
     n_genes: int = 10,
@@ -380,6 +384,7 @@ def plot_rank_genes_matrixplot(
     )
 
 
+@accepts_scanpy_names
 def plot_volcano(
     adata,
     group: str,
@@ -433,6 +438,11 @@ def plot_volcano(
     Notes
     -----
     Reads only a stored rank-genes table and does not mutate ``adata``.
+    ``rank_genes_groups`` tests treat cells as independent replicates, so its
+    p-values overstate certainty when cells come from few donors. For a
+    donor-level test, aggregate with :func:`ggann.pseudobulk`, run the test, and
+    draw it with :func:`ggann.plot_ma`. State the test and the correction in the
+    figure legend.
 
     Examples
     --------
@@ -449,13 +459,14 @@ def plot_volcano(
             "plot_volcano colours points by direction; override with "
             "+ scale_color_manual(...) instead of a color= keyword."
         )
-    df = cast(pd.DataFrame, rank_genes_df(adata, group=group, key=key))
-    missing = {"logfoldchanges", "pvals_adj"} - set(df.columns)
+    missing = {"logfoldchanges", "pvals_adj"} - set(adata.uns[key])
     if missing:
         raise ValueError(
             f"rank_genes_groups result is missing {sorted(missing)} needed for a volcano; "
-            "re-run sc.tl.rank_genes_groups(adata, ..., method='wilcoxon' or 't-test')."
+            "re-run sc.tl.rank_genes_groups(adata, ..., method='wilcoxon' or 't-test', "
+            "key_added=...) and pass key=."
         )
+    df = cast(pd.DataFrame, _rank_genes_df(adata, group=group, key=key))
     if isinstance(lfc, bool) or not np.isfinite(lfc) or lfc < 0:
         raise ValueError("lfc must be a finite non-negative number.")
     if isinstance(padj, bool) or not np.isfinite(padj) or not 0 < padj <= 1:

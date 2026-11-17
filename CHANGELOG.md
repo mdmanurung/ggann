@@ -4,7 +4,40 @@ All notable changes to ggann are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] - Unreleased
+
+### Removed
+
+Nothing below was ever released, so there is no deprecation period.
+
+- `plot_dotplot_grouped` and `plot_matrixplot_grouped`. Pass a
+  `{label: [genes]}` dict to `plot_dotplot` or `plot_matrixplot`; the panel
+  column is `marker_group`.
+- `scale_color_celltype`, `scale_colour_celltype` and `scale_fill_celltype`. Use
+  `scale_color_obs` and `scale_fill_obs`, which honour stored `uns` colours.
+- `rank_genes_df`. Call `sc.get.rank_genes_groups_df`.
+- The `raw=` keyword of `pseudobulk` (use `use_raw=`), the `renamed_keyword`
+  helper and the `expression_source` alias.
+
+### Added (review follow-ups)
+
+- Scanpy spellings are silent aliases: `groupby`, `var_names`, `cmap` and
+  `color_map`, and `groups` for `plot_volcano`. `palette=` takes a Matplotlib
+  colormap name.
+- `plot_volcano` and the rank-genes helpers name the stored groups when a group
+  is unknown. A result without fold changes raises a `ValueError` that says how
+  to recompute it. A marker dict passed to a flat-gene helper names the four
+  helpers that accept one.
+
+### Fixed (review follow-ups)
+
+- `set_theme(base_size=, family=)` now changes the figures ggann helpers build.
+  Before, every helper drew at 11 pt regardless.
+- Group order in `plot_correlation`, `plot_clustermap` and other grouped
+  summaries follows the declared category order, not the order cells appear in
+  `adata`. The same data in a different row order now gives the same figure.
+- The README publication example no longer clips its labels.
+
 
 ### Changed
 
@@ -32,7 +65,6 @@ All notable changes to ggann are recorded here. The format follows
   The canvas and dpi never change. If the body would drop below 20 mm, the
   overflow warning stays and says so.
 
-## [0.1.0] - Unreleased
 
 Initial public release.
 

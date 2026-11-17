@@ -27,7 +27,7 @@ from plotnine import (
     theme,
 )
 
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import densify_frame as _densify
 from ._expression import resolve_source, source_label, source_matrix, to_wide
 from ._grouping import _drop_missing_groups
@@ -211,7 +211,7 @@ def _select_backed_dense_columns(matrix, indices: np.ndarray) -> np.ndarray:
     return result
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_qc_violin(
     adata,
     metrics: Sequence[str] | None = None,

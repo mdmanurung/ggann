@@ -42,7 +42,6 @@ from .de import (
     plot_rank_genes_dotplot,
     plot_rank_genes_matrixplot,
     plot_volcano,
-    rank_genes_df,
 )
 from .dendrogram import plot_dendrogram
 from .density import plot_density
@@ -58,8 +57,6 @@ from .distributions import (
 from .grammar import aes, gganndata
 from .layout import compose, tag_panels
 from .markers import (
-    plot_dotplot_grouped,
-    plot_matrixplot_grouped,
     plot_tracksplot,
 )
 from .plots import (
@@ -87,11 +84,8 @@ from .qc import (
 )
 from .theme import (
     reset_theme,
-    scale_color_celltype,
     scale_color_expression,
-    scale_colour_celltype,
     scale_colour_expression,
-    scale_fill_celltype,
     scale_fill_expression,
     set_theme,
     sizes,
@@ -103,7 +97,7 @@ from .upset import plot_upset
 try:
     __version__ = version("ggann")
 except PackageNotFoundError:  # pragma: no cover - not installed
-    __version__ = "0.1.0"
+    __version__ = "0+unknown"
 
 __all__ = [
     "gganndata",
@@ -128,15 +122,12 @@ __all__ = [
     "plot_dendrogram",
     "plot_proportions",
     "plot_variance_ratio",
-    "rank_genes_df",
     "plot_rank_genes_dotplot",
     "plot_rank_genes_matrixplot",
     "plot_volcano",
     "plot_ma",
     "plot_stacked_violin",
     "plot_tracksplot",
-    "plot_dotplot_grouped",
-    "plot_matrixplot_grouped",
     "plot_qc_violin",
     "plot_qc_scatter",
     "plot_highest_expr_genes",
@@ -159,9 +150,6 @@ __all__ = [
     "scale_color_expression",
     "scale_colour_expression",
     "scale_fill_expression",
-    "scale_color_celltype",
-    "scale_colour_celltype",
-    "scale_fill_celltype",
     "obs_colors",
     "scale_color_obs",
     "scale_colour_obs",
