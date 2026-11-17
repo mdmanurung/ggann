@@ -1,6 +1,8 @@
 """Canaries for the plotnine and plotnine-extra coupling.
 
-Run alone with ``pytest -m canary``; they also run in the normal test job.
+Run alone with ``pytest -m canary``; they also run in the normal test job, and
+plotnine-extra's ``Nightly canary`` workflow runs them against the newest
+plotnine pre-release.
 They assert effects, not imports, because the plotnine 0.16.0a15 breaks were
 silent: ``compose(widths=...)`` stopped changing panel sizes and nothing raised.
 

@@ -63,7 +63,9 @@ python -m twine check dist/*
 
 `python -m pytest -m canary -q` runs the plotnine canary tests alone. They assert
 effects (compose widths, heights and gap), because some plotnine 0.16.0a15 breaks
-were silent. They also run in the normal test job.
+were silent. They also run in the normal test job, and plotnine-extra's
+`Nightly canary` workflow runs them every night against the newest plotnine
+pre-release.
 
 Import private plotnine names only through `src/ggann/_plotnine_compat.py`
 (`Environment`, `BUILD_CACHE_ATTRS`, `sub_gridspec`, `grid_shape`,
