@@ -315,7 +315,8 @@ def _point_x(plot, geom: str) -> np.ndarray:
     import matplotlib.pyplot as plt
 
     plt.close(plot.draw())
-    layer = [lay for lay in plot.layers if type(lay.geom).__name__ == geom][0]
+    # plotnine 0.16.0a15 keeps drawn layer data on ``plot.built``.
+    layer = [lay for lay in plot.built.layers if type(lay.geom).__name__ == geom][0]
     return layer.data["x"].to_numpy().copy()
 
 

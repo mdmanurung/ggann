@@ -515,8 +515,7 @@ def stat_frame():
 
 def _layer_data(frame, mapping, layer):
     plot = p9.ggplot(frame, mapping) + p9.geom_point() + layer
-    plot._build()
-    return plot.layers[-1].data.iloc[0]
+    return plot.layer_data(-1).iloc[0]
 
 
 @pytest.mark.parametrize(

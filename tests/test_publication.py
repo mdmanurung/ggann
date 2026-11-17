@@ -192,7 +192,7 @@ def test_embedding_publication_defaults_and_missing_values_are_represented(adata
         plot = ag.plot_embedding(selected, color=group_key, pointdensity=False)
     assert len(plot.data) == selected.n_obs
     assert plot.data[group_key].isna().sum() == 1
-    assert plot.layers[0].geom._kwargs["raster"] is False
+    assert plot.layers[0].geom._raw_kwargs["raster"] is False
 
 
 def test_direct_backend_captures_publication_style_and_rasterization(tmp_path, adata, group_key):
@@ -253,6 +253,9 @@ def test_auto_annotations_require_twelve_point_cells(tmp_path):
         p9.ggplot(frame, p9.aes("x", "y", fill="value"))
         + p9.geom_tile()
         + p9.scale_fill_cmap(cmap_name="viridis")
+        # plotnine 0.16.0a15 raises when a legend leaves no room for the panel
+        # in a 40 mm figure, so draw this tiny figure without one.
+        + p9.guides(fill="none")
     )
     automatic = base + geom_contrast_text(p9.aes(label="label"), min_cell_pt=12, format_string="{}")
     forced = base + geom_contrast_text(p9.aes(label="label"), min_cell_pt=0, format_string="{}")
