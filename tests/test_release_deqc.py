@@ -315,7 +315,9 @@ def test_A5_values_to_plot_uses_the_de_statistic_not_expression(de_adata):
     plot = ag.plot_rank_genes_matrixplot(
         de_adata, n_genes=3, key=KEY, groups=[group], values_to_plot="scores"
     )
-    scores = sc.get.rank_genes_groups_df(de_adata, group=group, key=KEY).set_index("names")["scores"]
+    scores = sc.get.rank_genes_groups_df(de_adata, group=group, key=KEY).set_index("names")[
+        "scores"
+    ]
     shown = plot.data[plot.data[GROUP] == group]
     shown = shown.set_index(shown["feature"].astype(str))
     for gene, value in shown["mean_expression"].items():

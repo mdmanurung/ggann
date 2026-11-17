@@ -26,7 +26,7 @@ from plotnine import (
     scale_x_log10,
 )
 
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from .plots import plot_dotplot, plot_matrixplot
 from .publication import _family_theme
 
@@ -101,6 +101,11 @@ def _rank_genes_df(adata, group=None, key: str = "rank_genes_groups", **kwargs):
     import scanpy as sc
 
     _require_de(adata, key)
+    stored = list(adata.uns[key]["names"].dtype.names)
+    wanted = [group] if isinstance(group, str) else list(group or [])
+    unknown = [g for g in wanted if g not in stored]
+    if unknown:
+        raise ValueError(f"group {unknown} not in adata.uns[{key!r}]; stored groups: {stored}.")
     return sc.get.rank_genes_groups_df(adata, group=group, key=key, **kwargs)
 
 
@@ -225,7 +230,7 @@ def _rank_plot(plot_fn, aes_name, adata, n_genes, group_by, key, groups, min_lfc
     return plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_rank_genes_dotplot(
     adata,
     n_genes: int = 10,
@@ -305,7 +310,7 @@ def plot_rank_genes_dotplot(
     )
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_rank_genes_matrixplot(
     adata,
     n_genes: int = 10,
@@ -379,6 +384,7 @@ def plot_rank_genes_matrixplot(
     )
 
 
+@accepts_scanpy_names
 def plot_volcano(
     adata,
     group: str,
@@ -448,13 +454,14 @@ def plot_volcano(
             "plot_volcano colours points by direction; override with "
             "+ scale_color_manual(...) instead of a color= keyword."
         )
-    df = cast(pd.DataFrame, _rank_genes_df(adata, group=group, key=key))
-    missing = {"logfoldchanges", "pvals_adj"} - set(df.columns)
+    missing = {"logfoldchanges", "pvals_adj"} - set(adata.uns[key])
     if missing:
         raise ValueError(
             f"rank_genes_groups result is missing {sorted(missing)} needed for a volcano; "
-            "re-run sc.tl.rank_genes_groups(adata, ..., method='wilcoxon' or 't-test')."
+            "re-run sc.tl.rank_genes_groups(adata, ..., method='wilcoxon' or 't-test', "
+            "key_added=...) and pass key=."
         )
+    df = cast(pd.DataFrame, _rank_genes_df(adata, group=group, key=key))
     if isinstance(lfc, bool) or not np.isfinite(lfc) or lfc < 0:
         raise ValueError("lfc must be a finite non-negative number.")
     if isinstance(padj, bool) or not np.isfinite(padj) or not 0 < padj <= 1:

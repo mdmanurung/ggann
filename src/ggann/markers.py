@@ -24,7 +24,7 @@ from plotnine import (
 )
 
 from ._aggregate import tidy_expression
-from ._compat import accepts_groupby
+from ._compat import accepts_scanpy_names
 from ._expression import ordered_unique
 from ._grouping import _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_fill_obs
@@ -74,7 +74,7 @@ def _expand_occurrences(data: pd.DataFrame, occ: list, *, label_col: str) -> pd.
     return out
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_tracksplot(
     adata,
     genes: Sequence[str] | dict,

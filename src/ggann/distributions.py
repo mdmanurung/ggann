@@ -40,7 +40,7 @@ from plotnine import (
 from plotnine.stats.stat_sina import stat_sina
 
 from ._aggregate import tidy_expression
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import ordered_unique, resolve_source, source_var_names
 from ._grouping import _downsample_cells, _drop_missing_groups, _group_categories, _order_groups
 from ._palette import scale_color_obs, scale_fill_obs
@@ -231,7 +231,7 @@ def _add_stats(plot):
     )
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_box(
     adata,
     genes: Sequence[str],
@@ -356,7 +356,7 @@ def plot_box(
     return _add_stats(plot) if stats else plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_sina(
     adata,
     genes: Sequence[str],
@@ -512,7 +512,7 @@ def plot_sina(
     return plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_expression_bar(
     adata,
     genes: Sequence[str],
@@ -603,7 +603,7 @@ def plot_expression_bar(
     return plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_expression_line(
     adata,
     genes: Sequence[str],
@@ -746,7 +746,7 @@ def plot_expression_line(
     return plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_violin(
     adata,
     genes: Sequence[str],
@@ -882,7 +882,7 @@ def plot_violin(
     return _add_stats(plot) if stats else plot
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_stacked_violin(
     adata,
     genes: Sequence[str],
@@ -1024,7 +1024,7 @@ def _kde_curve(values: np.ndarray, grid: np.ndarray, bw_adjust: float = 1.0) -> 
     return dens / peak if peak > 0 else dens
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_ridge(
     adata,
     genes: Sequence[str],

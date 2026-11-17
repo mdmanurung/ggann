@@ -48,7 +48,7 @@ from ._aggregate import (
     tidy_expression,
 )
 from ._annotation import annotation_threshold, geom_contrast_text
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import expression_matrix, ordered_unique, resolve_source, source_var_names
 from ._grouping import (
     _check_group_cardinality,
@@ -343,6 +343,24 @@ def _limit(value, values: np.ndarray, name: str):
     raise ValueError(f"{name} must be a finite number or 'p<percentile>' (e.g. 'p99').")
 
 
+def _palette_colours(palette, n: int) -> list:
+    """Colours from a list of colours or a Matplotlib colormap name."""
+    if not isinstance(palette, str):
+        return list(palette)
+    from matplotlib import colormaps
+    from matplotlib.colors import to_hex
+
+    if palette not in colormaps:
+        raise ValueError(
+            f"palette {palette!r} is not a Matplotlib colormap name; "
+            "pass a list or dict of colours."
+        )
+    cmap = colormaps[palette]
+    if hasattr(cmap, "colors"):  # qualitative maps such as Set1 list their colours
+        return [to_hex(c) for c in cmap.colors]
+    return [to_hex(cmap(i / max(n - 1, 1))) for i in range(n)]
+
+
 def _embedding_color_scale(values: pd.Series, *, vmin, vmax, vcenter, color_map, na_color):
     """Continuous colour scale for explicit limits, centring, colour map or NA colour.
 
@@ -422,7 +440,7 @@ def _categorical_scale(adata, df: pd.DataFrame, cname: str, *, palette, groups, 
             raise ValueError(f"palette has no colour for {lacking}.")
         colours = {c: palette[c] for c in levels}
     elif palette is not None:
-        palette = list(palette)
+        palette = _palette_colours(palette, len(levels))
         if len(palette) < len(levels):
             raise ValueError(f"palette has {len(palette)} colours for {len(levels)} categories.")
         colours = dict(zip(levels, palette))
@@ -503,6 +521,7 @@ def _embedding_panels(adata, basis, colors, titles, ncol, kwargs):
     return compose(panels, ncol=ncol, tag_levels=None)
 
 
+@accepts_scanpy_names
 def plot_embedding(
     adata,
     basis: str = "umap",
@@ -590,9 +609,10 @@ def plot_embedding(
     color_map : str, optional
         Matplotlib colormap for continuous values (scanpy's ``color_map``);
         overrides ``low``/``high``.
-    palette : dict or sequence of str, optional
-        Category colours: a ``{category: colour}`` dict or colours in category
-        order. Overrides stored ``adata.uns`` colours.
+    palette : dict, sequence of str or str, optional
+        Category colours: a ``{category: colour}`` dict, colours in category
+        order, or a Matplotlib colormap name such as ``"Set1"``. Overrides stored
+        ``adata.uns`` colours.
     vmin, vmax, vcenter : float or "p<percentile>", optional
         Continuous colour limits and centre; out-of-range values are clipped to
         the end colours. ``"p99"`` is the 99th percentile of the finite values.
@@ -930,6 +950,7 @@ def plot_embedding(
     )
 
 
+@accepts_scanpy_names
 def plot_features(
     adata,
     features: Sequence[str],
@@ -1233,7 +1254,7 @@ def _matrix_layout(
     return xcol, ycol, parts
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_dotplot(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],
@@ -1438,7 +1459,7 @@ def plot_dotplot(
     )
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_matrixplot(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],
@@ -1608,7 +1629,7 @@ def plot_matrixplot(
     )
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_embedding_density(
     adata,
     basis: str = "umap",
@@ -1772,7 +1793,7 @@ def plot_embedding_density(
     return plot + scale + _embedding_style(show_axes, equal_aspect)
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def plot_heatmap(
     adata,
     genes: Sequence[str] | dict[str, Sequence[str]],

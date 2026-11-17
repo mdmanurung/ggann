@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import warnings
 
-from ._compat import SKIP_GGANN_FRAMES, accepts_groupby
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._grouping import _drop_missing_groups
 
 __all__ = ["pseudobulk"]
@@ -33,7 +33,7 @@ def _require_decoupler():
     return dc
 
 
-@accepts_groupby
+@accepts_scanpy_names
 def pseudobulk(
     adata,
     sample_col: str,

@@ -21,7 +21,7 @@ import pandas as pd
 import plotnine_extra as pe
 from plotnine import aes, geom_point, ggplot, labs
 
-from ._compat import SKIP_GGANN_FRAMES
+from ._compat import SKIP_GGANN_FRAMES, accepts_scanpy_names
 from ._expression import ordered_unique
 from ._grouping import _downsample_cells
 from ._resolve import embedding_coords, plain_name, resolve_frame
@@ -50,6 +50,7 @@ def _minmax(values: np.ndarray) -> np.ndarray:
     return (values - low) / (high - low)
 
 
+@accepts_scanpy_names
 def plot_density(
     adata,
     features: str | Sequence[str],
