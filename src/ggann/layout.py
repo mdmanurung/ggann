@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from typing import Sequence, cast
 
 from plotnine import ggplot, labs, theme
 from plotnine.composition import Beside, Compose, Stack
+
+from ._plotnine_compat import figure_edge_fractions, grid_shape, pin_grid_spacing, sub_gridspec
 
 __all__ = ["compose", "tag_panels"]
 
@@ -67,20 +68,10 @@ class _GGAnnComposition:
         if self._ggann_gap_mm <= 0:
             return
         gap_in = self._ggann_gap_mm / 25.4
-        gridspec = self._sub_gridspec  # type: ignore[attr-defined]
-        ncol, nrow = self.layout.ncol, self.layout.nrow  # type: ignore[attr-defined]
+        gridspec = sub_gridspec(cast(Compose, self))
+        nrow, ncol = grid_shape(cast(Compose, self))
         bbox = gridspec.bbox_relative
-        # plotnine reserves the root theme's plot margins after this runs, so
-        # size the gap against the space that is left. Margins are fractions
-        # of the figure width; top and bottom scale by width / height.
-        width_left = height_left = 1.0
-        theme = getattr(getattr(figure, "_owner", None), "theme", None)
-        if theme is not None:
-            fig_w, fig_h = theme.getp("figure_size")
-            width_left -= theme.getp("plot_margin_left") + theme.getp("plot_margin_right")
-            height_left -= (theme.getp("plot_margin_top") + theme.getp("plot_margin_bottom")) * (
-                fig_w / fig_h
-            )
+        width_left, height_left = figure_edge_fractions(figure)
         updates: dict[str, float] = {}
         if ncol > 1:
             available = bbox.width * figure.get_figwidth() * width_left
@@ -94,16 +85,7 @@ class _GGAnnComposition:
             if average_cell <= 0:
                 raise ValueError("gap is too large for the requested figure height.")
             updates["hspace"] = gap_in / average_cell
-        # p9GridSpec lost ``update()`` in 0.16.0a15; its spacing lives here.
-        gridspec._subplot_params.update(**updates)
-        # The layout engine resets this grid's spacing to 0 when the figure
-        # renders, so re-apply the gap to the params it sets.
-        apply_params = gridspec.update_params_and_artists
-
-        def keep_gap(gsparams) -> None:
-            apply_params(replace(gsparams, **updates))
-
-        gridspec.update_params_and_artists = keep_gap
+        pin_grid_spacing(gridspec, **updates)
 
     def save(
         self,
