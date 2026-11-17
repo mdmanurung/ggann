@@ -6,6 +6,23 @@ All notable changes to ggann are recorded here. The format follows
 
 ## [0.1.0] - Unreleased
 
+### Changed (2026-11-17, plotnine 0.16)
+
+- ggann requires `plotnine>=0.16.0a15,<0.17`. Plotnine 0.16 exists only as
+  alphas on PyPI.
+
+### Fixed (2026-11-17, plotnine 0.16)
+
+- `ag.compose(widths=, heights=, gap=)` changed nothing on plotnine 0.16.0a15.
+  Ratios and the millimetre gap apply again, through `_generate_gridspecs` on
+  weighted `Beside` and `Stack`.
+
+### Added (2026-11-17, plotnine 0.16)
+
+- `src/ggann/_plotnine_compat.py`, the single adapter for private plotnine access.
+- `tests/test_canary.py`, marked `@pytest.mark.canary`; run with
+  `pytest -m canary`.
+
 ### Removed
 
 Nothing below was ever released, so there is no deprecation period.

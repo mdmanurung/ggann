@@ -185,7 +185,7 @@ Each point is one donor. A test on these points compares donors. `pb.obs["psbulk
 
 ## annplyr pipelines
 
-ggann sits on [annplyr](https://github.com/mdmanurung/annplyr). `ap.tidy(adata)` gives an `AnnData` with dplyr-style verbs. Verbs that return an object feed `gganndata` and the helpers. Verbs that return a table (`summarize`, `count`, `to_wide`, `join_features`) feed plotnine directly. Name fields with selectors from `annplyr.data`: `obs.louvain`, `raw.CD3D`, `X.CST3`, `X_umap`.
+ggann sits on [annplyr](https://github.com/mdmanurung/annplyr). `ap.tidy(adata)` gives an `AnnData` with dplyr-style verbs. Verbs that return an object feed `gganndata` and the helpers. Verbs that return a table (`summarize`, `count`, `to_wide`, `join_features`) feed plotnine directly. `to_wide` on sparse `X` returns pandas sparse columns that plotnine cannot draw; this is an open design decision. Name fields with selectors from `annplyr.data`: `obs.louvain`, `raw.CD3D`, `X.CST3`, `X_umap`.
 
 A column made by `mutate` is an `obs` column, so it works as an aesthetic:
 
@@ -223,7 +223,7 @@ plot = (
 
 ![mean NKG7 per cluster](images/grammar/annplyr_summary.png)
 
-`to_wide` names columns as ggann does: genes keep their names and `X_umap` becomes `UMAP_1`, `UMAP_2`. `join_features(..., shape="long")` gives one dense row per cell and feature, with `.cell`, `.feature` and `.abundance_raw`. Both go straight into `ggplot(table, aes(...))`.
+`to_wide` names columns as ggann does: genes keep their names and `X_umap` becomes `UMAP_1`, `UMAP_2`. `join_features(..., shape="long")` gives one dense row per cell and feature, with `.cell`, `.feature` and `.abundance_raw`. Both go straight into `ggplot(table, aes(...))`; for `to_wide` that holds when `X` is dense.
 
 ## Large and backed data
 

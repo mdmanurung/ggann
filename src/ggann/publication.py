@@ -748,7 +748,7 @@ def _figure_from_object(plot, width_in: float, height_in: float, dpi: int):
     working = deepcopy(plot)
     if isinstance(working, Compose):
         working = working + p9_theme(figure_size=(width_in, height_in), dpi=dpi)
-        # plotnine 0.15 creates the composition figure before entering any
+        # plotnine creates the composition figure before entering any
         # child plot theme. Seed the canvas size here so physical gaps are
         # calculated against the requested export dimensions.
         with mpl.rc_context({"figure.figsize": (width_in, height_in), "figure.dpi": dpi}):

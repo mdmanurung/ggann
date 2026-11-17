@@ -24,13 +24,19 @@ first (see [Release blockers](#release-blockers)).
 
 Python 3.12.13 in `.venv-rc`, locked in `plans/evaluation/env-rc.lock`.
 First-party dependencies come from pinned commits, as in CI: annplyr
-`bb80d12` (0.5.0) and plotnine-extra `fcbd88f6` (0.3.1).
+`bb80d12` (0.5.0) and plotnine-extra `b24b9977` (0.3.1). The table below
+records the 2026-11-02 `.venv-rc` environment, which predates that plotnine-extra
+pin and the plotnine 0.16.0a15 port.
+
+The current floor is `plotnine>=0.16.0a15,<0.17`. No stable plotnine 0.16 is on
+PyPI. The plotnine version behind the 760-test run in the Outcome table is not
+recorded.
 
 | Package | Version |
 |---|---|
 | anndata | 0.13.4 |
 | scanpy | 1.12.5 |
-| plotnine | 0.15.8 |
+| plotnine (2026-11-02 record, before the 0.16.0a15 port) | 0.15.8 |
 | pandas | 3.1.0 |
 | numpy | 2.5.4 |
 | scipy | 1.18.1 |
@@ -51,6 +57,12 @@ A ten-reviewer audit found no wrong-number bug. The follow-ups are listed in
 and tracked for later: a JOSS paper, a benchmark rerun on annplyr 0.5, a release
 workflow with trusted publishing, a lowest-bounds CI job and Python 3.13/3.14
 runs.
+
+The same day ggann moved to plotnine `>=0.16.0a15,<0.17`. Weighted
+compositions (`compose(widths=, heights=, gap=)`) were ported, because they had
+silently stopped changing anything. All private plotnine access now goes through
+`src/ggann/_plotnine_compat.py`, and `tests/test_canary.py` holds canary tests
+that assert these effects. Run them alone with `pytest -m canary`.
 
 ## What changed since the 2026-08-09 record
 
@@ -130,7 +142,9 @@ Raw results: `benchmarks/results/rerun-2026-11-02-*`.
 ## Release blockers
 
 `pip install ggann` cannot resolve until both first-party dependencies are on
-PyPI at the declared versions. In order:
+PyPI at the declared versions. ggann also pins `plotnine>=0.16.0a15,<0.17`, and
+no stable plotnine 0.16 is on PyPI; the specifier names the alpha. Publication
+is on hold by owner decision. In order:
 
 1. Publish `annplyr` 0.5.0 to PyPI. ggann now requires `annplyr>=0.5,<0.6`
    (the 0.3 pin was widened on 2026-11-02 after porting to annplyr's 0.5 API).
@@ -151,6 +165,7 @@ python scripts/run_pyright.py
 ruff check src tests benchmarks docs/extensions examples scripts
 ruff format --check src tests benchmarks docs/extensions examples scripts
 python -m pytest -q -n 8
+python -m pytest -m canary -q
 GGANN_DOCS_OFFLINE=1 MPLBACKEND=Agg \
   sphinx-build -W --keep-going -b html docs docs/_build/html
 python -m build --outdir dist

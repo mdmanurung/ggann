@@ -14,6 +14,9 @@ uv venv .venv --python 3.12
 uv pip install --python .venv/bin/python -e ".[dev]"
 ```
 
+plotnine resolves to 0.16.0a15 or newer within `<0.17` without `--pre`. If you
+reuse an old environment with plotnine 0.15 or 0.16.0a14, upgrade it.
+
 annplyr 0.5 and plotnine-extra 0.3.1 are not on PyPI yet. Install them before
 the development extras, either from the commits CI pins:
 
@@ -55,6 +58,18 @@ GGANN_DOCS_OFFLINE=1 sphinx-build -W --keep-going -b html docs docs/_build/html
 python -m build
 python -m twine check dist/*
 ```
+
+### Plotnine coupling
+
+`python -m pytest -m canary -q` runs the plotnine canary tests alone. They assert
+effects (compose widths, heights and gap), because some plotnine 0.16.0a15 breaks
+were silent. They also run in the normal test job.
+
+Import private plotnine names only through `src/ggann/_plotnine_compat.py`
+(`Environment`, `BUILD_CACHE_ATTRS`, `sub_gridspec`, `grid_shape`,
+`figure_edge_fractions`, `pin_grid_spacing`, `missing_coupling()`). After a
+plotnine bump, run `pytest -m canary` first; a failure points at that module.
+`src/ggann/_compat.py` is a different module, for Scanpy keyword aliases.
 
 Changes to extraction, aggregation, or plotting must also run the benchmark
 smoke suite and compare representative prepared data and rendered artifacts.

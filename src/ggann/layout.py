@@ -98,7 +98,7 @@ class _GGAnnComposition:
         units: str = "in",
         **kwargs,
     ) -> None:
-        """Save, honoring explicit dimensions unlike native plotnine 0.15.
+        """Save, honoring explicit dimensions unlike native plotnine ``Compose.save``.
 
         ``dpi`` may be any finite positive integer (default 300), for example 150
         for a draft. ``format`` must agree with a format suffix on ``filename``.
@@ -358,7 +358,7 @@ def compose(
     Composition does not render plots or mutate their source data.
 
     ``guides="collect"`` only hides exact duplicate legends; the surviving legend
-    stays inside the panel that owns it. plotnine 0.15 has no composition-level
+    stays inside the panel that owns it. ``compose`` has no composition-level
     legend, so a single shared legend placed beside the whole figure is not
     available. Save with ``.save(filename, width=, height=, units=, dpi=)``; any
     positive integer ``dpi`` (for example 150) is accepted.
