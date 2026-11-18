@@ -68,7 +68,7 @@ were silent. They also run in the normal test job, and plotnine-extra's
 pre-release.
 
 Import private plotnine names only through `src/ggann/_plotnine_compat.py`
-(`Environment`, `BUILD_CACHE_ATTRS`, `sub_gridspec`, `grid_shape`,
+(`Environment`, `BUILD_CACHE_ATTRS`, `stat`, `sub_gridspec`, `grid_shape`,
 `figure_edge_fractions`, `pin_grid_spacing`, `missing_coupling()`). After a
 plotnine bump, run `pytest -m canary` first; a failure points at that module.
 `src/ggann/_compat.py` is a different module, for Scanpy keyword aliases.

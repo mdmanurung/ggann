@@ -20,6 +20,7 @@ from plotnine import ggplot
 from plotnine._mpl.gridspec import p9GridSpec
 from plotnine.composition import Compose
 from plotnine.mapping._env import Environment
+from plotnine.stats.stat import stat
 
 __all__ = [
     "BUILD_CACHE_ATTRS",
@@ -28,8 +29,13 @@ __all__ = [
     "grid_shape",
     "missing_coupling",
     "pin_grid_spacing",
+    "stat",
     "sub_gridspec",
 ]
+
+# ``stat`` is the stat base class. plotnine exports neither ``plotnine.stat`` nor
+# the class from ``plotnine.stats`` (that name is the module), so the shape
+# layers in ``ggann.shapes`` import it from here.
 
 # Attributes plotnine stores on a plot after building it. ``MatplotlibGGPlot``
 # shares them by reference when it copies a plot. ``_build_objs`` is a
@@ -96,6 +102,7 @@ def missing_coupling() -> list[str]:
         "p9GridSpec.bbox_relative": hasattr(p9GridSpec, "bbox_relative"),
         "ggplot.layer_data": hasattr(ggplot, "layer_data"),
         "ggplot.build": hasattr(ggplot, "build"),
+        "stat.compute_panel": hasattr(stat, "compute_panel"),
         "Environment.capture": hasattr(Environment, "capture"),
     }
     return [name for name, present in wanted.items() if not present]
