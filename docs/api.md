@@ -53,6 +53,8 @@ plotnine's default `theme_gray`. See {doc}`grammar`.
   `"p99"`), `groups=`, `sort_order=`, `na_color=`, `title=` and
   `legend_loc=` (`"right margin"`, `"right"`, `"on data"`, `"none"`). The
   Matplotlib backend rejects these with `ValueError`.
+- `plot_embedding(hex=True, hex_bins=...)` bins cells into hexagons instead of
+  drawing points; see {doc}`shapes` for what it rejects.
 - `plot_embedding(method="binned")` is an opt-in approximate point density
   (2-D histogram plus Gaussian filter); the legend reads `density (binned)`.
   The exact KDE is the default and warns above 20,000 cells.
@@ -353,3 +355,13 @@ Layer classes for shapes plotnine does not draw. Each is a plotnine layer; add i
 |---|---|
 | `geom_curve` | One quadratic Bezier curve per `x, y, xend, yend` row; positive `curvature` bends right of travel |
 | `stat_curve` | The stat behind `geom_curve`; sets `curvature` and `n`, and adds `t` and `group` |
+| `geom_hex` | Hexagonal bins of `x` and `y`, filled by count; needs `bins` or `binwidth` |
+| `stat_binhex` | The stat behind `geom_hex`; adds `count`, `density`, `ncount`, `value` and `group` |
+
+```{eval-rst}
+.. autosummary::
+   :toctree: generated/native
+   :nosignatures:
+
+   gghex
+```
