@@ -83,12 +83,16 @@ from .qc import (
     plot_variance_ratio,
 )
 from .shapes import (
+    coord_radar,
     geom_curve,
     geom_pie,
+    geom_radar,
     ggpie,
+    ggradar,
     ggring,
     stat_curve,
     stat_pie,
+    stat_radar,
 )
 from .theme import (
     reset_theme,
@@ -186,7 +190,11 @@ __all__ = [
     "stat_curve",
     "geom_pie",
     "stat_pie",
+    "geom_radar",
+    "stat_radar",
+    "coord_radar",
     "ggpie",
     "ggring",
+    "ggradar",
     "__version__",
 ]
