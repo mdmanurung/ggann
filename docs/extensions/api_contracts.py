@@ -26,7 +26,9 @@ _EXPRESSION_ERRORS = (
 )
 _EMBEDDING_ERRORS = (
     "A missing embedding or colour field raises ``KeyError``. An embedding with "
-    "fewer than two coordinates, or an invalid downsampling value, raises ``ValueError``."
+    "fewer than two coordinates, or an invalid downsampling value, raises ``ValueError``. "
+    "With ``hex=True``, a missing ``hex_bins`` (or ``hex_fun`` for a numeric colour), a "
+    "categorical colour, ``downsample`` or a missing numeric value also raise ``ValueError``."
 )
 _PLOTNINE_ERRORS = (
     "There is no additional ggann validation; plotnine reports unsupported layer, "
@@ -213,6 +215,21 @@ for _name, _call in {
     _CONTRACTS[f"ggann.{_name}"] = _contract(
         "A composable ``plotnine.ggplot`` object.", _errors, _de(_call)
     )
+
+_CONTRACTS["ggann.gghex"] = _contract(
+    "A composable ``plotnine.ggplot`` object.",
+    "A column missing from the table raises ``KeyError``. An unknown ``stat`` or ``fun``, "
+    '``stat="value"`` without ``z``, ``z`` without ``fun``, neither ``bins`` nor '
+    "``binwidth``, or a size that is not positive raises ``ValueError``.",
+    """\
+import numpy as np
+import pandas as pd
+import ggann as ag
+
+rng = np.random.default_rng(0)
+df = pd.DataFrame({"x": rng.normal(size=500), "y": rng.normal(size=500)})
+plot = ag.gghex(df, "x", "y", bins=20)""",
+)
 
 _CONTRACTS.update(
     {
