@@ -9,13 +9,14 @@ composable with ``+ scale_*`` / ``+ theme(...)`` / ``+ facet_*``.
 from __future__ import annotations
 
 import warnings
-from typing import Iterable, Sequence, cast
+from typing import Callable, Iterable, Sequence, cast
 
 import numpy as np
 import pandas as pd
 import plotnine_extra as pe
 from plotnine import (
     aes,
+    after_stat,
     coord_equal,
     element_blank,
     element_text,
@@ -31,6 +32,7 @@ from plotnine import (
     scale_color_gradient2,
     scale_color_manual,
     scale_fill_cmap,
+    scale_fill_gradient,
     scale_fill_gradient2,
     scale_size,
     scale_x_discrete,
@@ -556,6 +558,9 @@ def plot_embedding(
     rasterized: bool = False,
     show_axes: bool | None = None,
     equal_aspect: bool | None = None,
+    hex: bool = False,
+    hex_bins: int | None = None,
+    hex_fun: str | Callable | None = None,
 ):
     """Scatter over an embedding (UMAP/t-SNE/PCA), optionally coloured and split.
 
@@ -573,6 +578,8 @@ def plot_embedding(
     * ``downsample=N`` -> randomly keep at most ``N`` cells before drawing, for a
       much lighter scatter on large data (density reads the same; exact points differ).
       ``random_state`` controls which cells are retained.
+    * ``hex=True`` -> hexagonal bins instead of points, for very dense data. Needs
+      ``hex_bins``; a numeric ``color`` also needs ``hex_fun``.
 
     Parameters
     ----------
@@ -647,6 +654,19 @@ def plot_embedding(
     equal_aspect : bool, optional
         Force equal x/y data units when true. The default enables equal aspect
         only in publication mode.
+    hex : bool, default=False
+        Draw hexagonal bins (:class:`ggann.geom_hex`) instead of points. With no
+        ``color`` each hexagon is filled by its cell count (legend ``cells``);
+        with a numeric ``color`` it is filled by ``hex_fun`` of that value.
+        Categorical colour, ``downsample``, ``vmin``/``vmax``/``vcenter``, a
+        set ``pointdensity`` or ``method`` and the Matplotlib backend are not
+        supported with ``hex``. ``size``, ``alpha``, ``sort_order`` and ``na_color``
+        have no effect.
+    hex_bins : int, optional
+        Hexagons across x. Required with ``hex=True``; there is no default.
+    hex_fun : {"mean", "median", "sum", "min", "max"} or callable, optional
+        Summary of a numeric ``color`` per hexagon. Required with ``hex=True``
+        and a numeric ``color``; there is no default.
 
     Returns
     -------
@@ -661,7 +681,11 @@ def plot_embedding(
     ValueError
         If the embedding has fewer than two coordinates, an option is invalid,
         or the Matplotlib backend is asked for an unsupported density, facet,
-        centroid-label or display option.
+        centroid-label or display option. With ``hex=True`` it is also raised
+        for a missing ``hex_bins`` or ``hex_fun``, categorical colour,
+        ``downsample``, colour limits, a set ``pointdensity``/``method``, or a
+        missing numeric value. ``hex_bins`` or ``hex_fun`` without ``hex=True``
+        raise it too.
 
     Notes
     -----
@@ -682,6 +706,25 @@ def plot_embedding(
         raise ValueError("method must be 'exact' or 'binned'.")
     if legend_loc not in _LEGEND_LOCS:
         raise ValueError(f"legend_loc must be one of {sorted(_LEGEND_LOCS)}, got {legend_loc!r}.")
+    if not hex and (hex_bins is not None or hex_fun is not None):
+        raise ValueError("hex_bins and hex_fun need hex=True.")
+    if hex:
+        if backend == "matplotlib":
+            raise ValueError(
+                "backend='matplotlib' does not support ['hex']; use backend='plotnine'."
+            )
+        if (
+            isinstance(hex_bins, bool)
+            or not isinstance(hex_bins, (int, np.integer))
+            or hex_bins < 1
+        ):
+            raise ValueError("hex=True needs hex_bins, a positive integer (there is no default).")
+        if downsample is not None:
+            raise ValueError("hex=True bins every cell; downsample is not supported with it.")
+        if hex_fun is not None:
+            from .shapes._hexbin import _check_fun
+
+            _check_fun(hex_fun)
     if isinstance(groups, str):
         groups = [groups]
     adata = _drop_missing_groups(adata, split_by)
@@ -703,7 +746,8 @@ def plot_embedding(
             label_size=label_size, low=low, high=high, color_map=color_map, palette=palette,
             vmin=vmin, vmax=vmax, vcenter=vcenter, groups=groups, sort_order=sort_order,
             na_color=na_color, legend_loc=legend_loc, backend=backend, rasterized=rasterized,
-            show_axes=show_axes, equal_aspect=equal_aspect,
+            show_axes=show_axes, equal_aspect=equal_aspect, hex=hex, hex_bins=hex_bins,
+            hex_fun=hex_fun,
         )  # fmt: skip
         return _embedding_panels(adata, basis, colors, titles, ncol, shared)
 
@@ -819,6 +863,19 @@ def plot_embedding(
             skip_file_prefixes=SKIP_GGANN_FRAMES,
         )
 
+    if hex and color is None:
+        if pointdensity is not None or method != "exact":
+            raise ValueError("hex=True replaces the point scatter; drop pointdensity and method.")
+        from .shapes.hexbin import geom_hex
+
+        return ggplot(df, aes(xcol, ycol)) + _with_facet(
+            [
+                geom_hex(bins=hex_bins, raster=rasterized),
+                labs(fill="cells"),
+                *_embedding_style(show_axes, equal_aspect),
+            ]
+        )
+
     if color is None:
         if pointdensity is None:
             pointdensity = True
@@ -868,7 +925,38 @@ def plot_embedding(
     if cname not in df.columns:
         raise KeyError(f"Could not resolve color={color!r} from obs, genes or obsm.")
 
+    if hex and not _is_numeric(df[cname]):
+        raise ValueError(
+            f"hex=True does not support the categorical color {color!r}; "
+            "use a numeric color, or no color for cell counts."
+        )
     if _is_numeric(df[cname]):
+        if hex:
+            if any(v is not None for v in (vmin, vmax, vcenter)):
+                raise ValueError("vmin, vmax and vcenter are not supported with hex=True.")
+            if hex_fun is None:
+                raise ValueError(
+                    "hex=True with a numeric color needs hex_fun (there is no default)."
+                )
+            if not np.isfinite(df[cname].to_numpy(dtype=float)).all():
+                raise ValueError(
+                    f"hex=True needs finite values in {cname!r}; drop or fill the missing ones."
+                )
+            from .shapes.hexbin import geom_hex
+
+            fill_scale = (
+                scale_fill_gradient(low=low, high=high)
+                if style is None and color_map is None
+                else _continuous_scale("fill", df[cname], color_map, signed=False)
+            )
+            return ggplot(df, aes(xcol, ycol, z=cname, fill=after_stat("value"))) + _with_facet(
+                [
+                    geom_hex(bins=hex_bins, fun=hex_fun, raster=rasterized),
+                    fill_scale,
+                    labs(fill=cname),
+                    *_embedding_style(show_axes, equal_aspect),
+                ]
+            )
         if label_requested:
             warnings.warn(
                 f"plot_embedding: label=True is ignored for the numeric color {color!r} "
