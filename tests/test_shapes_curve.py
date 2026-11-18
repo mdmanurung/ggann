@@ -23,9 +23,17 @@ def _plot(df, layer, **aes_extra) -> p9.ggplot:
     return p9.ggplot(df, p9.aes("x", "y", xend="xend", yend="yend", **aes_extra)) + layer
 
 
+def _strict_warnings() -> None:
+    # Fail on any warning except the deprecations pyproject already ignores:
+    # pandas 3 raises Pandas4Warning from inside plotnine, not from ggann.
+    warnings.simplefilter("error")
+    warnings.simplefilter("ignore", DeprecationWarning)
+    warnings.simplefilter("ignore", FutureWarning)
+
+
 def _render(plot) -> None:
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        _strict_warnings()
         plot.save(BytesIO(), format="png", verbose=False)
 
 
@@ -90,11 +98,12 @@ def test_missing_endpoints_are_dropped_with_one_warning():
     )
     with pytest.warns(UserWarning, match="Removed 2 rows") as record:
         out = _plot(df, ag.geom_curve(n=3)).layer_data(0)
-    assert len(record) == 1
+    ours = [w for w in record if not issubclass(w.category, (DeprecationWarning, FutureWarning))]
+    assert len(ours) == 1
     assert len(out) == 6
     assert sorted(out["group"].unique()) == [1, 2]
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        _strict_warnings()
         quiet = _plot(df, ag.geom_curve(n=3, na_rm=True)).layer_data(0)
     assert quiet["x"].tolist() == pytest.approx(out["x"].tolist())
 
