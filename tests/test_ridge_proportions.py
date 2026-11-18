@@ -48,7 +48,7 @@ def test_proportions_area_trend_need_split(adata, group_key):
 
 def test_proportions_bad_kind(adata, group_key):
     with pytest.raises(ValueError, match="kind"):
-        ag.plot_proportions(adata, group_key, kind="pie")
+        ag.plot_proportions(adata, group_key, kind="waffle")
 
 
 @pytest.mark.parametrize("group_by, split_by", [("missing", None), ("group", "missing")])
