@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 DOCS = Path(__file__).resolve().parents[1] / "docs"
-PAGES = ["index", "from_scanpy", "grammar", "publication", "heatmaps", "notes", "api"]
+PAGES = ["index", "from_scanpy", "grammar", "publication", "heatmaps", "shapes", "notes", "api"]
 IMAGE = re.compile(r"(?:\]\(|\{image\}\s*|\{figure\}\s*|image::\s*)/?(images/[^)\s]+\.png)")
 
 

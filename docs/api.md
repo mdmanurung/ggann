@@ -344,3 +344,12 @@ These re-exports come from
 | `geom_signif` | Significance brackets |
 
 What each statistic tests and which p-value it shows is in {doc}`grammar`.
+
+## Shapes
+
+Layer classes for shapes plotnine does not draw. Each is a plotnine layer; add it with `+`. The page {doc}`shapes` shows the figure and lists the limits.
+
+| Names | Purpose |
+|---|---|
+| `geom_curve` | One quadratic Bezier curve per `x, y, xend, yend` row; positive `curvature` bends right of travel |
+| `stat_curve` | The stat behind `geom_curve`; sets `curvature` and `n`, and adds `t` and `group` |
