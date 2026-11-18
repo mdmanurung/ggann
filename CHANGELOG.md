@@ -34,6 +34,22 @@ All notable changes to ggann are recorded here. The format follows
 - A canary that fails if plotnine or plotnine-extra adds a class that clashes
   with a ggann shape layer name.
 
+### Added (2026-11-18, shapes: pie, ring, radar)
+
+- `ag.ggpie`, `ag.ggring` and `ag.ggradar`, DataFrame constructors for pie,
+  ring and radar plots, and the layers behind them: `ag.stat_pie`,
+  `ag.geom_pie`, `ag.stat_radar`, `ag.geom_radar` and `ag.coord_radar`.
+  Angles are in radians, clockwise from 12 o'clock.
+- `plot_proportions(kind="pie" | "ring" | "radar")`. A radar with `split_by`
+  and `normalize=True` needs the new `radar_norm` argument
+  (`"within_split"` or `"across_splits"`), because the two give different
+  polygons. A radar needs at least 3 `group_by` levels. The docstring no
+  longer says plotnine lacks polar coordinates. The unknown-`kind` error now
+  lists all six kinds.
+- Two canaries (`test_radar_edges_stay_straight`,
+  `test_pie_wedge_angle_and_hole`) and `missing_coupling()` rows for
+  `coord_radial.munch` and `coord_radial.is_linear`.
+
 ### Removed
 
 Nothing below was ever released, so there is no deprecation period.

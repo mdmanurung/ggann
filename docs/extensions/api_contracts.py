@@ -167,8 +167,10 @@ _GGPLOT_ERRORS.update(
             "grouping data are reported by scanpy when the tree is computed."
         ),
         "plot_proportions": (
-            "Missing grouping columns raise ``KeyError``. Unsupported ``kind`` values "
-            "or trend/area plots without ``split_by`` raise ``ValueError``."
+            "Missing grouping columns raise ``KeyError``. Unsupported ``kind`` values, "
+            "trend/area plots without ``split_by``, a radar with fewer than 3 groups, "
+            "and a normalised radar with ``split_by`` but no ``radar_norm`` raise "
+            "``ValueError``."
         ),
         "plot_correlation": (
             "Missing genes, grouping columns, or layers raise ``KeyError``. Fewer than "
@@ -214,8 +216,39 @@ for _name, _call in {
         "A composable ``plotnine.ggplot`` object.", _errors, _de(_call)
     )
 
+_SHAPES_SETUP = """\
+import pandas as pd
+import ggann as ag
+
+df = pd.DataFrame({"kind": list("abcd"), "n": [4, 3, 2, 1]})"""
 _CONTRACTS.update(
     {
+        "ggann.ggpie": _contract(
+            "A composable ``plotnine.ggplot`` object.",
+            "A missing column raises ``KeyError``. An ``inner_radius`` outside ``[0, 1)``, "
+            "an unknown ``label``, a negative weight or an incomplete palette raises "
+            "``ValueError``. Rows with a missing group are dropped with a warning.",
+            _SHAPES_SETUP + '\n\nplot = ag.ggpie(df, "kind", "n", label="percent")',
+        ),
+        "ggann.ggring": _contract(
+            "A composable ``plotnine.ggplot`` object.",
+            "A missing column raises ``KeyError``. An ``inner_radius`` outside ``(0, 1)``, "
+            "an unknown ``label``, a negative weight or an incomplete palette raises "
+            "``ValueError``. Rows with a missing group are dropped with a warning.",
+            _SHAPES_SETUP + '\n\nplot = ag.ggring(df, "kind", "n", inner_radius=0.6)',
+        ),
+        "ggann.ggradar": _contract(
+            "A composable ``plotnine.ggplot`` object.",
+            "A missing column raises ``KeyError``. Fewer than 3 axis levels, a duplicated "
+            "or missing ``(axis, series)`` pair, a missing label or value, a bad ``rlim`` "
+            "or a value outside ``rlim`` raises ``ValueError``.",
+            """\
+import pandas as pd
+import ggann as ag
+
+df = pd.DataFrame({"axis": list("abcabc"), "v": [1, 2, 3, 2, 1, 2], "s": list("xxxyyy")})
+plot = ag.ggradar(df, "axis", "v", series="s")""",
+        ),
         "ggann.plot_ma": _contract(
             "A composable ``plotnine.ggplot`` object.",
             "Missing mean, fold-change, or adjusted-p-value columns raise ``KeyError``.",

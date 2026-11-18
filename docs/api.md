@@ -107,7 +107,8 @@ plotnine's default `theme_gray`. See {doc}`grammar`.
   integer, such as raw counts, `stat_sina` adds jitter to the heights, so
   points sit off the data values. Use a normalised layer for sina plots.
 - `plot_expression_line(bins=N)` bins a numeric `x`. `plot_proportions`
-  rejects `split_by` equal to `group_by`.
+  rejects `split_by` equal to `group_by`. Its `kind` also takes `"pie"`,
+  `"ring"` and `"radar"`.
 
 **Differential expression.**
 
@@ -347,9 +348,26 @@ What each statistic tests and which p-value it shows is in {doc}`grammar`.
 
 ## Shapes
 
-Layer classes for shapes plotnine does not draw. Each is a plotnine layer; add it with `+`. The page {doc}`shapes` shows the figure and lists the limits.
+Layers and plot functions for shapes plotnine does not draw. The page {doc}`shapes` shows each figure and lists the limits.
+
+```{eval-rst}
+.. autosummary::
+   :toctree: generated/native
+   :nosignatures:
+
+   ggpie
+   ggring
+   ggradar
+```
+
+The classes are plotnine layers and one coord; add them with `+`.
 
 | Names | Purpose |
 |---|---|
 | `geom_curve` | One quadratic Bezier curve per `x, y, xend, yend` row; positive `curvature` bends right of travel |
 | `stat_curve` | The stat behind `geom_curve`; sets `curvature` and `n`, and adds `t` and `group` |
+| `geom_pie` | Pie slices or rings from weights; add `coord_radial(theta="y", expand=False)` |
+| `stat_pie` | The stat behind `geom_pie`; one row per slice with `ymin`, `ymax`, `count` and `prop` |
+| `geom_radar` | One closed, translucent polygon per series |
+| `stat_radar` | The stat behind `geom_radar`; sorts each series by axis and closes it |
+| `coord_radar` | `coord_radial` with straight edges, for radar plots only |
