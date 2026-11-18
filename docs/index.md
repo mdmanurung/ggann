@@ -108,6 +108,13 @@ Set exact sizes, styles and palettes, compose panels and export.
 Clustermaps, tidy heatmaps and UpSet plots.
 :::
 
+:::{grid-item-card} Shapes
+:link: shapes
+:link-type: doc
+
+Layers for shapes plotnine lacks, starting with Bezier curves.
+:::
+
 :::{grid-item-card} API reference
 :link: api
 :link-type: doc
@@ -132,6 +139,7 @@ from_scanpy
 grammar
 publication
 heatmaps
+shapes
 notes
 api
 ```
