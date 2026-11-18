@@ -29,6 +29,12 @@ All notable changes to ggann are recorded here. The format follows
   `x, y, xend, yend` rows. Positive `curvature` (default 0.5) bends right of
   travel; `n` (default 50) sets the points per curve. New page
   `docs/shapes.md` and the `ggann.shapes` package.
+- `ag.geom_hex`, `ag.stat_binhex` and `ag.gghex`, a hexagonal bin layer with
+  its own numpy binning (plotnine has none). `bins` or `binwidth` and, for
+  `z`, `fun` have no default and raise `ValueError` when missing.
+  `plot_embedding(hex=True, hex_bins=..., hex_fun=...)` bins cells; it
+  rejects categorical colour, `downsample`, colour limits and missing
+  numeric values.
 - `stat` base class in `_plotnine_compat.py`, with a `missing_coupling()` row
   for `stat.compute_panel`.
 - A canary that fails if plotnine or plotnine-extra adds a class that clashes

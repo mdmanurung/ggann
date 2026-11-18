@@ -1,6 +1,6 @@
 # Shapes
 
-`ggann.shapes` adds layers for shapes plotnine does not draw. This page covers curves, pies and rings, and radar plots. Every layer is a plain plotnine layer, so you add it with `+` and combine it with any geom, scale, facet or theme.
+`ggann.shapes` adds layers for shapes plotnine does not draw. This page covers curves, hexagonal bins, pies and rings, and radar plots. Every layer is a plain plotnine layer, so you add it with `+` and combine it with any geom, scale, facet or theme.
 
 All examples come from `examples/docs_figures/shapes.py`.
 
@@ -137,3 +137,52 @@ plot = (
 - **`ggradar` drops the radial tick at the lower limit.** matplotlib omits a tick at the origin and plotnine labels ticks by position, so a break at 0 shifts every label by one. The layer tier does not fix this; pass `breaks` above the lower limit.
 - **A series with a missing spoke is drawn with one vertex fewer**, with no warning at this tier.
 - **`coord_radar` turns off munching for every geom in the plot.**
+
+## Hexbin
+
+`geom_hex` bins `x` and `y` into pointy-top hexagons and fills each by its count. `stat_binhex` does the work: it finds the nearest centre on a triangular lattice, counts the points, and emits six vertices per bin. `gghex(df, x, y, bins=...)` is the one-call form. plotnine has no hexbin layer, so ggann provides its own.
+
+```python
+import numpy as np
+import pandas as pd
+import ggann as ag
+
+rng = np.random.default_rng(0)
+cloud = pd.DataFrame(
+    {
+        "x": np.r_[rng.normal(0, 1, 4000), rng.normal(3.5, 0.7, 2000)],
+        "y": np.r_[rng.normal(0, 1, 4000), rng.normal(2.0, 0.7, 2000)],
+    }
+)
+plot = ag.gghex(cloud, "x", "y", bins=20)
+```
+
+The figure shows 6,000 points from two Gaussian clouds in 20 hexagons across x. Hexagons are regular because `gghex` adds `coord_equal()`.
+
+![Two overlapping clusters of hexagonal bins on a purple to yellow count scale, the larger cluster at the lower left and the denser, tighter one at the upper right](images/shapes/hexbin.png)
+
+**Size has no default.** Give `bins` or `binwidth`; with neither the plot raises `ValueError` when it is built. A scalar `bins` sets the width to the x range over `bins` and the height to `2 * width / sqrt(3)`, which is regular under `coord_equal()`. A pair `bins=(nx, ny)` sets width to the x range over `nx` and height to the y range over `ny`. `binwidth` is in scale units, wins over `bins`, and takes a number (width; same height rule) or a pair `(width, height)`.
+
+**Lattice origin.** The lattice starts at the lower end of the x and y scale limits. Facets with fixed scales share one lattice; with `scales="free"` each panel has its own. Binning runs after scale transforms, so a log axis bins in log units.
+
+**Statistics.** `fill` defaults to `after_stat("count")`. `density` is `count / sum(count)` and `ncount` is `count / max(count)`, both per panel. `aes(weight=...)` sums weights instead of counting. `aes(z=...)` with `fun` (`"mean"`, `"median"`, `"sum"`, `"min"`, `"max"` or a callable) adds `value`; `fun` has no default and is required with `z`.
+
+### Hexbin in `plot_embedding`
+
+`plot_embedding(adata, "umap", hex=True, hex_bins=30)` bins the cells. With no `color`, the fill is the cell count and the legend reads `cells`. With a numeric `color`, add `hex_fun`; the fill is that summary of the value per hexagon. `split_by` facets with one shared lattice. `hex_bins` is required, and `hex_bins` or `hex_fun` without `hex=True` raises. These cases raise `ValueError` instead of choosing for you:
+
+- a categorical `color`, because a majority label would hide minority cells;
+- `downsample`, because the cells to bin are then ambiguous;
+- `vmin`, `vmax` or `vcenter`, because limits on cells and on hexagon values differ;
+- a missing numeric value, because skipping it or propagating it changes the summary;
+- a set `pointdensity` or `method`, and `backend="matplotlib"`.
+
+`size`, `alpha`, `sort_order` and `na_color` have no effect with `hex=True`. The plot data stays the per-cell table; `plot.layer_data(0)` holds the hexagons.
+
+### Limits
+
+- **Seams.** `geom_hex` copies the fill into the outline at width 0.2, which hides white hairlines between hexagons. It does not do so when you set `color`, when `alpha` is below 1 (an opaque outline would draw a grid) or mapped. A constant `fill` becomes the outline colour.
+- **Continuous scales only.** A discrete x or y raises `TypeError`.
+- **Missing values.** Rows with a missing or non-finite `x` or `y` are dropped with a warning (`na_rm=True` silences it). Points outside scale limits are dropped the same way. A missing `z` or `weight` raises `ValueError`.
+- **`group` is set by the stat.** It numbers the bins 1 to k in each panel, replaces any mapped `group`, and a mapped discrete `color` is dropped because the stat pools all groups.
+- **Vector size.** One polygon is drawn per bin. `raster=True` rasterises the layer.

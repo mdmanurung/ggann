@@ -85,11 +85,14 @@ from .qc import (
 from .shapes import (
     coord_radar,
     geom_curve,
+    geom_hex,
     geom_pie,
     geom_radar,
+    gghex,
     ggpie,
     ggradar,
     ggring,
+    stat_binhex,
     stat_curve,
     stat_pie,
     stat_radar,
@@ -196,5 +199,8 @@ __all__ = [
     "ggpie",
     "ggring",
     "ggradar",
+    "geom_hex",
+    "stat_binhex",
+    "gghex",
     "__version__",
 ]

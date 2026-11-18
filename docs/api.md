@@ -53,6 +53,8 @@ plotnine's default `theme_gray`. See {doc}`grammar`.
   `"p99"`), `groups=`, `sort_order=`, `na_color=`, `title=` and
   `legend_loc=` (`"right margin"`, `"right"`, `"on data"`, `"none"`). The
   Matplotlib backend rejects these with `ValueError`.
+- `plot_embedding(hex=True, hex_bins=...)` bins cells into hexagons instead of
+  drawing points; see {doc}`shapes` for what it rejects.
 - `plot_embedding(method="binned")` is an opt-in approximate point density
   (2-D histogram plus Gaussian filter); the legend reads `density (binned)`.
   The exact KDE is the default and warns above 20,000 cells.
@@ -358,6 +360,7 @@ Layers and plot functions for shapes plotnine does not draw. The page {doc}`shap
    ggpie
    ggring
    ggradar
+   gghex
 ```
 
 The classes are plotnine layers and one coord; add them with `+`.
@@ -371,3 +374,5 @@ The classes are plotnine layers and one coord; add them with `+`.
 | `geom_radar` | One closed, translucent polygon per series |
 | `stat_radar` | The stat behind `geom_radar`; sorts each series by axis and closes it |
 | `coord_radar` | `coord_radial` with straight edges, for radar plots only |
+| `geom_hex` | Hexagonal bins of `x` and `y`, filled by count; needs `bins` or `binwidth` |
+| `stat_binhex` | The stat behind `geom_hex`; adds `count`, `density`, `ncount`, `value` and `group` |

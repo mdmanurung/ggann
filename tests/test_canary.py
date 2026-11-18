@@ -114,6 +114,8 @@ SHAPE_LAYER_NAMES = [
     "geom_radar",
     "stat_radar",
     "coord_radar",
+    "geom_hex",
+    "stat_binhex",
 ]
 
 
@@ -160,3 +162,30 @@ def test_pie_wedge_angle_and_hole():
     assert np.ptp(vertices[:, 0]) / (2 * np.pi) == pytest.approx(0.4, abs=1e-3)
     assert len(vertices) > 50
     assert ax.get_rorigin() == pytest.approx(-1.0)
+
+
+def test_hexbin_draws_one_polygon_per_bin():
+    """Guards ggann/shapes/hexbin.py: a stat-set ``group`` at draw, one closed
+    path per group, and ``scales.x.dimension()`` equal to the data range by
+    default."""
+    from matplotlib.collections import PolyCollection
+
+    df = pd.DataFrame(
+        {
+            "x": [0.1, 0.2, 0.9, 1.1, 0.5, 0.45, 1.6, 2.0, 0.0, 0.5],
+            "y": [0.1, 0.0, 0.05, 0.0, 0.75, 0.80, 0.70, 1.5, 0.375, 0.375],
+        }
+    )
+    plot = p9.ggplot(df, p9.aes("x", "y")) + ag.geom_hex(binwidth=(1, 1))
+    ax = plot.draw().axes[0]
+    polys = [c for c in ax.collections if isinstance(c, PolyCollection)]
+    assert len(polys) == 1
+    paths = polys[0].get_paths()
+    assert len(paths) == 5
+    assert all(path.vertices.shape == (7, 2) for path in paths)
+    vertices = np.vstack([path.vertices for path in paths])
+    assert (vertices[:, 0].min(), vertices[:, 0].max()) == pytest.approx((-0.5, 2.5))
+    assert (vertices[:, 1].min(), vertices[:, 1].max()) == pytest.approx((-0.5, 2.0))
+    faces = polys[0].get_facecolor()
+    counts = plot.layer_data(0).drop_duplicates("group")["count"].tolist()
+    assert not np.allclose(faces[counts.index(3)], faces[counts.index(1)])

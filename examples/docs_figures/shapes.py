@@ -1,4 +1,4 @@
-"""Figures for docs/shapes.md: Bezier curves, pie, ring and radar.
+"""Figures for docs/shapes.md: Bezier curves, hexagonal bins, pie, ring and radar.
 
 Run: python examples/docs_figures/shapes.py
 Outputs: docs/images/shapes/*.png
@@ -20,6 +20,7 @@ from plotnine import (
     geom_point,
     geom_text,
     ggplot,
+    labs,
     scale_color_manual,
     theme_minimal,
 )
@@ -131,3 +132,16 @@ radar = ag.ggradar(
     palette={"control": "#4e79a7", "treated": "#e15759"},
 )
 radar.save(OUT / "radar.png", width=4.5, height=3.5, dpi=80, verbose=False)
+# Hexbin -----------------------------------------------------------------------
+# 6,000 points: two Gaussian clouds, 4,000 and 2,000 points, so the counts differ.
+rng = np.random.default_rng(0)
+cloud = pd.DataFrame(
+    {
+        "x": np.r_[rng.normal(0, 1, 4000), rng.normal(3.5, 0.7, 2000)],
+        "y": np.r_[rng.normal(0, 1, 4000), rng.normal(2.0, 0.7, 2000)],
+    }
+)
+HEX_BINS = 20  # hexagons across x; there is no package default
+
+plot = ag.gghex(cloud, "x", "y", bins=HEX_BINS) + labs(fill="points per hexagon")
+plot.save(OUT / "hexbin.png", width=5, height=4, dpi=80, verbose=False)
