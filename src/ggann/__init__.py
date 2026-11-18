@@ -82,7 +82,21 @@ from .qc import (
     plot_qc_violin,
     plot_variance_ratio,
 )
-from .shapes import geom_curve, geom_hex, gghex, stat_binhex, stat_curve
+from .shapes import (
+    coord_radar,
+    geom_curve,
+    geom_hex,
+    geom_pie,
+    geom_radar,
+    gghex,
+    ggpie,
+    ggradar,
+    ggring,
+    stat_binhex,
+    stat_curve,
+    stat_pie,
+    stat_radar,
+)
 from .theme import (
     reset_theme,
     scale_color_expression,
@@ -177,6 +191,14 @@ __all__ = [
     "ggsave",
     "geom_curve",
     "stat_curve",
+    "geom_pie",
+    "stat_pie",
+    "geom_radar",
+    "stat_radar",
+    "coord_radar",
+    "ggpie",
+    "ggring",
+    "ggradar",
     "geom_hex",
     "stat_binhex",
     "gghex",

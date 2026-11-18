@@ -1,4 +1,4 @@
-"""Figures for docs/shapes.md: Bezier curves and hexagonal bins.
+"""Figures for docs/shapes.md: Bezier curves, hexagonal bins, pie, ring and radar.
 
 Run: python examples/docs_figures/shapes.py
 Outputs: docs/images/shapes/*.png
@@ -10,6 +10,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import anndata as ad
 import numpy as np
 import pandas as pd
 from plotnine import (
@@ -77,6 +78,60 @@ plot = (
 )
 plot.save(OUT / "curve.png", width=5, height=3, dpi=80, verbose=False)
 
+# Pie ----------------------------------------------------------------------------
+# Four cell types with weights 4, 3, 2, 1: slices run clockwise from 12 o'clock.
+ORDER = ["T", "B", "NK", "Myeloid"]
+CELL_TYPES = pd.DataFrame({"cell_type": ["T", "B", "NK", "Myeloid"], "n": [4, 3, 2, 1]})
+pie = ag.ggpie(
+    CELL_TYPES,
+    "cell_type",
+    "n",
+    order=ORDER,
+    label="percent",
+    palette=["#4e79a7", "#f28e2b", "#59a14f", "#e15759"],
+)
+pie.save(OUT / "pie.png", width=4, height=3, dpi=80, verbose=False)
+
+# Ring ---------------------------------------------------------------------------
+# plot_proportions(kind="ring") on a table of cells: one ring per condition.
+CELLS_PER_TYPE = {
+    "control": {"T": 40, "B": 30, "NK": 20, "Myeloid": 10},
+    "treated": {"T": 20, "B": 20, "NK": 20, "Myeloid": 40},
+}
+obs = pd.DataFrame(
+    [
+        {"cell_type": cell_type, "condition": condition}
+        for condition, counts in CELLS_PER_TYPE.items()
+        for cell_type, n in counts.items()
+        for _ in range(n)
+    ]
+)
+obs["cell_type"] = pd.Categorical(obs["cell_type"], categories=ORDER)
+obs["condition"] = pd.Categorical(obs["condition"], categories=list(CELLS_PER_TYPE))
+obs.index = [f"cell_{i}" for i in range(len(obs))]
+adata = ad.AnnData(np.zeros((len(obs), 1)), obs=obs)
+adata.uns["cell_type_colors"] = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759"]
+ring = ag.plot_proportions(adata, "cell_type", "condition", kind="ring")
+ring.save(OUT / "ring.png", width=5, height=3, dpi=80, verbose=False)
+
+# Radar --------------------------------------------------------------------------
+# Five markers scored in two groups on one radius axis that starts at 0.
+SCORES = pd.DataFrame(
+    {
+        "marker": ["CD3", "CD19", "CD56", "CD14", "CD34"] * 2,
+        "score": [4, 2, 3, 1, 2, 1, 3, 2, 4, 3],
+        "group": ["control"] * 5 + ["treated"] * 5,
+    }
+)
+radar = ag.ggradar(
+    SCORES,
+    "marker",
+    "score",
+    series="group",
+    axis_order=["CD3", "CD19", "CD56", "CD14", "CD34"],
+    palette={"control": "#4e79a7", "treated": "#e15759"},
+)
+radar.save(OUT / "radar.png", width=4.5, height=3.5, dpi=80, verbose=False)
 # Hexbin -----------------------------------------------------------------------
 # 6,000 points: two Gaussian clouds, 4,000 and 2,000 points, so the counts differ.
 rng = np.random.default_rng(0)

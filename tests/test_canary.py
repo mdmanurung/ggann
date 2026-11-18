@@ -106,7 +106,17 @@ def test_gganndata_plot_draws_through_plotnine():
 
 
 # Layer class names the shapes module adds; each shapes PR appends its own.
-SHAPE_LAYER_NAMES = ["geom_curve", "stat_curve", "geom_hex", "stat_binhex"]
+SHAPE_LAYER_NAMES = [
+    "geom_curve",
+    "stat_curve",
+    "geom_pie",
+    "stat_pie",
+    "geom_radar",
+    "stat_radar",
+    "coord_radar",
+    "geom_hex",
+    "stat_binhex",
+]
 
 
 @pytest.mark.parametrize("name", SHAPE_LAYER_NAMES)
@@ -130,6 +140,28 @@ def test_geom_curve_draws_one_bent_line_per_row():
     assert [len(line.get_xdata()) for line in ax.lines] == [5, 5]
     assert min(ax.lines[0].get_ydata()) == pytest.approx(-1.0)
     assert min(ax.lines[1].get_ydata()) == pytest.approx(0.0)
+
+
+def test_radar_edges_stay_straight():
+    """Guards ggann/shapes/radar.py: ``coord_radar`` overrides ``is_linear`` and
+    ``munch`` of ``coord_radial``; if plotnine stops reading them each edge is
+    munched into a spiral of hundreds of vertices."""
+    df = pd.DataFrame({"axis": list("abcde"), "v": [4, 2, 3, 1, 2]})
+    ax = ag.ggradar(df, "axis", "v").draw().axes[0]
+    path = ax.collections[0].get_paths()[0]
+    assert len(path.vertices) <= 7
+
+
+def test_pie_wedge_angle_and_hole():
+    """Guards ggann/shapes/pie.py: ``geom_rect`` munches wedges into arcs under
+    ``coord_radial`` and the coord opens the hole from ``inner_radius``. With
+    munching off the angles still sum to 1 on 5-vertex wedges, so count vertices."""
+    df = pd.DataFrame({"k": list("abcd"), "n": [4, 3, 2, 1]})
+    ax = ag.ggpie(df, "k", "n", inner_radius=0.6).draw().axes[0]
+    vertices = ax.collections[0].get_paths()[0].vertices
+    assert np.ptp(vertices[:, 0]) / (2 * np.pi) == pytest.approx(0.4, abs=1e-3)
+    assert len(vertices) > 50
+    assert ax.get_rorigin() == pytest.approx(-1.0)
 
 
 def test_hexbin_draws_one_polygon_per_bin():

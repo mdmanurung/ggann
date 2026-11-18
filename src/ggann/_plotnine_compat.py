@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from plotnine import ggplot
+from plotnine import coord_radial, ggplot
 from plotnine._mpl.gridspec import p9GridSpec
 from plotnine.composition import Compose
 from plotnine.mapping._env import Environment
@@ -103,6 +103,8 @@ def missing_coupling() -> list[str]:
         "ggplot.layer_data": hasattr(ggplot, "layer_data"),
         "ggplot.build": hasattr(ggplot, "build"),
         "stat.compute_panel": hasattr(stat, "compute_panel"),
+        "coord_radial.munch": hasattr(coord_radial, "munch"),
+        "coord_radial.is_linear": hasattr(coord_radial, "is_linear"),
         "Environment.capture": hasattr(Environment, "capture"),
     }
     return [name for name, present in wanted.items() if not present]

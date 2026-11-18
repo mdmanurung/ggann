@@ -112,7 +112,7 @@ Clustermaps, tidy heatmaps and UpSet plots.
 :link: shapes
 :link-type: doc
 
-Layers for shapes plotnine lacks, starting with Bezier curves.
+Bezier curves, pies, rings and radar plots.
 :::
 
 :::{grid-item-card} API reference
