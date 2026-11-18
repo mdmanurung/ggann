@@ -82,6 +82,7 @@ from .qc import (
     plot_qc_violin,
     plot_variance_ratio,
 )
+from .shapes import geom_curve, stat_curve
 from .theme import (
     reset_theme,
     scale_color_expression,
@@ -174,5 +175,7 @@ __all__ = [
     "stat_central_tendency",
     "geom_signif",
     "ggsave",
+    "geom_curve",
+    "stat_curve",
     "__version__",
 ]

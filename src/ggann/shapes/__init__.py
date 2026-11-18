@@ -6,4 +6,6 @@ public names.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .curve import geom_curve, stat_curve
+
+__all__ = ["geom_curve", "stat_curve"]

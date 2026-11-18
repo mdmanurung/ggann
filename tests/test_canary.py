@@ -103,3 +103,30 @@ def test_gganndata_plot_draws_through_plotnine():
     plot = ag.gganndata(adata, mapping) + p9.geom_point()
     assert len(plot.layer_data(0)) == adata.n_obs
     _render(plot.draw(show=False))
+
+
+# Layer class names the shapes module adds; each shapes PR appends its own.
+SHAPE_LAYER_NAMES = ["geom_curve", "stat_curve"]
+
+
+@pytest.mark.parametrize("name", SHAPE_LAYER_NAMES)
+def test_plotnine_has_no_clashing_shape_names(name):
+    """Guards ggann/shapes: plotnine's registry is keyed by class name, so a
+    same-named class upstream would replace ggann's silently."""
+    assert not hasattr(p9, name)
+    assert not hasattr(pe, name)
+
+
+def test_geom_curve_draws_one_bent_line_per_row():
+    """Guards ggann/shapes/curve.py: the stat's ``group`` at draw, ``xend`` and
+    ``yend`` on a path layer, a stat class in ``DEFAULT_PARAMS``, and kwargs
+    reaching stat params."""
+    df = pd.DataFrame({"x": [0, 0], "y": [0, 0], "xend": [4, 0], "yend": [0, 2]})
+    plot = p9.ggplot(df, p9.aes("x", "y", xend="xend", yend="yend")) + ag.geom_curve(
+        curvature=0.5, n=5
+    )
+    ax = plot.draw().axes[0]
+    assert len(ax.lines) == 2
+    assert [len(line.get_xdata()) for line in ax.lines] == [5, 5]
+    assert min(ax.lines[0].get_ydata()) == pytest.approx(-1.0)
+    assert min(ax.lines[1].get_ydata()) == pytest.approx(0.0)
