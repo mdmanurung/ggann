@@ -82,7 +82,14 @@ from .qc import (
     plot_qc_violin,
     plot_variance_ratio,
 )
-from .shapes import geom_curve, stat_curve
+from .shapes import (
+    geom_curve,
+    geom_pie,
+    ggpie,
+    ggring,
+    stat_curve,
+    stat_pie,
+)
 from .theme import (
     reset_theme,
     scale_color_expression,
@@ -177,5 +184,9 @@ __all__ = [
     "ggsave",
     "geom_curve",
     "stat_curve",
+    "geom_pie",
+    "stat_pie",
+    "ggpie",
+    "ggring",
     "__version__",
 ]
