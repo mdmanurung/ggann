@@ -82,7 +82,7 @@ from .qc import (
     plot_qc_violin,
     plot_variance_ratio,
 )
-from .shapes import geom_curve, stat_curve
+from .shapes import geom_curve, geom_hex, gghex, stat_binhex, stat_curve
 from .theme import (
     reset_theme,
     scale_color_expression,
@@ -177,5 +177,8 @@ __all__ = [
     "ggsave",
     "geom_curve",
     "stat_curve",
+    "geom_hex",
+    "stat_binhex",
+    "gghex",
     "__version__",
 ]
